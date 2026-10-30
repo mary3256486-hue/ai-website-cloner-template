@@ -47,3 +47,6 @@ next-env.d.ts
 
 # Local temp files
 temp/
+
+# Graphify knowledge-graph output (regenerable, machine-specific cache)
+graphify-out/
