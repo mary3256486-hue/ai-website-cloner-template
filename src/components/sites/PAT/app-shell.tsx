@@ -6,20 +6,14 @@ import { useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BookOpen,
-  CalendarDays,
   Download,
-  Flower2,
   GitBranch,
-  HelpCircle,
   Home,
   Menu,
   Network,
   Palette,
   PenTool,
-  Sparkles,
-  UserRound,
   Users,
-  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FamilyTree } from "./types";
@@ -159,91 +153,5 @@ function BottomLink({ href, icon, label, active }: { href: string; icon: ReactNo
       {icon}
       {label}
     </Link>
-  );
-}
-
-export function HomeHeader({ onCreate, onHelp }: { onCreate: () => void; onHelp: () => void }) {
-  return (
-    <header className="pat-header no-print">
-      <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-3 pb-3 pt-3">
-        <button
-          type="button"
-          onClick={onHelp}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
-          aria-label="Trợ giúp"
-        >
-          <HelpCircle size={19} />
-        </button>
-        <button
-          type="button"
-          onClick={onCreate}
-          className="flex h-10 flex-1 items-center justify-center gap-2 rounded-full border border-[rgba(231,206,139,0.5)] bg-[#8f2018] text-sm font-semibold text-[#fff4df] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:brightness-110"
-        >
-          <span className="text-lg leading-none">+</span> Lập Gia Phả
-        </button>
-        <button
-          type="button"
-          onClick={onHelp}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
-          aria-label="Cài đặt"
-        >
-          <Sparkles size={18} />
-        </button>
-      </div>
-    </header>
-  );
-}
-
-export function HomeBottomNav({ onScope }: { onScope: (name: string) => void }) {
-  const items = [
-    { label: "Gia phả", icon: <Home size={19} />, active: true },
-    { label: "Sự kiện", icon: <CalendarDays size={19} /> },
-    { label: "Tiểu Phạm", icon: <Flower2 size={19} /> },
-    { label: "Cộng đồng", icon: <Sparkles size={19} /> },
-    { label: "Tài khoản", icon: <UserRound size={19} /> },
-  ];
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--pat-line)] bg-[#fffaf0]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur no-print">
-      <div className="mx-auto flex max-w-md items-stretch justify-between px-2">
-        {items.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            onClick={() => {
-              if (!item.active) onScope(item.label);
-            }}
-            className={cn(
-              "flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.62rem] font-semibold",
-              item.active ? "text-[var(--pat-red)]" : "text-[var(--pat-muted)]",
-            )}
-          >
-            {item.icon}
-            {item.label}
-          </button>
-        ))}
-      </div>
-    </nav>
-  );
-}
-
-export function ScopeNotice({ name, onClose }: { name: string; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(46,20,10,0.45)] p-4" onClick={onClose}>
-      <div className="pat-card w-full max-w-sm p-5" onClick={(event) => event.stopPropagation()}>
-        <div className="mb-2 flex items-center justify-between">
-          <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">{name}</p>
-          <button type="button" onClick={onClose} aria-label="Đóng" className="text-[var(--pat-muted)]">
-            <X size={18} />
-          </button>
-        </div>
-        <p className="text-sm leading-relaxed text-[var(--pat-muted)]">
-          Bản dựng này tập trung vào phần dựng gia phả và xuất bản in. Tính năng <strong>{name}</strong> nằm ngoài
-          phạm vi, không cần đăng nhập hay mua xu.
-        </p>
-        <button type="button" onClick={onClose} className="pat-btn pat-btn-red mt-4 h-9 w-full text-sm">
-          Đã hiểu
-        </button>
-      </div>
-    </div>
   );
 }

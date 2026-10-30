@@ -346,6 +346,29 @@
   font-family: var(--font-playfair), "Times New Roman", serif;
 }
 
+.pat-han {
+  font-family: "Noto Serif CJK SC", "Songti SC", "STSong", "SimSun", "Microsoft YaHei", serif;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.pat-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+
+.pat-hero-art {
+  filter: drop-shadow(0 10px 16px rgba(122, 32, 24, 0.16));
+}
+
+.pat-panel {
+  animation: pat-panel-in 0.22s ease-out;
+}
+@keyframes pat-panel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .pat-ripple {
   position: relative;
   overflow: hidden;

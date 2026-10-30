@@ -15,6 +15,12 @@ import { uid } from "./utils";
 import { createDemoTree } from "./seed";
 
 const STORAGE_KEY = "phatue.familyTrees.v1";
+const TRASH_KEY = "phatue.familyTrees.trash.v1";
+
+export interface ArchivedTree {
+  tree: FamilyTree;
+  deletedAt: string;
+}
 
 interface CreateTreeInput {
   name: string;
@@ -34,11 +40,14 @@ interface MemberInput extends Partial<Person> {
 
 interface StoreValue {
   trees: FamilyTree[];
+  archived: ArchivedTree[];
   hydrated: boolean;
   getTree: (id: string) => FamilyTree | undefined;
   createTree: (input: CreateTreeInput) => string;
   updateTree: (id: string, patch: Partial<FamilyTree>) => void;
-  deleteTree: (id: string) => void;
+  archiveTree: (id: string) => boolean;
+  restoreTree: (id: string) => boolean;
+  purgeTree: (id: string) => void;
   addMember: (treeId: string, input: MemberInput) => string;
   updateMember: (treeId: string, memberId: string, patch: Partial<Person>) => void;
   deleteMember: (treeId: string, memberId: string) => void;
@@ -79,16 +88,46 @@ function persist(trees: FamilyTree[]) {
   }
 }
 
+function loadArchived(): ArchivedTree[] {
+  try {
+    const raw = localStorage.getItem(TRASH_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (item): item is ArchivedTree => Boolean(item?.tree?.id && item?.deletedAt),
+        );
+      }
+    }
+  } catch {
+    // ignore corrupt storage
+  }
+  return [];
+}
+
+function persistArchived(items: ArchivedTree[]): boolean {
+  try {
+    localStorage.setItem(TRASH_KEY, JSON.stringify(items));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function GenealogyProvider({ children }: { children: ReactNode }) {
   const [trees, setTrees] = useState<FamilyTree[]>([]);
+  const [archived, setArchived] = useState<ArchivedTree[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const loaded = loadTrees();
+    const loadedArchived = loadArchived();
     // Persisted trees only exist in the browser, so hydration happens after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTrees(loaded);
+    setArchived(loadedArchived);
     persist(loaded);
+    persistArchived(loadedArchived);
     setHydrated(true);
   }, []);
 
@@ -153,12 +192,45 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     [updateTreeIn],
   );
 
-  const deleteTree = useCallback(
+  const archiveTree = useCallback(
     (id: string) => {
+      const target = trees.find((tree) => tree.id === id);
+      if (!target || target.sample) return false;
+      const nextArchived: ArchivedTree[] = [
+        { tree: target, deletedAt: nowIso() },
+        ...archived.filter((item) => item.tree.id !== id),
+      ];
+      if (!persistArchived(nextArchived)) return false;
+      setArchived(nextArchived);
       commit((prev) => prev.filter((tree) => tree.id !== id));
+      return true;
     },
-    [commit],
+    [archived, commit, trees],
   );
+
+  const restoreTree = useCallback(
+    (id: string) => {
+      const entry = archived.find((item) => item.tree.id === id);
+      if (!entry) return false;
+      const restored = trees.some((tree) => tree.id === id)
+        ? { ...entry.tree, id: uid("g") }
+        : entry.tree;
+      commit((prev) => [...prev, { ...restored, updatedAt: nowIso() }]);
+      const nextArchived = archived.filter((item) => item.tree.id !== id);
+      persistArchived(nextArchived);
+      setArchived(nextArchived);
+      return true;
+    },
+    [archived, commit, trees],
+  );
+
+  const purgeTree = useCallback((id: string) => {
+    setArchived((prev) => {
+      const next = prev.filter((item) => item.tree.id !== id);
+      persistArchived(next);
+      return next;
+    });
+  }, []);
 
   const addMember = useCallback(
     (treeId: string, input: MemberInput) => {
@@ -354,11 +426,14 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   const value = useMemo<StoreValue>(
     () => ({
       trees,
+      archived,
       hydrated,
       getTree,
       createTree,
       updateTree,
-      deleteTree,
+      archiveTree,
+      restoreTree,
+      purgeTree,
       addMember,
       updateMember,
       deleteMember,
@@ -373,11 +448,14 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     }),
     [
       trees,
+      archived,
       hydrated,
       getTree,
       createTree,
       updateTree,
-      deleteTree,
+      archiveTree,
+      restoreTree,
+      purgeTree,
       addMember,
       updateMember,
       deleteMember,

@@ -1,31 +1,47 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
+  Archive,
+  BookOpen,
   CalendarDays,
   ChevronRight,
+  FileDown,
   FileSpreadsheet,
-  FileUp,
   GitBranch,
+  HelpCircle,
   History,
   Info,
   MapPin,
   MoreHorizontal,
   PenLine,
+  PenTool,
   Plus,
+  RotateCcw,
+  Sparkles,
   Trash2,
   Users,
 } from "lucide-react";
-import { useGenealogy } from "./store";
+import { cn } from "@/lib/utils";
+import { useGenealogy, type ArchivedTree } from "./store";
 import type { FamilyTree, Person } from "./types";
 import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
 import { getStats } from "./utils";
+import { createDemoTree } from "./seed";
 import { downloadExcelTemplate, importSpreadsheet, type ImportResult } from "./import";
 import { readBackup } from "./export";
-import { HomeBottomNav, HomeHeader, ScopeNotice } from "./app-shell";
-import { Badge, Field, Sheet, SheetRow } from "./ui";
+import { Field, Sheet, SheetRow } from "./ui";
+
+type HomeTab = "mau" | "tao" | "luu";
+
+const TABS: { key: HomeTab; label: string; icon: typeof Sparkles }[] = [
+  { key: "mau", label: "Gia phả mẫu", icon: BookOpen },
+  { key: "tao", label: "Tạo gia phả", icon: PenLine },
+  { key: "luu", label: "Lưu trữ", icon: Archive },
+];
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -52,13 +68,29 @@ const EMPTY_CREATE_FORM = {
 };
 
 export function HomeView() {
-  const { trees, hydrated, createTree, deleteTree, importTree } = useGenealogy();
+  const {
+    trees,
+    archived,
+    hydrated,
+    createTree,
+    updateTree,
+    archiveTree,
+    restoreTree,
+    purgeTree,
+    importTree,
+  } = useGenealogy();
   const router = useRouter();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [modeOpen, setModeOpen] = useState(false);
+
+  const [tab, setTab] = useState<HomeTab>("mau");
   const [helpOpen, setHelpOpen] = useState(false);
-  const [scope, setScope] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [manageTree, setManageTree] = useState<FamilyTree | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FamilyTree | null>(null);
+  const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
+  const [deleteInput, setDeleteInput] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [purgeTarget, setPurgeTarget] = useState<ArchivedTree | null>(null);
+  const [toast, setToast] = useState<{ message: string; treeId?: string } | null>(null);
   const [form, setForm] = useState(EMPTY_CREATE_FORM);
   const [error, setError] = useState("");
   const [importError, setImportError] = useState("");
@@ -66,10 +98,92 @@ export function HomeView() {
   const spreadsheetRef = useRef<HTMLInputElement>(null);
   const backupRef = useRef<HTMLInputElement>(null);
 
-  const visible = useMemo(() => {
-    const hasOwn = trees.some((tree) => !tree.sample);
-    return hasOwn ? trees.filter((tree) => !tree.sample) : trees;
-  }, [trees]);
+  const sample = useMemo(() => trees.find((tree) => tree.sample), [trees]);
+  const ownTrees = useMemo(
+    () => trees.filter((tree) => !tree.sample).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [trees],
+  );
+
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (hash === "tao" || hash === "luu") {
+      // The hash is only known in the browser, so the tab is restored after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab(hash);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 7000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const selectTab = (next: HomeTab) => {
+    setTab(next);
+    const base = window.location.pathname + window.location.search;
+    window.history.replaceState(null, "", next === "mau" ? base : `${base}#${next}`);
+  };
+
+  const openTree = (id: string, section = "trang-chu") => router.push(`/gia-pha/${id}/${section}`);
+
+  const closeDelete = () => {
+    setDeleteStep(0);
+    setDeleteTarget(null);
+    setDeleteInput("");
+    setDeleteError("");
+  };
+
+  const startDelete = (tree: FamilyTree) => {
+    setManageTree(null);
+    setDeleteTarget(tree);
+    setDeleteInput("");
+    setDeleteError("");
+    setDeleteStep(1);
+  };
+
+  const nameMatches =
+    Boolean(deleteTarget) &&
+    deleteInput.trim().toLocaleLowerCase("vi") ===
+      (deleteTarget?.name ?? "").trim().toLocaleLowerCase("vi");
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    if (!nameMatches) {
+      setDeleteError("Tên nhập vào chưa khớp. Hãy nhập đúng tên gia phả để xác nhận.");
+      return;
+    }
+    const target = deleteTarget;
+    if (!archiveTree(target.id)) {
+      setDeleteError("Bộ nhớ thiết bị đã đầy nên chưa lưu được bản khôi phục. Hãy dọn bớt ảnh rồi thử lại.");
+      return;
+    }
+    setToast({ message: `Đã chuyển “${target.name}” vào mục Đã xóa.`, treeId: target.id });
+    closeDelete();
+    selectTab("luu");
+  };
+
+  const confirmPurge = () => {
+    if (!purgeTarget) return;
+    const purgedId = purgeTarget.tree.id;
+    purgeTree(purgedId);
+    setPurgeTarget(null);
+    if (toast?.treeId === purgedId) setToast(null);
+  };
+
+  const restoreArchived = (id: string) => {
+    if (restoreTree(id)) {
+      setToast({ message: "Đã khôi phục gia phả vào Lưu trữ." });
+    } else {
+      setToast({ message: "Không tìm thấy bản đã xóa để khôi phục." });
+    }
+  };
+
+  const restoreSample = () => {
+    const id = importTree(createDemoTree(), { suffix: false });
+    updateTree(id, { sample: true });
+    selectTab("mau");
+  };
 
   const submit = () => {
     if (!form.name.trim() || !form.founderName.trim()) {
@@ -106,11 +220,6 @@ export function HomeView() {
     router.push(`/gia-pha/${id}/trang-chu`);
   };
 
-  const openCreate = () => {
-    setImportError("");
-    setModeOpen(true);
-  };
-
   const onSpreadsheetPicked = async (file: File | undefined) => {
     if (!file) return;
     setImportError("");
@@ -141,120 +250,185 @@ export function HomeView() {
   };
 
   return (
-    <div className="pat-shell min-h-dvh pb-24">
-      <HomeHeader onCreate={openCreate} onHelp={() => setHelpOpen(true)} />
-
-      <main className="mx-auto w-full max-w-3xl px-3 pt-4">
-        <div className="mb-3 flex items-center justify-between px-1">
-          <h1 className="pat-serif text-xl font-semibold text-[var(--pat-red)]">Gia phả của tôi</h1>
-          <span className="text-xs text-[var(--pat-muted)]">{visible.length} gia phả</span>
-        </div>
-
-        {!hydrated ? (
-          <div className="pat-card px-5 py-10 text-center text-sm text-[var(--pat-muted)]">Đang tải gia phả…</div>
-        ) : visible.length === 0 ? (
-          <div className="pat-card px-6 py-10 text-center">
-            <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">Chưa có cây gia phả nào</p>
-            <p className="mx-auto mt-1 max-w-sm text-sm text-[var(--pat-muted)]">
-              Nhấn nút <strong>+ Lập Gia Phả</strong> để bắt đầu ghi chép cội nguồn dòng họ. Không cần đăng nhập.
+    <div className="pat-shell min-h-dvh pb-10">
+      <header className="no-print sticky top-0 z-30 border-b border-[var(--pat-line)]/70 bg-[var(--pat-cream)]/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-3">
+          <span
+            aria-hidden
+            className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#e3cd92] bg-[var(--pat-red)] shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+          >
+            <Image
+              src="/sites/PAT/images/han-pham.png"
+              alt=""
+              width={585}
+              height={728}
+              priority
+              className="h-full w-auto max-w-none object-contain"
+            />
+          </span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="pat-serif text-base font-semibold text-[var(--pat-red)]">Tiểu Phạm</p>
+            <p className="text-[0.6rem] font-semibold uppercase tracking-[0.22em] text-[var(--pat-muted)]">
+              Gia phả Việt
             </p>
-            <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={openCreate}>
-              <Plus size={16} /> Tạo gia phả đầu tiên
-            </button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {visible.map((tree) => {
-              const stats = getStats(tree);
-              return (
-                <article key={tree.id} className="pat-card relative overflow-hidden">
-                  <Link
-                    href={`/gia-pha/${tree.id}/trang-chu`}
-                    className="block px-4 pt-4 text-left"
-                  >
-                    <div className="min-w-0 pr-10">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="pat-serif truncate text-lg font-semibold text-[var(--pat-red)]">{tree.name}</h2>
-                        {tree.sample ? <Badge tone="gold">GIA PHẢ MẪU</Badge> : null}
-                      </div>
-                      <p className="mt-0.5 line-clamp-1 text-xs text-[var(--pat-muted)]">
-                        {tree.address ?? "Chưa cập nhật địa chỉ"}
-                      </p>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-3 divide-x divide-[var(--pat-line)] rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 py-2 text-center">
-                      <div className="text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
-                        <div className="text-sm font-bold text-[var(--pat-ink)]">{stats.generations} Đời</div>
-                      </div>
-                      <div className="text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
-                        <div className="text-sm font-bold text-[var(--pat-ink)]">{stats.total} Thành viên</div>
-                      </div>
-                      <div className="flex items-center justify-center gap-1 text-[0.68rem] text-[var(--pat-muted)]">
-                        <CalendarDays size={12} />
-                        {formatDate(tree.updatedAt)}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex items-center gap-2 border-t border-dashed border-[var(--pat-line)] py-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f3e6cd] text-[var(--pat-red)]">
-                        <Users size={15} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--pat-muted)]">Người tạo</p>
-                        <p className="truncate text-sm font-semibold">{tree.ownerName ?? "Chủ gia phả"}</p>
-                      </div>
-                      <ChevronRight size={16} className="text-[var(--pat-muted)]" />
-                    </div>
-                  </Link>
-
-                  <button
-                    type="button"
-                    onClick={() => setManageTree(tree)}
-                    className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-[#fffaf0] text-[var(--pat-muted)]"
-                    aria-label="Thao tác gia phả"
-                  >
-                    <MoreHorizontal size={16} />
-                  </button>
-
-                  <div className="grid grid-cols-2 gap-2 px-4 pb-4">
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-thanh-vien`)}
-                      className="pat-btn pat-btn-red h-14 flex-col gap-0.5 rounded-lg text-[0.7rem]"
-                    >
-                      <span>Danh sách thành viên</span>
-                      <span className="flex items-center gap-1 text-sm font-bold">
-                        <Users size={15} /> Phả Hệ
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-nhanh`)}
-                      className="pat-btn pat-btn-red h-14 flex-col gap-0.5 rounded-lg text-[0.7rem]"
-                    >
-                      <span>Danh sách chi, cành</span>
-                      <span className="flex items-center gap-1 text-sm font-bold">
-                        <GitBranch size={15} /> Nhánh
-                      </span>
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="mt-5 flex items-start gap-2 rounded-xl border border-[var(--pat-gold)]/40 bg-[#f9edcf] px-3 py-2.5 text-xs text-[#7a5a10]">
-          <Info size={15} className="mt-0.5 shrink-0" />
-          <p>
-            Gia phả mẫu tự ẩn khi bạn tạo thành công gia phả đầu tiên. Dữ liệu lưu ngay trên thiết bị này, không cần
-            đăng nhập.
-          </p>
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--pat-line)] bg-white/70 text-[var(--pat-red)]"
+            aria-label="Hướng dẫn sử dụng"
+          >
+            <HelpCircle size={18} />
+          </button>
         </div>
-      </main>
+      </header>
 
-      <HomeBottomNav onScope={setScope} />
-      {scope ? <ScopeNotice name={scope} onClose={() => setScope(null)} /> : null}
+      <section className="relative overflow-hidden">
+        <span
+          aria-hidden
+          className="pat-han pat-vertical absolute left-4 top-10 hidden text-lg tracking-[0.32em] text-[#b7791f]/30 sm:block"
+        >
+          祖德流芳
+        </span>
+        <span
+          aria-hidden
+          className="pat-han pat-vertical absolute right-4 top-10 hidden text-lg tracking-[0.32em] text-[#b7791f]/30 sm:block"
+        >
+          宗功永續
+        </span>
+        <div className="relative mx-auto w-full max-w-3xl px-4 pb-3 pt-6 text-center">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-3 top-6 flex items-center justify-center"
+          >
+            <Image
+              src="/sites/PAT/images/han-pham.png"
+              alt=""
+              width={585}
+              height={728}
+              className="h-full w-auto max-w-none object-contain opacity-20 blur-[2.5px]"
+            />
+          </div>
+          <div className="relative">
+            <div className="relative mx-auto h-[6.75rem] w-[12rem] sm:h-[7.75rem] sm:w-[13.75rem]">
+              <span
+                aria-hidden
+                className="absolute inset-x-4 inset-y-3 rounded-full bg-[radial-gradient(ellipse,rgba(201,162,39,0.22),transparent_70%)]"
+              />
+              <Image
+                src="/sites/PAT/images/han-gia-pha.png"
+                alt=""
+                width={1200}
+                height={676}
+                priority
+                className="pat-hero-art relative h-full w-full object-contain"
+              />
+            </div>
+            <h1 className="pat-serif mt-2 text-[2.3rem] font-bold leading-none tracking-[0.16em] text-[var(--pat-red)] sm:text-[2.6rem]">
+              GIA PHẢ
+            </h1>
+            <div className="pat-ornament mx-auto mt-3 w-28" />
+            <p className="mt-2 text-xs font-medium tracking-[0.04em] text-[var(--pat-muted)]">
+              Ghi chép cội nguồn · Nối dài thế hệ
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <main className="mx-auto w-full max-w-3xl px-3 pt-7">
+        <div role="tablist" aria-label="Trang chủ gia phả" className="pat-card grid grid-cols-3 gap-1 p-1.5">
+          {TABS.map((item) => {
+            const active = tab === item.key;
+            const Icon = item.icon;
+            const caption =
+              item.key === "mau"
+                ? "Bản dựng sẵn"
+                : item.key === "tao"
+                  ? "Bắt đầu dòng họ"
+                  : ownTrees.length
+                    ? `${ownTrees.length} gia phả`
+                    : "Chưa có";
+            return (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => selectTab(item.key)}
+                className={cn(
+                  "relative flex flex-col items-center gap-0.5 rounded-xl px-1.5 py-2.5 transition",
+                  active
+                    ? "text-[#fff4df] shadow-[0_10px_20px_-14px_rgba(90,15,10,0.85)]"
+                    : "text-[var(--pat-muted)] hover:bg-white/70",
+                )}
+                style={
+                  active
+                    ? { backgroundImage: "linear-gradient(135deg, #9c251c, #7d1712 62%, #6a100c)" }
+                    : undefined
+                }
+              >
+                <Icon size={18} className={active ? "text-[#f2d27c]" : "text-[var(--pat-gold)]"} />
+                <span className={cn("text-[0.76rem] font-semibold leading-tight", active && "pat-serif")}>
+                  {item.label}
+                </span>
+                <span
+                  className={cn(
+                    "text-[0.56rem] leading-tight",
+                    active ? "text-[#f0d9bd]/90" : "text-[var(--pat-muted)]/80",
+                  )}
+                >
+                  {caption}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div key={tab} className="pat-panel mt-3">
+          {tab === "mau" ? (
+            <SampleTab
+              sample={sample}
+              ready={hydrated}
+              onOpen={(section) => (sample ? openTree(sample.id, section) : undefined)}
+              onRestoreSample={restoreSample}
+            />
+          ) : null}
+
+          {tab === "tao" ? (
+            <CreateTab
+              importError={importError}
+              onCreate={() => {
+                setError("");
+                setCreateOpen(true);
+              }}
+              onSpreadsheet={() => spreadsheetRef.current?.click()}
+              onTemplate={() => downloadExcelTemplate()}
+              onBackup={() => backupRef.current?.click()}
+            />
+          ) : null}
+
+          {tab === "luu" ? (
+            <ArchiveTab
+              trees={ownTrees}
+              archived={archived}
+              ready={hydrated}
+              onNew={() => selectTab("tao")}
+              onOpen={(id, section) => openTree(id, section)}
+              onMore={setManageTree}
+              onDelete={startDelete}
+              onRestore={restoreArchived}
+              onPurge={setPurgeTarget}
+            />
+          ) : null}
+        </div>
+
+        <footer className="mt-8 text-center">
+          <div className="pat-ornament mx-auto w-24" />
+          <p className="pat-han mt-2 text-[0.68rem] tracking-[0.28em] text-[#b7791f]/45">
+            祖德流芳 · 宗功永續
+          </p>
+        </footer>
+      </main>
 
       <input
         ref={spreadsheetRef}
@@ -276,44 +450,6 @@ export function HomeView() {
           event.target.value = "";
         }}
       />
-
-      <Sheet
-        open={modeOpen}
-        onClose={() => setModeOpen(false)}
-        title="Tạo gia phả mới"
-        subtitle="Chọn cách bạn muốn khởi tạo cây gia phả"
-      >
-        <div className="space-y-1">
-          <SheetRow
-            icon={<PenLine size={18} />}
-            title="Tạo thủ công"
-            subtitle="Nhập tên gia phả, người tạo… rồi tự thêm từng thành viên."
-            onClick={() => {
-              setModeOpen(false);
-              setCreateOpen(true);
-            }}
-          />
-          <SheetRow
-            icon={<FileSpreadsheet size={18} />}
-            title="Tải file Excel mẫu"
-            subtitle="Dùng đúng cột chuẩn, điền dữ liệu rồi nhập lại — dựng cây chính xác 100%."
-            onClick={() => downloadExcelTemplate()}
-          />
-          <SheetRow
-            icon={<FileUp size={18} />}
-            title="Nhập file Excel đã điền"
-            subtitle="Chấp nhận .xlsx, .xls, .csv theo cột của file mẫu."
-            onClick={() => spreadsheetRef.current?.click()}
-          />
-          <SheetRow
-            icon={<History size={18} />}
-            title="Khôi phục từ tệp sao lưu"
-            subtitle="Nhập lại cây gia phả từ tệp backup .json đã xuất ra trước đó."
-            onClick={() => backupRef.current?.click()}
-          />
-          {importError ? <p className="pt-2 text-xs font-semibold text-[#a3271d]">{importError}</p> : null}
-        </div>
-      </Sheet>
 
       <Sheet
         open={Boolean(pendingImport)}
@@ -540,13 +676,166 @@ export function HomeView() {
         </div>
       </Sheet>
 
-      <Sheet open={helpOpen} onClose={() => setHelpOpen(false)} title="Bắt đầu với gia phả" subtitle="Bốn bước để dựng cây">
+      <Sheet open={helpOpen} onClose={() => setHelpOpen(false)} title="Bắt đầu với gia phả" subtitle="Ba khu vực trên trang chủ">
         <div className="space-y-2">
-          <SheetRow icon={<Plus size={18} />} title="1. Lập gia phả" subtitle="Đặt tên dòng họ và ghi danh thủy tổ" onClick={() => { setHelpOpen(false); setCreateOpen(true); }} />
-          <SheetRow icon={<Users size={18} />} title="2. Thêm thành viên" subtitle="Ghi cha mẹ, vợ/chồng, con cái, tiểu sử" />
-          <SheetRow icon={<GitBranch size={18} />} title="3. Tách nhánh" subtitle="Chia chi, cành và chọn trưởng nhánh" />
-          <SheetRow icon={<MapPin size={18} />} title="4. Xuất bản in" subtitle="Thiết kế phả đồ, tải PDF/PNG hoặc in trực tiếp" />
+          <SheetRow
+            icon={<BookOpen size={18} />}
+            title="Gia phả mẫu"
+            subtitle="Xem bản dựng sẵn 6 đời để học cách trình bày"
+            onClick={() => {
+              setHelpOpen(false);
+              selectTab("mau");
+            }}
+          />
+          <SheetRow
+            icon={<PenLine size={18} />}
+            title="Tạo gia phả"
+            subtitle="Nhập tay, nạp Excel/CSV hoặc khôi phục tệp sao lưu"
+            onClick={() => {
+              setHelpOpen(false);
+              selectTab("tao");
+            }}
+          />
+          <SheetRow
+            icon={<Archive size={18} />}
+            title="Lưu trữ gia phả"
+            subtitle="Mở, xóa 2 bước và khôi phục gia phả đã xóa"
+            onClick={() => {
+              setHelpOpen(false);
+              selectTab("luu");
+            }}
+          />
+          <SheetRow
+            icon={<Info size={18} />}
+            title="Dữ liệu trên thiết bị"
+            subtitle="Không cần đăng nhập; xóa nhầm vẫn khôi phục được"
+          />
         </div>
+      </Sheet>
+
+      <Sheet
+        open={Boolean(deleteTarget) && deleteStep === 1}
+        onClose={closeDelete}
+        title="Xóa gia phả?"
+        subtitle={deleteTarget?.name ?? ""}
+        footer={
+          <div className="flex gap-2">
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={closeDelete}>
+              Giữ lại
+            </button>
+            <button
+              type="button"
+              className="pat-btn pat-btn-red h-11 flex-1 text-sm"
+              onClick={() => setDeleteStep(2)}
+            >
+              Tiếp tục xóa
+            </button>
+          </div>
+        }
+      >
+        {deleteTarget ? (
+          <div className="space-y-3">
+            <div className="flex gap-3 rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f9e3df] text-[#a3271d]">
+                <AlertTriangle size={18} />
+              </span>
+              <div className="min-w-0 text-sm">
+                <p className="truncate font-semibold">{deleteTarget.name}</p>
+                <p className="text-xs text-[var(--pat-muted)]">
+                  {deleteTarget.members.length} thành viên · {deleteTarget.branches.length} nhánh · cập nhật{" "}
+                  {formatDate(deleteTarget.updatedAt) || "chưa rõ"}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
+              Gia phả sẽ được chuyển vào mục <strong>Đã xóa</strong> trong Lưu trữ. Thành viên, nhánh, phả đồ và phả ký
+              được giữ nguyên để khôi phục khi cần.
+            </p>
+            <div className="rounded-xl border border-[var(--pat-gold)]/50 bg-[#f9edcf]/70 px-3 py-2 text-xs text-[#7a5a10]">
+              Bước 1/2 — chưa có dữ liệu nào bị xóa ở bước này.
+            </div>
+          </div>
+        ) : null}
+      </Sheet>
+
+      <Sheet
+        open={Boolean(deleteTarget) && deleteStep === 2}
+        onClose={closeDelete}
+        title="Xác nhận lần cuối"
+        subtitle={deleteTarget ? `Bước 2/2 · ${deleteTarget.name}` : ""}
+        footer={
+          <div className="flex gap-2">
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={closeDelete}>
+              Giữ lại
+            </button>
+            <button
+              type="button"
+              className="pat-btn pat-btn-red h-11 flex-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!nameMatches}
+              onClick={confirmDelete}
+            >
+              Chuyển vào Đã xóa
+            </button>
+          </div>
+        }
+      >
+        {deleteTarget ? (
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
+              Để tránh xóa nhầm, hãy nhập đúng tên gia phả bên dưới:
+            </p>
+            <p className="rounded-lg border border-dashed border-[var(--pat-line)] bg-[#f3e6cd] px-3 py-2 text-sm font-semibold text-[var(--pat-red)]">
+              {deleteTarget.name}
+            </p>
+            <Field label="Tên gia phả">
+              <input
+                className="pat-input"
+                value={deleteInput}
+                onChange={(event) => {
+                  setDeleteInput(event.target.value);
+                  setDeleteError("");
+                }}
+                placeholder="Nhập tên chính xác"
+                autoFocus
+              />
+            </Field>
+            {deleteError ? <p className="text-xs font-semibold text-[#a3271d]">{deleteError}</p> : null}
+            <p className="flex items-start gap-1.5 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
+              <RotateCcw size={13} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
+              Sau khi xác nhận, gia phả nằm trong mục Đã xóa và có thể khôi phục bất cứ lúc nào.
+            </p>
+          </div>
+        ) : null}
+      </Sheet>
+
+      <Sheet
+        open={Boolean(purgeTarget)}
+        onClose={() => setPurgeTarget(null)}
+        title="Xóa vĩnh viễn?"
+        subtitle={purgeTarget?.tree.name ?? ""}
+        footer={
+          <div className="flex gap-2">
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={() => setPurgeTarget(null)}>
+              Huỷ
+            </button>
+            <button type="button" className="pat-btn pat-btn-red h-11 flex-1 text-sm" onClick={confirmPurge}>
+              Xóa vĩnh viễn
+            </button>
+          </div>
+        }
+      >
+        {purgeTarget ? (
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
+              Bản đã xóa của <strong>{purgeTarget.tree.name}</strong> sẽ bị gỡ khỏi thiết bị. Thao tác này không thể
+              khôi phục.
+            </p>
+            <p className="text-xs text-[var(--pat-muted)]">
+              {purgeTarget.tree.members.length} thành viên · đã xóa {formatDate(purgeTarget.deletedAt)}. Nếu chỉ muốn ẩn
+              tạm, hãy chọn Huỷ.
+            </p>
+          </div>
+        ) : null}
       </Sheet>
 
       <Sheet
@@ -560,27 +849,492 @@ export function HomeView() {
             <SheetRow
               icon={<ChevronRight size={18} />}
               title="Mở gia phả"
-              onClick={() => router.push(`/gia-pha/${manageTree.id}/trang-chu`)}
+              onClick={() => openTree(manageTree.id)}
             />
             <SheetRow
               icon={<Users size={18} />}
               title="Danh sách thành viên"
-              onClick={() => router.push(`/gia-pha/${manageTree.id}/danh-sach-thanh-vien`)}
+              onClick={() => openTree(manageTree.id, "danh-sach-thanh-vien")}
+            />
+            <SheetRow
+              icon={<PenTool size={18} />}
+              title="Phả đồ"
+              onClick={() => openTree(manageTree.id, "ve-pha-do")}
             />
             <SheetRow
               icon={<Trash2 size={18} />}
-              title="Xoá gia phả"
+              title="Xóa gia phả"
+              subtitle="Xác nhận 2 bước · vẫn khôi phục được"
               danger
-              onClick={() => {
-                if (window.confirm(`Xoá gia phả "${manageTree.name}"? Thao tác không thể hoàn tác.`)) {
-                  deleteTree(manageTree.id);
-                  setManageTree(null);
-                }
-              }}
+              onClick={() => startDelete(manageTree)}
             />
           </div>
         ) : null}
       </Sheet>
+
+      {toast ? (
+        <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md">
+          <div className="pat-card flex items-center gap-3 border-[#e3cd92] bg-[#fffaf0]/98 px-3.5 py-2.5 shadow-[0_18px_40px_-24px_rgba(60,20,10,0.7)]">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f6e9c8] text-[#7a5a10]">
+              <Info size={15} />
+            </span>
+            <p className="min-w-0 flex-1 text-xs font-medium leading-snug text-[var(--pat-ink)]">{toast.message}</p>
+            {toast.treeId ? (
+              <button
+                type="button"
+                className="shrink-0 text-xs font-bold text-[var(--pat-red)]"
+                onClick={() => restoreArchived(toast.treeId!)}
+              >
+                Hoàn tác
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="shrink-0 text-xs font-semibold text-[var(--pat-muted)]"
+                onClick={() => setToast(null)}
+                aria-label="Đóng thông báo"
+              >
+                Đóng
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function SampleTab({
+  sample,
+  ready,
+  onOpen,
+  onRestoreSample,
+}: {
+  sample?: FamilyTree;
+  ready: boolean;
+  onOpen: (section: string) => void;
+  onRestoreSample: () => void;
+}) {
+  if (!ready) {
+    return <div className="pat-card px-5 py-10 text-center text-sm text-[var(--pat-muted)]">Đang tải gia phả mẫu…</div>;
+  }
+
+  if (!sample) {
+    return (
+      <section className="pat-card relative overflow-hidden px-6 py-9 text-center">
+        <span
+          aria-hidden
+          className="pat-han pointer-events-none absolute -right-2 -top-6 text-[6rem] leading-none text-[var(--pat-gold)]/[0.08]"
+        >
+          譜
+        </span>
+        <div className="relative">
+          <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">Chưa có gia phả mẫu</p>
+          <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[var(--pat-muted)]">
+            Khôi phục bản mẫu 6 đời để xem cách ghi chép thành viên, nhánh họ và trình bày phả đồ.
+          </p>
+          <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={onRestoreSample}>
+            <Sparkles size={15} /> Khôi phục gia phả mẫu
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const stats = getStats(sample);
+  const highlights = [
+    { icon: Users, label: `${stats.total} thành viên`, hint: `Đủ ${stats.generations} đời, có vợ/chồng và con cái` },
+    { icon: GitBranch, label: `${sample.branches.length} chi, cành`, hint: "Nhánh họ tách rõ, có trưởng nhánh" },
+    { icon: PenTool, label: "Phả đồ in sẵn", hint: "Khung ngang/dọc, xuất PDF và PNG" },
+  ];
+
+  return (
+    <section className="pat-card overflow-hidden">
+      <div className="relative overflow-hidden bg-[linear-gradient(135deg,#9c251c_0%,#7d1712_58%,#6a100c_100%)] px-5 pb-5 pt-4 text-[#fff3dd]">
+        <span
+          aria-hidden
+          className="pat-han pointer-events-none absolute -right-3 -top-5 text-[7.5rem] leading-none text-[#e7ce8b]/[0.13]"
+        >
+          譜
+        </span>
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(231,206,139,0.5)] bg-black/15 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-[#f6e0a8]">
+              <Sparkles size={11} /> Gia phả mẫu
+            </span>
+            <span className="rounded-full border border-white/20 px-2 py-0.5 text-[0.6rem] text-[#f0d9bd]">
+              Miễn phí · không cần đăng nhập
+            </span>
+          </div>
+          <h2 className="pat-serif mt-2 text-2xl font-bold leading-tight text-[#fff7e8]">{sample.name}</h2>
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-[#f0d9bd]">
+            <MapPin size={13} /> {sample.address || "Chưa cập nhật địa chỉ"}
+          </p>
+
+          <div className="mt-4 grid grid-cols-3 divide-x divide-white/15 rounded-xl border border-[rgba(231,206,139,0.35)] bg-black/10 py-2.5 text-center">
+            {[
+              [stats.generations, "Đời"],
+              [stats.total, "Thành viên"],
+              [sample.branches.length, "Nhánh"],
+            ].map(([value, label]) => (
+              <div key={String(label)} className="px-1">
+                <p className="text-base font-bold text-[#ffe9bd]">{value}</p>
+                <p className="text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#efd7b7]/80">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-[#f0d9bd]/90">{sample.description}</p>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              className="pat-btn pat-btn-gold h-11 flex-1 text-sm"
+              onClick={() => onOpen("trang-chu")}
+            >
+              Mở gia phả mẫu <ChevronRight size={15} />
+            </button>
+            <button
+              type="button"
+              className="pat-btn h-11 flex-1 border border-[rgba(231,206,139,0.5)] bg-white/10 text-sm text-[#ffe9bd] transition hover:bg-white/15"
+              onClick={() => onOpen("ve-pha-do")}
+            >
+              <PenTool size={14} /> Xem phả đồ mẫu
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 py-4">
+        <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">Bản mẫu có gì</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {highlights.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.label}
+                className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5"
+              >
+                <Icon size={16} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[var(--pat-ink)]">{item.label}</p>
+                  <p className="mt-0.5 text-[0.64rem] leading-snug text-[var(--pat-muted)]">{item.hint}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
+          Bản mẫu chỉ để tham khảo cách trình bày — không lẫn vào gia phả của bạn. Mọi chỉnh sửa trên bản mẫu chỉ lưu
+          trên thiết bị này.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function CreateTab({
+  importError,
+  onCreate,
+  onSpreadsheet,
+  onTemplate,
+  onBackup,
+}: {
+  importError: string;
+  onCreate: () => void;
+  onSpreadsheet: () => void;
+  onTemplate: () => void;
+  onBackup: () => void;
+}) {
+  const modes = [
+    { key: "manual", icon: PenLine, title: "Nhập tay", hint: "Lập gia phả và ghi từng thành viên", onClick: onCreate },
+    {
+      key: "excel",
+      icon: FileSpreadsheet,
+      title: "Nhập Excel / CSV",
+      hint: "Chọn tệp .xlsx, .xls, .csv đã điền",
+      onClick: onSpreadsheet,
+    },
+    { key: "template", icon: FileDown, title: "File Excel mẫu", hint: "Tải cột chuẩn để điền dữ liệu", onClick: onTemplate },
+    { key: "backup", icon: History, title: "Phục hồi sao lưu", hint: "Nạp lại từ tệp .json đã xuất", onClick: onBackup },
+  ];
+
+  return (
+    <section className="pat-card relative overflow-hidden px-4 py-4">
+      <span
+        aria-hidden
+        className="pat-han pointer-events-none absolute -right-2 -top-6 text-[7rem] leading-none text-[var(--pat-gold)]/[0.08]"
+      >
+        創
+      </span>
+      <div className="relative">
+        <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">Khởi tạo</p>
+        <h2 className="pat-serif mt-1 text-xl font-semibold text-[var(--pat-red)]">Bắt đầu một dòng họ</h2>
+        <p className="mt-1 text-xs leading-relaxed text-[var(--pat-muted)]">
+          Chọn cách nhập dữ liệu phù hợp. Có thể bổ sung thành viên, nhánh và phả ký sau.
+        </p>
+
+        <div className="mt-3 grid grid-cols-2 gap-2.5">
+          {modes.map((mode) => {
+            const Icon = mode.icon;
+            return (
+              <button
+                key={mode.key}
+                type="button"
+                onClick={mode.onClick}
+                className="group flex h-full flex-col items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/80 px-3.5 py-3.5 text-left transition hover:-translate-y-0.5 hover:border-[var(--pat-gold)] hover:bg-white"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f3e6cd] text-[var(--pat-red)] transition group-hover:bg-[var(--pat-red)] group-hover:text-[#fff4df]">
+                  <Icon size={17} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-[var(--pat-ink)]">{mode.title}</span>
+                  <span className="mt-0.5 block text-[0.66rem] leading-snug text-[var(--pat-muted)]">{mode.hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {importError ? (
+          <p className="mt-3 flex items-start gap-2 rounded-xl border border-[#e6b7ad] bg-[#f9e3df] px-3 py-2 text-xs font-semibold leading-snug text-[#a3271d]">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            {importError}
+          </p>
+        ) : null}
+
+        <div className="mt-4 rounded-xl border border-[var(--pat-line)] bg-white/50 px-3.5 py-3">
+          <p className="text-[0.66rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">Ba bước dựng phả</p>
+          <ol className="mt-2 grid gap-2 sm:grid-cols-3">
+            {["Lập gia phả", "Thêm thành viên, nhánh", "In phả đồ"].map((label, index) => (
+              <li key={label} className="flex items-center gap-2 text-xs">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#e3cd92] bg-[#f6e9c8] text-[0.66rem] font-bold text-[#7a5a10]">
+                  {index + 1}
+                </span>
+                <span className="font-medium text-[var(--pat-ink)]">{label}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <p className="mt-3 flex items-start gap-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
+          <Info size={14} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
+          Gia phả lưu ngay trên thiết bị này, không cần đăng nhập hay mua xu. Nên xuất tệp sao lưu JSON định kỳ để giữ
+          dữ liệu an toàn.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function ArchiveTab({
+  trees,
+  archived,
+  ready,
+  onNew,
+  onOpen,
+  onMore,
+  onDelete,
+  onRestore,
+  onPurge,
+}: {
+  trees: FamilyTree[];
+  archived: ArchivedTree[];
+  ready: boolean;
+  onNew: () => void;
+  onOpen: (id: string, section: string) => void;
+  onMore: (tree: FamilyTree) => void;
+  onDelete: (tree: FamilyTree) => void;
+  onRestore: (id: string) => void;
+  onPurge: (entry: ArchivedTree) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-end justify-between gap-3 px-1">
+        <div>
+          <h2 className="pat-serif text-xl font-semibold text-[var(--pat-red)]">Gia phả đã tạo</h2>
+          <p className="text-[0.7rem] text-[var(--pat-muted)]">
+            {ready ? `${trees.length} gia phả · lưu trên thiết bị này` : "Đang tải…"}
+          </p>
+        </div>
+        <button type="button" className="pat-btn pat-btn-red h-9 px-3.5 text-xs" onClick={onNew}>
+          <Plus size={14} /> Tạo mới
+        </button>
+      </div>
+
+      {!ready ? (
+        <div className="pat-card px-5 py-8 text-center text-sm text-[var(--pat-muted)]">Đang tải gia phả…</div>
+      ) : trees.length === 0 ? (
+        <div className="pat-card relative overflow-hidden px-6 py-8 text-center">
+          <div className="relative">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-[#e3cd92] bg-[#f6e9c8] text-[var(--pat-red)]">
+              <Archive size={20} />
+            </span>
+            <p className="pat-serif mt-3 text-lg font-semibold text-[var(--pat-red)]">Chưa có gia phả nào trong lưu trữ</p>
+            <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[var(--pat-muted)]">
+              Lập gia phả đầu tiên để ghi lại cội nguồn dòng họ. Không cần đăng nhập.
+            </p>
+            <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={onNew}>
+              <Plus size={15} /> Tạo gia phả đầu tiên
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {trees.map((tree) => (
+            <ArchiveCard
+              key={tree.id}
+              tree={tree}
+              onOpen={onOpen}
+              onMore={onMore}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
+
+      {archived.length ? (
+        <div className="pt-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-1 px-1">
+            <h3 className="flex items-center gap-1.5 text-[0.72rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-muted)]">
+              <Trash2 size={13} /> Đã xóa · {archived.length}
+            </h3>
+            <span className="text-[0.62rem] text-[var(--pat-muted)]">Khôi phục bất cứ lúc nào</span>
+          </div>
+          <div className="space-y-2">
+            {archived.map((entry) => (
+              <article
+                key={entry.tree.id}
+                className="rounded-xl border border-dashed border-[var(--pat-line)] bg-[#f7efe0]/80 px-3 py-2.5"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eadfc9] text-[var(--pat-muted)] sm:flex">
+                    <Archive size={15} />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[var(--pat-ink)]">{entry.tree.name}</p>
+                    <p className="text-[0.65rem] text-[var(--pat-muted)]">
+                      {entry.tree.members.length} thành viên · đã xóa {formatDate(entry.deletedAt)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="pat-btn pat-btn-outline h-8 shrink-0 px-2.5 text-[0.68rem]"
+                    onClick={() => onRestore(entry.tree.id)}
+                  >
+                    <RotateCcw size={13} /> Khôi phục
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] bg-white/60 text-[#a3271d]"
+                    aria-label={`Xóa vĩnh viễn ${entry.tree.name}`}
+                    onClick={() => onPurge(entry)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <p className="flex items-start gap-2 px-1 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+        <Info size={14} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
+        Xóa gia phả cần xác nhận 2 bước. Dữ liệu được giữ trong mục Đã xóa để khôi phục khi cần.
+      </p>
+    </section>
+  );
+}
+
+function ArchiveCard({
+  tree,
+  onOpen,
+  onMore,
+  onDelete,
+}: {
+  tree: FamilyTree;
+  onOpen: (id: string, section: string) => void;
+  onMore: (tree: FamilyTree) => void;
+  onDelete: (tree: FamilyTree) => void;
+}) {
+  const stats = getStats(tree);
+  return (
+    <article className="pat-card relative flex overflow-hidden">
+      <span
+        aria-hidden
+        className="w-1.5 shrink-0"
+        style={{ backgroundImage: "linear-gradient(180deg, #b7791f, #8a1c15)" }}
+      />
+      <div className="min-w-0 flex-1 px-3.5 py-3">
+        <div className="flex items-start gap-2">
+          <button type="button" onClick={() => onOpen(tree.id, "trang-chu")} className="min-w-0 flex-1 text-left">
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span className="pat-serif truncate text-base font-bold text-[var(--pat-red)]">{tree.name}</span>
+              {tree.branches.length ? (
+                <span className="rounded-full border border-[var(--pat-line)] bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-semibold text-[#7a5a10]">
+                  {tree.branches.length} nhánh
+                </span>
+              ) : null}
+            </span>
+            <span className="mt-0.5 flex items-center gap-1 truncate text-[0.68rem] text-[var(--pat-muted)]">
+              <MapPin size={11} /> {tree.address || "Chưa cập nhật địa chỉ"}
+            </span>
+          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onMore(tree)}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-[#fffaf0] text-[var(--pat-muted)]"
+              aria-label="Thao tác gia phả"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(tree)}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-[#fffaf0] text-[#a3271d]"
+              aria-label={`Xóa ${tree.name}`}
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.66rem] text-[var(--pat-muted)]">
+          <span className="inline-flex items-center gap-1">
+            <Users size={12} /> {stats.total} người
+          </span>
+          <span>{stats.generations} đời</span>
+          <span className="inline-flex items-center gap-1">
+            <CalendarDays size={12} /> {formatDate(tree.updatedAt)}
+          </span>
+        </div>
+
+        <div className="mt-2.5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="pat-btn pat-btn-red h-8 px-3 text-[0.7rem]"
+            onClick={() => onOpen(tree.id, "trang-chu")}
+          >
+            Mở gia phả <ChevronRight size={13} />
+          </button>
+          <button
+            type="button"
+            className="pat-btn pat-btn-outline h-8 px-3 text-[0.7rem]"
+            onClick={() => onOpen(tree.id, "danh-sach-thanh-vien")}
+          >
+            <Users size={13} /> Phả hệ
+          </button>
+          <button
+            type="button"
+            className="pat-btn pat-btn-outline h-8 px-3 text-[0.7rem]"
+            onClick={() => onOpen(tree.id, "ve-pha-do")}
+          >
+            <PenTool size={13} /> Phả đồ
+          </button>
+        </div>
+      </div>
+    </article>
   );
 }
