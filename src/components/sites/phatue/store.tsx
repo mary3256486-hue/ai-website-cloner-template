@@ -24,6 +24,7 @@ interface CreateTreeInput {
   founderName: string;
   founderGender: "male" | "female";
   founderBirth?: string;
+  founderDetails?: Partial<Person>;
 }
 
 interface MemberInput extends Partial<Person> {
@@ -113,12 +114,13 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       const treeId = uid("g");
       const founderId = uid("p");
       const founder: Person = {
+        ...input.founderDetails,
         id: founderId,
         name: input.founderName.trim() || "Thủy tổ",
         gender: input.founderGender,
         birthDate: input.founderBirth?.trim() || undefined,
         alive: true,
-        title: "Thủy tổ",
+        title: input.founderDetails?.title?.trim() || "Thủy tổ",
         birthOrder: 1,
         spouseIds: [],
         photos: [],

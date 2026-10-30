@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { ImagePlus, Save, Trash2, Users } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Gender, Person } from "./types";
+import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
 import { descendants, sortPersons } from "./utils";
 import { Avatar, Field, Sheet } from "./ui";
 
@@ -38,6 +39,14 @@ export function MemberFormSheet({
     name: member?.name ?? "",
     gender: (member?.gender ?? defaults?.gender ?? "male") as Gender,
     title: member?.title ?? defaults?.title ?? "",
+    generationNote: member?.generationNote ?? "",
+    tabooName: member?.tabooName ?? "",
+    courtesyName: member?.courtesyName ?? "",
+    styleName: member?.styleName ?? "",
+    posthumousName: member?.posthumousName ?? "",
+    officeTitle: member?.officeTitle ?? "",
+    mandarinRank: member?.mandarinRank ?? "",
+    honors: member?.honors ?? "",
     birthDate: member?.birthDate ?? "",
     deathDate: member?.deathDate ?? "",
     alive: member?.alive ?? true,
@@ -52,6 +61,7 @@ export function MemberFormSheet({
     deathAnniversary: member?.deathAnniversary ?? "",
     restingPlace: member?.restingPlace ?? "",
     graveAddress: member?.graveAddress ?? "",
+    worshipPlace: member?.worshipPlace ?? "",
     phone: member?.phone ?? "",
     address: member?.address ?? "",
     education: member?.education ?? "",
@@ -101,6 +111,14 @@ export function MemberFormSheet({
       name: values.name.trim(),
       gender: values.gender,
       title: values.title,
+      generationNote: values.generationNote,
+      tabooName: values.tabooName,
+      courtesyName: values.courtesyName,
+      styleName: values.styleName,
+      posthumousName: values.posthumousName,
+      officeTitle: values.officeTitle,
+      mandarinRank: values.mandarinRank,
+      honors: values.honors,
       birthDate: values.birthDate,
       deathDate: values.deathDate,
       alive: values.alive,
@@ -115,6 +133,7 @@ export function MemberFormSheet({
       deathAnniversary: values.deathAnniversary,
       restingPlace: values.restingPlace,
       graveAddress: values.graveAddress,
+      worshipPlace: values.worshipPlace,
       phone: values.phone,
       address: values.address,
       education: values.education,
@@ -184,7 +203,7 @@ export function MemberFormSheet({
 
         <section className="space-y-3">
           <p className="phatue-form-section">Thông tin cơ bản</p>
-          <Field label="Họ và tên *">
+          <Field label="Họ và tên *" hint="Tên hiển thị trên phả đồ và sổ gia phả.">
             <input
               className="phatue-input"
               value={values.name}
@@ -192,6 +211,25 @@ export function MemberFormSheet({
               placeholder="Họ tên đầy đủ"
             />
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Danh xưng / thế thứ" hint="Vị trí của người ấy trong dòng họ qua các đời.">
+              <input
+                className="phatue-input"
+                list="member-ancestor-titles"
+                value={values.title}
+                onChange={(event) => set("title", event.target.value)}
+                placeholder="Thủy tổ, Khởi tổ, Cao tổ…"
+              />
+            </Field>
+            <Field label="Ghi chú thế thứ" hint="Đích tôn, trưởng nam, con thứ, chi trưởng…">
+              <input
+                className="phatue-input"
+                value={values.generationNote}
+                onChange={(event) => set("generationNote", event.target.value)}
+                placeholder="Đích tôn chi trưởng"
+              />
+            </Field>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Giới tính">
               <div className="flex gap-2">
@@ -213,14 +251,6 @@ export function MemberFormSheet({
                 </button>
               </div>
             </Field>
-            <Field label="Danh xưng">
-              <input
-                className="phatue-input"
-                value={values.title}
-                onChange={(event) => set("title", event.target.value)}
-                placeholder="Thủy tổ, Cụ, Ông…"
-              />
-            </Field>
             <Field label="Thứ tự sinh">
               <input
                 className="phatue-input"
@@ -230,9 +260,19 @@ export function MemberFormSheet({
                 onChange={(event) => set("birthOrder", event.target.value)}
               />
             </Field>
+            <Field label="Trạng thái">
+              <button
+                type="button"
+                className="phatue-chip w-full justify-center"
+                data-active={values.alive}
+                onClick={() => set("alive", !values.alive)}
+              >
+                {values.alive ? "Còn sống" : "Đã mất"}
+              </button>
+            </Field>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="Năm sinh / ngày sinh">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Năm sinh / ngày sinh" hint="Ghi năm âm lịch hoặc dương lịch nếu biết.">
               <input
                 className="phatue-input"
                 value={values.birthDate}
@@ -249,17 +289,49 @@ export function MemberFormSheet({
                 placeholder="12/03/1990"
               />
             </Field>
-            <Field label="Trạng thái">
-              <button
-                type="button"
-                className="phatue-chip w-full justify-center"
-                data-active={values.alive}
-                onClick={() => set("alive", !values.alive)}
-              >
-                {values.alive ? "Còn sống" : "Đã mất"}
-              </button>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <p className="phatue-form-section">Tên húy, tự, hiệu, thụy</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Tên húy" hint="Tên thật, con cháu kiêng gọi khi cúng tế.">
+              <input
+                className="phatue-input"
+                value={values.tabooName}
+                onChange={(event) => set("tabooName", event.target.value)}
+                placeholder="Tên kiêng"
+              />
+            </Field>
+            <Field label="Tên tự" hint="Tên chữ do cha mẹ hoặc thầy đặt.">
+              <input
+                className="phatue-input"
+                value={values.courtesyName}
+                onChange={(event) => set("courtesyName", event.target.value)}
+                placeholder="Tên tự"
+              />
+            </Field>
+            <Field label="Tên hiệu" hint="Biệt hiệu người ấy tự đặt khi trưởng thành.">
+              <input
+                className="phatue-input"
+                value={values.styleName}
+                onChange={(event) => set("styleName", event.target.value)}
+                placeholder="Hiệu, biệt hiệu"
+              />
+            </Field>
+            <Field label="Thụy hiệu" hint="Tên đặt sau khi mất, ghi trên thần chủ, bia mộ.">
+              <input
+                className="phatue-input"
+                value={values.posthumousName}
+                onChange={(event) => set("posthumousName", event.target.value)}
+                placeholder="Thụy hiệu"
+              />
             </Field>
           </div>
+          <p className="rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--phatue-muted)]">
+            Gia phả xưa thường chép đủ “húy – tự – hiệu – thụy” để con cháu kiêng tên và hiểu rõ lai lịch. Mục nào chưa
+            rõ có thể để trống.
+          </p>
         </section>
 
         <section className="space-y-3">
@@ -319,7 +391,7 @@ export function MemberFormSheet({
               )}
             </div>
           </Field>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Nhánh họ">
               <select className="phatue-input" value={values.branchId} onChange={(event) => set("branchId", event.target.value)}>
                 <option value="">— Chưa xếp nhánh —</option>
@@ -330,28 +402,47 @@ export function MemberFormSheet({
                 ))}
               </select>
             </Field>
-            <Field label="Hôn nhân">
+            <Field label="Hôn nhân" hint="Chánh thất, kế thất, thứ thất hoặc năm kết hôn.">
               <input
                 className="phatue-input"
                 value={values.maritalStatus}
                 onChange={(event) => set("maritalStatus", event.target.value)}
-                placeholder="Kết hôn năm…"
-              />
-            </Field>
-            <Field label="Quê quán">
-              <input
-                className="phatue-input"
-                value={values.hometown}
-                onChange={(event) => set("hometown", event.target.value)}
-                placeholder="Xã, huyện, tỉnh"
+                placeholder="Chánh thất, kết hôn năm…"
               />
             </Field>
           </div>
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Nghề nghiệp & an táng</p>
+          <p className="phatue-form-section">Thân thế & công danh</p>
           <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Chức tước" hint="Tước vị, chức quan thời trước.">
+              <input
+                className="phatue-input"
+                list="member-noble-titles"
+                value={values.officeTitle}
+                onChange={(event) => set("officeTitle", event.target.value)}
+                placeholder="Quận công, Tri huyện, Huấn đạo…"
+              />
+            </Field>
+            <Field label="Phẩm hàm" hint="Phẩm cấp được phong, từ chánh nhất đến tòng cửu phẩm.">
+              <input
+                className="phatue-input"
+                list="member-mandarin-ranks"
+                value={values.mandarinRank}
+                onChange={(event) => set("mandarinRank", event.target.value)}
+                placeholder="Chánh tam phẩm…"
+              />
+            </Field>
+            <Field label="Khoa bảng / danh hiệu" hint="Thi cử, đỗ đạt hoặc danh hiệu được ban.">
+              <input
+                className="phatue-input"
+                list="member-honors"
+                value={values.honors}
+                onChange={(event) => set("honors", event.target.value)}
+                placeholder="Tiến sĩ, Cử nhân, Tú tài…"
+              />
+            </Field>
             <Field label="Nghề nghiệp">
               <input
                 className="phatue-input"
@@ -360,12 +451,42 @@ export function MemberFormSheet({
                 placeholder="Nông nghiệp, giáo viên…"
               />
             </Field>
+            <Field label="Quê quán" hint="Nguyên quán của gia đình.">
+              <input
+                className="phatue-input"
+                value={values.hometown}
+                onChange={(event) => set("hometown", event.target.value)}
+                placeholder="Xã, huyện, tỉnh"
+              />
+            </Field>
+            <Field label="Học vấn" hint="Học vấn hiện đại, khác với khoa bảng thời trước.">
+              <input
+                className="phatue-input"
+                value={values.education}
+                onChange={(event) => set("education", event.target.value)}
+                placeholder="Cao đẳng, đại học…"
+              />
+            </Field>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <p className="phatue-form-section">Thờ tự & an táng</p>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Ngày giỗ (âm lịch)">
               <input
                 className="phatue-input"
                 value={values.deathAnniversary}
                 onChange={(event) => set("deathAnniversary", event.target.value)}
                 placeholder="12 tháng 3"
+              />
+            </Field>
+            <Field label="Nơi thờ tự" hint="Từ đường, nhà thờ họ hoặc nơi thờ riêng.">
+              <input
+                className="phatue-input"
+                value={values.worshipPlace}
+                onChange={(event) => set("worshipPlace", event.target.value)}
+                placeholder="Từ đường dòng họ"
               />
             </Field>
             <Field label="Nơi an nghỉ">
@@ -388,16 +509,13 @@ export function MemberFormSheet({
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Liên hệ & học vấn</p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <p className="phatue-form-section">Liên hệ</p>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Điện thoại">
               <input className="phatue-input" value={values.phone} onChange={(event) => set("phone", event.target.value)} />
             </Field>
             <Field label="Địa chỉ hiện tại">
               <input className="phatue-input" value={values.address} onChange={(event) => set("address", event.target.value)} />
-            </Field>
-            <Field label="Học vấn">
-              <input className="phatue-input" value={values.education} onChange={(event) => set("education", event.target.value)} />
             </Field>
           </div>
         </section>
@@ -428,6 +546,27 @@ export function MemberFormSheet({
             />
           </Field>
         </section>
+
+        <datalist id="member-ancestor-titles">
+          {ANCESTOR_TITLES.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+        <datalist id="member-noble-titles">
+          {NOBLE_TITLES.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+        <datalist id="member-mandarin-ranks">
+          {MANDARIN_RANKS.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+        <datalist id="member-honors">
+          {HONORS.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
 
         {error ? <p className="text-xs font-semibold text-[#a3271d]">{error}</p> : null}
 

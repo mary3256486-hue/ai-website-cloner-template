@@ -4,7 +4,16 @@ import { useMemo, useState, type ReactNode } from "react";
 import { BookOpen, Check, Feather, GitBranch, Printer, Sparkles, Users } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
-import { buildFamilyIndex, computeGenerations, getGenerationStats, getStats, lifeSpan, sortPersons } from "./utils";
+import {
+  buildFamilyIndex,
+  careerSummary,
+  computeGenerations,
+  getGenerationStats,
+  getStats,
+  lifeSpan,
+  nameAliases,
+  sortPersons,
+} from "./utils";
 import { TreeShell } from "./app-shell";
 import { Badge } from "./ui";
 
@@ -33,8 +42,10 @@ function draftHistory(tree: FamilyTree) {
     .join("; ");
   const origin = founder
     ? `Cụ ${founder.title || "Thủy tổ"} ${founder.name}${
-        founder.hometown ? ` quê ở ${founder.hometown}` : ""
-      }, sinh năm ${founder.birthDate || "chưa rõ"}${founder.alive ? "" : `, mất năm ${founder.deathDate || "chưa rõ"}`}.`
+        nameAliases(founder) ? ` (${nameAliases(founder)})` : ""
+      }${founder.hometown ? ` quê ở ${founder.hometown}` : ""}, sinh năm ${founder.birthDate || "chưa rõ"}${
+        founder.alive ? "" : `, mất năm ${founder.deathDate || "chưa rõ"}`
+      }${founder.officeTitle ? `, từng giữ chức ${founder.officeTitle}` : ""}.`
     : "Cội nguồn dòng họ được con cháu ghi chép lại qua các đời.";
   const firstParagraph = `Dòng họ ${tree.name}${tree.address ? ` hiện cư trú tại ${tree.address}` : ""}. ${origin} Từ thuở khai cơ lập nghiệp, tổ tiên đã dựng nhà, mở đất, truyền lại nếp sống cần kiệm, hiếu học và trọng tình nghĩa để con cháu đời sau noi theo.`;
   const secondParagraph = `Trải qua ${stats.generations} đời, dòng họ hiện có ${stats.total} thành viên, trong đó ${stats.male} nam và ${stats.female} nữ${
@@ -75,6 +86,9 @@ function MemberLine({ person, generation }: { person: Person; generation: number
       <span className="min-w-0">
         <span className="font-semibold text-[var(--phatue-ink)]">{person.name}</span>
         {person.title ? <span className="ml-1.5 text-[0.68rem] text-[#8a6a52]">({person.title})</span> : null}
+        {nameAliases(person) ? (
+          <span className="ml-1.5 text-[0.64rem] italic text-[#8a6a52]">{nameAliases(person)}</span>
+        ) : null}
       </span>
       <span className="shrink-0 text-[0.7rem] text-[var(--phatue-muted)]">
         Đời {generation} · {lifeSpan(person)}
@@ -326,11 +340,19 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                   {founder.title ? <Badge tone="gold">{founder.title}</Badge> : null}
                   <Badge tone="muted">Đời 1</Badge>
                 </div>
+                {nameAliases(founder) ? (
+                  <p className="mt-1 text-xs italic text-[#7a5a10]">{nameAliases(founder)}</p>
+                ) : null}
                 <p className="mt-1 text-xs text-[var(--phatue-muted)]">
                   {lifeSpan(founder)}
                   {founder.hometown ? ` · ${founder.hometown}` : ""}
                   {founder.occupation ? ` · ${founder.occupation}` : ""}
                 </p>
+                {careerSummary(founder) ? (
+                  <p className="mt-1 text-xs text-[var(--phatue-muted)]">
+                    Công danh: {careerSummary(founder)}
+                  </p>
+                ) : null}
                 {founderSpouses.length ? (
                   <p className="mt-1 text-xs text-[var(--phatue-muted)]">
                     Phối ngẫu: {founderSpouses.map((person) => person.name).join(", ")}

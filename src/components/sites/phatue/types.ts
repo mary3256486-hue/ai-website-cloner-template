@@ -16,6 +16,14 @@ export interface Person {
   deathDate?: string;
   alive: boolean;
   title?: string;
+  generationNote?: string;
+  tabooName?: string;
+  courtesyName?: string;
+  styleName?: string;
+  posthumousName?: string;
+  officeTitle?: string;
+  mandarinRank?: string;
+  honors?: string;
   birthOrder: number;
   fatherId?: string;
   motherId?: string;
@@ -28,6 +36,7 @@ export interface Person {
   deathAnniversary?: string;
   restingPlace?: string;
   graveAddress?: string;
+  worshipPlace?: string;
   phone?: string;
   address?: string;
   education?: string;
@@ -126,6 +135,79 @@ export const SPOUSE_GAP = 12;
 export const UNIT_GAP = 26;
 export const ROW_GAP = 58;
 export const PADDING = 48;
+
+export const ANCESTOR_TITLES = [
+  "Thủy tổ",
+  "Khởi tổ",
+  "Viễn tổ",
+  "Triệu tổ",
+  "Thái tổ",
+  "Cao tổ",
+  "Tằng tổ",
+  "Tổ phụ",
+  "Tổ mẫu",
+  "Hiển khảo",
+  "Hiển tỷ",
+  "Cụ tổ",
+  "Ông tổ",
+  "Bà tổ",
+];
+
+export const NOBLE_TITLES = [
+  "Quận công",
+  "Công",
+  "Hầu",
+  "Bá",
+  "Tử",
+  "Nam",
+  "Thượng thư",
+  "Tổng đốc",
+  "Tuần phủ",
+  "Tri phủ",
+  "Tri huyện",
+  "Huấn đạo",
+  "Giáo thụ",
+  "Chánh tổng",
+  "Lý trưởng",
+  "Hương trưởng",
+  "Bang tá",
+  "Phó lý",
+];
+
+export const MANDARIN_RANKS = [
+  "Chánh nhất phẩm",
+  "Tòng nhất phẩm",
+  "Chánh nhị phẩm",
+  "Tòng nhị phẩm",
+  "Chánh tam phẩm",
+  "Tòng tam phẩm",
+  "Chánh tứ phẩm",
+  "Tòng tứ phẩm",
+  "Chánh ngũ phẩm",
+  "Tòng ngũ phẩm",
+  "Chánh lục phẩm",
+  "Tòng lục phẩm",
+  "Chánh thất phẩm",
+  "Tòng thất phẩm",
+  "Chánh bát phẩm",
+  "Tòng bát phẩm",
+  "Chánh cửu phẩm",
+  "Tòng cửu phẩm",
+];
+
+export const HONORS = [
+  "Trạng nguyên",
+  "Bảng nhãn",
+  "Thám hoa",
+  "Hoàng giáp",
+  "Tiến sĩ",
+  "Phó bảng",
+  "Cử nhân",
+  "Hương cống",
+  "Tú tài",
+  "Sinh đồ",
+  "Nho sinh",
+];
 
 export const PAPER_MM: Record<PaperSize, [number, number]> = {
   A4: [210, 297],

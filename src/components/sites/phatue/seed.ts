@@ -13,6 +13,14 @@ interface SeedPerson {
   spouses?: string[];
   order: number;
   title?: string;
+  generationNote?: string;
+  tabooName?: string;
+  courtesyName?: string;
+  styleName?: string;
+  posthumousName?: string;
+  officeTitle?: string;
+  mandarinRank?: string;
+  honors?: string;
   hometown?: string;
   occupation?: string;
   maritalStatus?: string;
@@ -20,6 +28,7 @@ interface SeedPerson {
   deathAnniversary?: string;
   restingPlace?: string;
   graveAddress?: string;
+  worshipPlace?: string;
   phone?: string;
   address?: string;
   education?: string;
@@ -34,6 +43,14 @@ const seedPeople: SeedPerson[] = [
     death: "1920",
     order: 1,
     title: "Thủy tổ",
+    generationNote: "Đích tôn, khai cơ lập nghiệp tại Mê Linh",
+    tabooName: "Phạm Ngọc Bá",
+    courtesyName: "Trung Phu",
+    styleName: "Thanh Khê tiên sinh",
+    posthumousName: "Đức Tổ Thuần Hậu",
+    officeTitle: "Huấn đạo",
+    mandarinRank: "Tòng bát phẩm",
+    honors: "Nho sinh",
     spouses: ["p02", "p03"],
     hometown: "Hai Bà Trưng, Mê Linh, Hà Nội",
     occupation: "Nhà nho dạy học",
@@ -41,6 +58,7 @@ const seedPeople: SeedPerson[] = [
     deathAnniversary: "10 tháng 10 năm Canh Thìn",
     restingPlace: "Từ đường chính",
     graveAddress: "Nghĩa trang dòng họ, xã Tráng Việt",
+    worshipPlace: "Từ đường chính dòng họ",
     address: "Hai Bà Trưng, Mê Linh, Hà Nội",
     education: "Nho học",
     biography:
@@ -48,13 +66,13 @@ const seedPeople: SeedPerson[] = [
   },
   { id: "p02", name: "Lê Thị Hằng", gender: "female", birth: "1855", death: "1930", order: 1, spouses: ["p01"], hometown: "Mê Linh, Hà Nội" },
   { id: "p03", name: "Trần Thị Bắc", gender: "female", birth: "1860", death: "1945", order: 2, spouses: ["p01"], hometown: "Yên Lãng, Hà Nội" },
-  { id: "p04", name: "Phạm Xuân Bằng", gender: "male", birth: "1886", death: "1960", order: 1, father: "p01", mother: "p02", spouses: ["p05"], occupation: "Nông nghiệp", address: "Mê Linh, Hà Nội" },
+  { id: "p04", name: "Phạm Xuân Bằng", gender: "male", birth: "1886", death: "1960", order: 1, generationNote: "Đích tôn chi trưởng", officeTitle: "Hương trưởng", worshipPlace: "Từ đường chi trưởng", father: "p01", mother: "p02", spouses: ["p05"], occupation: "Nông nghiệp", address: "Mê Linh, Hà Nội" },
   { id: "p05", name: "Nguyễn Thị Hoa", gender: "female", birth: "1890", death: "1975", order: 1, spouses: ["p04"] },
-  { id: "p06", name: "Hoàng Văn Thụ", gender: "male", birth: "1890", death: "1968", order: 2, father: "p01", mother: "p02", spouses: ["p07"], occupation: "Thợ mộc" },
+  { id: "p06", name: "Hoàng Văn Thụ", gender: "male", birth: "1890", death: "1968", order: 2, generationNote: "Thứ nam", father: "p01", mother: "p02", spouses: ["p07"], occupation: "Thợ mộc" },
   { id: "p07", name: "Lê Thị Hải", gender: "female", birth: "1895", death: "1980", order: 1, spouses: ["p06"] },
-  { id: "p08", name: "Phạm Thái Bình", gender: "male", birth: "1895", death: "1971", order: 3, father: "p01", mother: "p02", spouses: ["p09"], occupation: "Thương nhân" },
+  { id: "p08", name: "Phạm Thái Bình", gender: "male", birth: "1895", death: "1971", order: 3, generationNote: "Thứ nam", officeTitle: "Bang tá", tabooName: "Bình", father: "p01", mother: "p02", spouses: ["p09"], occupation: "Thương nhân" },
   { id: "p09", name: "Đỗ Thị Lan", gender: "female", birth: "1900", death: "1988", order: 1, spouses: ["p08"] },
-  { id: "p10", name: "Phạm Thị Nga", gender: "female", birth: "1902", death: "1990", order: 4, father: "p01", mother: "p03", spouses: ["p11"] },
+  { id: "p10", name: "Phạm Thị Nga", gender: "female", birth: "1902", death: "1990", order: 4, generationNote: "Trưởng nữ", father: "p01", mother: "p03", spouses: ["p11"] },
   { id: "p11", name: "Nguyễn Văn Bình", gender: "male", birth: "1898", death: "1985", order: 1, spouses: ["p10"], occupation: "Giáo viên" },
 
   { id: "p12", name: "Phạm Văn An", gender: "male", birth: "1915", death: "1990", order: 1, father: "p04", mother: "p05", spouses: ["p13"], occupation: "Cán bộ nhà nước" },
@@ -152,6 +170,14 @@ function buildPeople(): Person[] {
       deathDate: s.death,
       alive: s.alive ?? false,
       title: s.title,
+      generationNote: s.generationNote,
+      tabooName: s.tabooName,
+      courtesyName: s.courtesyName,
+      styleName: s.styleName,
+      posthumousName: s.posthumousName,
+      officeTitle: s.officeTitle,
+      mandarinRank: s.mandarinRank,
+      honors: s.honors,
       birthOrder: s.order,
       fatherId: s.father,
       motherId: s.mother,
@@ -163,6 +189,7 @@ function buildPeople(): Person[] {
       deathAnniversary: s.deathAnniversary,
       restingPlace: s.restingPlace,
       graveAddress: s.graveAddress,
+      worshipPlace: s.worshipPlace,
       phone: s.phone,
       address: s.address,
       education: s.education,

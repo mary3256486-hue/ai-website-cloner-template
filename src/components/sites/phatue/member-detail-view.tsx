@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Award,
   Baby,
   Ban,
   CalendarHeart,
@@ -30,6 +31,7 @@ import {
   computeGenerations,
   grandchildrenCount,
   lifeSpan,
+  nameAliases,
   sortPersons,
   spouseNames,
 } from "./utils";
@@ -101,6 +103,11 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
     )
     .sort(sortPersons);
   const photos = member.photos ?? [];
+  const aliasLine = nameAliases(member);
+  const hasLineageInfo = Boolean(
+    member.generationNote || member.tabooName || member.courtesyName || member.styleName || member.posthumousName,
+  );
+  const hasCareerInfo = Boolean(member.officeTitle || member.mandarinRank || member.honors);
 
   const primarySpouse = spouses[0];
   const childDefaults = {
@@ -164,6 +171,9 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               <h1 className="phatue-serif mt-1 text-xl font-bold leading-tight text-[var(--phatue-red)]">
                 {member.name}
               </h1>
+              {aliasLine ? (
+                <p className="text-[0.72rem] italic leading-snug text-[#7a5a10]">{aliasLine}</p>
+              ) : null}
               <p className="text-xs text-[var(--phatue-muted)]">
                 {lifeSpan(member)}
                 {ageText(member) ? ` · ${ageText(member)}` : ""}
@@ -203,6 +213,33 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
           </div>
         </section>
 
+        <section className="phatue-card px-4 py-4">
+          <SectionTitle icon={<Award size={13} />} title="Gia thế & công danh" />
+          <div className="grid gap-x-4 sm:grid-cols-2">
+            <div>
+              <InfoRow label="Thế thứ" value={member.generationNote} />
+              <InfoRow label="Tên húy" value={member.tabooName} />
+              <InfoRow label="Tên tự" value={member.courtesyName} />
+              <InfoRow label="Tên hiệu" value={member.styleName} />
+              <InfoRow label="Thụy hiệu" value={member.posthumousName} />
+            </div>
+            <div>
+              <InfoRow label="Chức tước" value={member.officeTitle} />
+              <InfoRow label="Phẩm hàm" value={member.mandarinRank} />
+              <InfoRow label="Khoa bảng" value={member.honors} />
+              <InfoRow label="Danh xưng" value={member.title} />
+            </div>
+          </div>
+          {!hasLineageInfo && !hasCareerInfo ? (
+            <p className="mt-2 text-xs text-[var(--phatue-muted)]">
+              Chưa chép tên húy, tự, hiệu và công danh.{" "}
+              <button type="button" className="font-semibold text-[var(--phatue-red)]" onClick={() => setEditOpen(true)}>
+                Bổ sung ngay
+              </button>
+            </p>
+          ) : null}
+        </section>
+
         <div className="grid gap-3 md:grid-cols-2">
           <section className="phatue-card px-4 py-4">
             <SectionTitle icon={<UserRound size={13} />} title="Thông tin cá nhân" />
@@ -231,11 +268,12 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <SectionTitle icon={<Flower2 size={13} />} title="Thờ tự & an táng" />
             <div>
               <InfoRow label="Ngày giỗ" value={member.deathAnniversary} />
+              <InfoRow label="Nơi thờ tự" value={member.worshipPlace} />
               <InfoRow label="Nơi an nghỉ" value={member.restingPlace} />
               <InfoRow label="Vị trí mộ" value={member.graveAddress} />
               <InfoRow label="Tình trạng" value={member.alive ? "Đang sinh sống" : "Đã khuất"} />
             </div>
-            {!member.deathAnniversary && !member.restingPlace && !member.graveAddress ? (
+            {!member.deathAnniversary && !member.worshipPlace && !member.restingPlace && !member.graveAddress ? (
               <p className="mt-2 text-xs text-[var(--phatue-muted)]">Chưa ghi nhận thông tin thờ tự, phần mộ.</p>
             ) : null}
           </section>

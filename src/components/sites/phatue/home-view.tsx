@@ -15,7 +15,8 @@ import {
   Users,
 } from "lucide-react";
 import { useGenealogy } from "./store";
-import type { FamilyTree } from "./types";
+import type { FamilyTree, Person } from "./types";
+import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
 import { getStats } from "./utils";
 import { HomeBottomNav, HomeHeader, ScopeNotice } from "./app-shell";
 import { Badge, Field, Sheet, SheetRow } from "./ui";
@@ -26,6 +27,24 @@ function formatDate(value: string) {
   return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "2-digit" });
 }
 
+const EMPTY_CREATE_FORM = {
+  name: "",
+  address: "",
+  ownerName: "",
+  founderName: "",
+  founderGender: "male" as "male" | "female",
+  founderBirth: "",
+  founderTitle: "Thủy tổ",
+  founderGenerationNote: "",
+  founderTabooName: "",
+  founderCourtesyName: "",
+  founderStyleName: "",
+  founderPosthumousName: "",
+  founderOfficeTitle: "",
+  founderMandarinRank: "",
+  founderHonors: "",
+};
+
 export function HomeView() {
   const { trees, hydrated, createTree, deleteTree } = useGenealogy();
   const router = useRouter();
@@ -33,14 +52,7 @@ export function HomeView() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [scope, setScope] = useState<string | null>(null);
   const [manageTree, setManageTree] = useState<FamilyTree | null>(null);
-  const [form, setForm] = useState({
-    name: "",
-    address: "",
-    ownerName: "",
-    founderName: "",
-    founderGender: "male" as "male" | "female",
-    founderBirth: "",
-  });
+  const [form, setForm] = useState(EMPTY_CREATE_FORM);
   const [error, setError] = useState("");
 
   const visible = useMemo(() => {
@@ -50,9 +62,24 @@ export function HomeView() {
 
   const submit = () => {
     if (!form.name.trim() || !form.founderName.trim()) {
-      setError("Vui lòng nhập tên gia phả và họ tên thủy tổ.");
+      setError("Vui lòng nhập tên gia phả và họ tên vị tổ.");
       return;
     }
+    const founderDetails: Partial<Person> = {};
+    const setIfFilled = (key: keyof Person, value: string) => {
+      const text = value.trim();
+      if (text) (founderDetails as Record<string, string>)[key] = text;
+    };
+    setIfFilled("title", form.founderTitle);
+    setIfFilled("generationNote", form.founderGenerationNote);
+    setIfFilled("tabooName", form.founderTabooName);
+    setIfFilled("courtesyName", form.founderCourtesyName);
+    setIfFilled("styleName", form.founderStyleName);
+    setIfFilled("posthumousName", form.founderPosthumousName);
+    setIfFilled("officeTitle", form.founderOfficeTitle);
+    setIfFilled("mandarinRank", form.founderMandarinRank);
+    setIfFilled("honors", form.founderHonors);
+
     const id = createTree({
       name: form.name,
       address: form.address,
@@ -60,9 +87,10 @@ export function HomeView() {
       founderName: form.founderName,
       founderGender: form.founderGender,
       founderBirth: form.founderBirth,
+      founderDetails,
     });
     setCreateOpen(false);
-    setForm({ name: "", address: "", ownerName: "", founderName: "", founderGender: "male", founderBirth: "" });
+    setForm(EMPTY_CREATE_FORM);
     setError("");
     router.push(`/gia-pha/${id}/trang-chu`);
   };
@@ -187,7 +215,7 @@ export function HomeView() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         title="Lập Gia Phả"
-        subtitle="Khởi tạo cây gia phả và ghi danh thủy tổ"
+        subtitle="Khởi tạo cây gia phả và ghi danh vị tổ"
         footer={
           <button type="button" className="phatue-btn phatue-btn-red h-11 w-full text-sm" onClick={submit}>
             Tạo gia phả
@@ -220,8 +248,8 @@ export function HomeView() {
             />
           </Field>
           <div className="phatue-ornament my-2" />
-          <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--phatue-red)]">Thủy tổ</p>
-          <Field label="Họ tên thủy tổ *">
+          <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--phatue-red)]">Vị tổ khai sáng</p>
+          <Field label="Họ tên vị tổ *" hint="Tên thường dùng, hiển thị trên phả đồ.">
             <input
               className="phatue-input"
               value={form.founderName}
@@ -229,7 +257,26 @@ export function HomeView() {
               placeholder="Họ tên vị tổ đầu tiên"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Danh xưng / thế thứ" hint="Thủy tổ, Khởi tổ, Viễn tổ…">
+              <input
+                className="phatue-input"
+                list="founder-ancestor-titles"
+                value={form.founderTitle}
+                onChange={(event) => setForm({ ...form, founderTitle: event.target.value })}
+                placeholder="Thủy tổ"
+              />
+            </Field>
+            <Field label="Ghi chú thế thứ" hint="Đích tôn, trưởng chi, chi thứ…">
+              <input
+                className="phatue-input"
+                value={form.founderGenerationNote}
+                onChange={(event) => setForm({ ...form, founderGenerationNote: event.target.value })}
+                placeholder="Đích tôn chi trưởng"
+              />
+            </Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Giới tính">
               <div className="flex gap-2">
                 <button
@@ -259,9 +306,96 @@ export function HomeView() {
               />
             </Field>
           </div>
+
+          <p className="pt-1 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--phatue-red)]">
+            Tên húy, tự, hiệu, thụy · công danh
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Tên húy" hint="Tên thật, con cháu kiêng gọi.">
+              <input
+                className="phatue-input"
+                value={form.founderTabooName}
+                onChange={(event) => setForm({ ...form, founderTabooName: event.target.value })}
+                placeholder="Tên kiêng"
+              />
+            </Field>
+            <Field label="Tên tự" hint="Tên chữ do cha mẹ, thầy đặt.">
+              <input
+                className="phatue-input"
+                value={form.founderCourtesyName}
+                onChange={(event) => setForm({ ...form, founderCourtesyName: event.target.value })}
+                placeholder="Tên tự"
+              />
+            </Field>
+            <Field label="Tên hiệu">
+              <input
+                className="phatue-input"
+                value={form.founderStyleName}
+                onChange={(event) => setForm({ ...form, founderStyleName: event.target.value })}
+                placeholder="Hiệu, biệt hiệu"
+              />
+            </Field>
+            <Field label="Thụy hiệu" hint="Tên đặt sau khi mất.">
+              <input
+                className="phatue-input"
+                value={form.founderPosthumousName}
+                onChange={(event) => setForm({ ...form, founderPosthumousName: event.target.value })}
+                placeholder="Thụy hiệu"
+              />
+            </Field>
+            <Field label="Chức tước" hint="Tước vị, chức quan thời trước.">
+              <input
+                className="phatue-input"
+                list="founder-noble-titles"
+                value={form.founderOfficeTitle}
+                onChange={(event) => setForm({ ...form, founderOfficeTitle: event.target.value })}
+                placeholder="Quận công, Tri huyện…"
+              />
+            </Field>
+            <Field label="Phẩm hàm">
+              <input
+                className="phatue-input"
+                list="founder-mandarin-ranks"
+                value={form.founderMandarinRank}
+                onChange={(event) => setForm({ ...form, founderMandarinRank: event.target.value })}
+                placeholder="Chánh tam phẩm…"
+              />
+            </Field>
+          </div>
+          <Field label="Khoa bảng / danh hiệu" hint="Thi cử, đỗ đạt hoặc danh hiệu được ban.">
+            <input
+              className="phatue-input"
+              list="founder-honors"
+              value={form.founderHonors}
+              onChange={(event) => setForm({ ...form, founderHonors: event.target.value })}
+              placeholder="Tiến sĩ, Cử nhân, Nho sinh…"
+            />
+          </Field>
+          <datalist id="founder-ancestor-titles">
+            {ANCESTOR_TITLES.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+          <datalist id="founder-noble-titles">
+            {NOBLE_TITLES.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+          <datalist id="founder-mandarin-ranks">
+            {MANDARIN_RANKS.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+          <datalist id="founder-honors">
+            {HONORS.map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
+
           {error ? <p className="text-xs font-semibold text-[#a3271d]">{error}</p> : null}
           <p className="text-[0.7rem] leading-relaxed text-[var(--phatue-muted)]">
-            Sau khi tạo, bạn có thể thêm vợ/chồng, con cháu, nhánh họ và xuất phả đồ để in. Không có bước đăng nhập.
+            Gia phả xưa chép đủ “húy – tự – hiệu – thụy” và chức tước, phẩm hàm để con cháu nhớ cội nguồn. Mục nào chưa
+            rõ có thể để trống và bổ sung sau. Không có bước đăng nhập.
           </p>
         </div>
       </Sheet>

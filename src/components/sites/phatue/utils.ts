@@ -203,6 +203,21 @@ export function ageText(person: Person): string {
   return `${endRaw - birth} tuổi`;
 }
 
+export function nameAliases(person: Person): string {
+  return [
+    person.tabooName ? `Húy ${person.tabooName}` : "",
+    person.courtesyName ? `Tự ${person.courtesyName}` : "",
+    person.styleName ? `Hiệu ${person.styleName}` : "",
+    person.posthumousName ? `Thụy ${person.posthumousName}` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function careerSummary(person: Person): string {
+  return [person.officeTitle, person.mandarinRank, person.honors].filter(Boolean).join(" · ");
+}
+
 export function generationOf(tree: FamilyTree, personId: string): number {
   return computeGenerations(tree.members).get(personId) ?? 1;
 }
