@@ -175,8 +175,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       }
     >
       <div className="no-print space-y-4">
-        <section className="phatue-card px-4 py-3">
-          <div className="grid grid-cols-4 divide-x divide-[var(--phatue-line)]">
+        <section className="pat-card px-4 py-3">
+          <div className="grid grid-cols-4 divide-x divide-[var(--pat-line)]">
             <Stat value={stats.total} label="Thành viên" tone="red" />
             <Stat value={stats.male} label="Nam" />
             <Stat value={stats.female} label="Nữ" />
@@ -186,9 +186,9 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
 
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--phatue-muted)]" />
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--pat-muted)]" />
             <input
-              className="phatue-input pl-9"
+              className="pat-input pl-9"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Tìm tên, năm sinh, quê quán, nhánh…"
@@ -198,12 +198,12 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           <button
             type="button"
             onClick={() => setFilterOpen(true)}
-            className="relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-[var(--phatue-line)] bg-[#fffdf7] text-[var(--phatue-red)]"
+            className="relative flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-[var(--pat-line)] bg-[#fffdf7] text-[var(--pat-red)]"
             aria-label="Bộ lọc"
           >
             <SlidersHorizontal size={17} />
             {activeFilters ? (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--phatue-red)] text-[0.55rem] font-bold text-white">
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--pat-red)] text-[0.55rem] font-bold text-white">
                 {activeFilters}
               </span>
             ) : null}
@@ -211,17 +211,17 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
-            className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-[var(--phatue-line)] bg-[#fffdf7] text-[var(--phatue-muted)]"
+            className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl border border-[var(--pat-line)] bg-[#fffdf7] text-[var(--pat-muted)]"
             aria-label={expanded ? "Thu gọn thẻ" : "Mở rộng thẻ"}
           >
             {expanded ? <ChevronDown size={17} /> : <ListFilter size={17} />}
           </button>
         </div>
 
-        <div className="phatue-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        <div className="pat-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
           <button
             type="button"
-            className="phatue-chip shrink-0"
+            className="pat-chip shrink-0"
             data-active={gen === "all"}
             onClick={() => setGen("all")}
           >
@@ -231,7 +231,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             <button
               key={row.generation}
               type="button"
-              className="phatue-chip shrink-0"
+              className="pat-chip shrink-0"
               data-active={gen === row.generation}
               onClick={() => setGen(row.generation)}
             >
@@ -249,7 +249,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             action={
               <button
                 type="button"
-                className="phatue-btn phatue-btn-outline h-9 text-xs"
+                className="pat-btn pat-btn-outline h-9 text-xs"
                 onClick={() => {
                   setQuery("");
                   setGen("all");
@@ -265,7 +265,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           />
         ) : (
           <>
-            <div className="flex items-center justify-between px-1 text-xs text-[var(--phatue-muted)]">
+            <div className="flex items-center justify-between px-1 text-xs text-[var(--pat-muted)]">
               <span>
                 {filtered.length} / {stats.total} thành viên
                 {branch !== "all" ? ` · ${branchName.get(branch) ?? ""}` : ""}
@@ -285,7 +285,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                   .filter((m): m is Person => Boolean(m));
                 const branch = person.branchId ? branchName.get(person.branchId) : undefined;
                 return (
-                  <article key={person.id} className="phatue-card overflow-hidden">
+                  <article key={person.id} className="pat-card overflow-hidden">
                     <div className="flex items-start gap-3 p-3">
                       <button
                         type="button"
@@ -301,11 +301,11 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                         className="min-w-0 flex-1 text-left"
                       >
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <h3 className="truncate text-sm font-bold text-[var(--phatue-ink)]">{person.name}</h3>
+                          <h3 className="truncate text-sm font-bold text-[var(--pat-ink)]">{person.name}</h3>
                           {person.title ? <Badge tone="gold">{person.title}</Badge> : null}
                           {!person.alive ? <Badge tone="muted">Đã mất</Badge> : null}
                         </div>
-                        <p className="mt-0.5 text-[0.7rem] text-[var(--phatue-muted)]">
+                        <p className="mt-0.5 text-[0.7rem] text-[var(--pat-muted)]">
                           {lifeSpan(person)}
                           {ageText(person) ? ` · ${ageText(person)}` : ""}
                           {person.hometown ? ` · ${person.hometown}` : ""}
@@ -314,17 +314,17 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                           <span className="inline-flex items-center gap-1 rounded-full bg-[#f6e9c8] px-2 py-0.5 font-semibold text-[#7a5a10]">
                             Đời {gens.get(person.id) ?? 1}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-[var(--phatue-muted)]">
+                          <span className="inline-flex items-center gap-1 text-[var(--pat-muted)]">
                             <UserRound size={11} /> {person.gender === "male" ? "Nam" : "Nữ"}
                           </span>
-                          <span className="inline-flex items-center gap-1 text-[var(--phatue-muted)]">
+                          <span className="inline-flex items-center gap-1 text-[var(--pat-muted)]">
                             <Users size={11} /> {spouseCount} vợ/chồng
                           </span>
-                          <span className="inline-flex items-center gap-1 text-[var(--phatue-muted)]">
+                          <span className="inline-flex items-center gap-1 text-[var(--pat-muted)]">
                             <ChevronRight size={11} /> {children.length} con
                           </span>
                           {branch ? (
-                            <span className="inline-flex items-center gap-1 text-[var(--phatue-muted)]">
+                            <span className="inline-flex items-center gap-1 text-[var(--pat-muted)]">
                               <GitBranch size={11} /> {branch}
                             </span>
                           ) : null}
@@ -333,7 +333,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                       <button
                         type="button"
                         onClick={() => setEditing(person)}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--phatue-line)] text-[var(--phatue-muted)] transition hover:text-[var(--phatue-red)]"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
                         aria-label={`Sửa ${person.name}`}
                       >
                         <PencilLine size={14} />
@@ -341,13 +341,13 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                     </div>
 
                     {expanded ? (
-                      <div className="space-y-1.5 border-t border-dashed border-[var(--phatue-line)] px-3 py-2.5 text-[0.7rem]">
-                        <p className="flex flex-wrap gap-1.5 text-[var(--phatue-muted)]">
-                          <span className="font-semibold text-[var(--phatue-ink)]">Cha:</span>
+                      <div className="space-y-1.5 border-t border-dashed border-[var(--pat-line)] px-3 py-2.5 text-[0.7rem]">
+                        <p className="flex flex-wrap gap-1.5 text-[var(--pat-muted)]">
+                          <span className="font-semibold text-[var(--pat-ink)]">Cha:</span>
                           {father ? (
                             <button
                               type="button"
-                              className="text-[var(--phatue-red)] underline-offset-2 hover:underline"
+                              className="text-[var(--pat-red)] underline-offset-2 hover:underline"
                               onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${father.id}`)}
                             >
                               {father.name}
@@ -355,11 +355,11 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                           ) : (
                             <span>chưa rõ</span>
                           )}
-                          <span className="font-semibold text-[var(--phatue-ink)]">· Mẹ:</span>
+                          <span className="font-semibold text-[var(--pat-ink)]">· Mẹ:</span>
                           {mother ? (
                             <button
                               type="button"
-                              className="text-[var(--phatue-red)] underline-offset-2 hover:underline"
+                              className="text-[var(--pat-red)] underline-offset-2 hover:underline"
                               onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${mother.id}`)}
                             >
                               {mother.name}
@@ -368,14 +368,14 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                             <span>chưa rõ</span>
                           )}
                         </p>
-                        <p className="flex flex-wrap gap-1.5 text-[var(--phatue-muted)]">
-                          <span className="font-semibold text-[var(--phatue-ink)]">Vợ/chồng:</span>
+                        <p className="flex flex-wrap gap-1.5 text-[var(--pat-muted)]">
+                          <span className="font-semibold text-[var(--pat-ink)]">Vợ/chồng:</span>
                           {spouses.length ? (
                             spouses.map((spouse) => (
                               <button
                                 key={spouse.id}
                                 type="button"
-                                className="text-[var(--phatue-red)] underline-offset-2 hover:underline"
+                                className="text-[var(--pat-red)] underline-offset-2 hover:underline"
                                 onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${spouse.id}`)}
                               >
                                 {spouse.name}
@@ -386,7 +386,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                           )}
                         </p>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="font-semibold text-[var(--phatue-ink)]">Con:</span>
+                          <span className="font-semibold text-[var(--pat-ink)]">Con:</span>
                           {children.length ? (
                             children.slice(0, 6).map((child) => (
                               <button
@@ -399,23 +399,23 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                               </button>
                             ))
                           ) : (
-                            <span className="text-[var(--phatue-muted)]">chưa có</span>
+                            <span className="text-[var(--pat-muted)]">chưa có</span>
                           )}
                           {children.length > 6 ? (
-                            <span className="text-[var(--phatue-muted)]">+{children.length - 6}</span>
+                            <span className="text-[var(--pat-muted)]">+{children.length - 6}</span>
                           ) : null}
                         </div>
                         <div className="flex items-center gap-3 pt-0.5">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[var(--phatue-red)]"
+                            className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[var(--pat-red)]"
                             onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${person.id}`)}
                           >
                             Hồ sơ đầy đủ <ChevronRight size={12} />
                           </button>
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[var(--phatue-muted)]"
+                            className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[var(--pat-muted)]"
                             onClick={() => {
                               if (window.confirm(`Xoá "${person.name}" khỏi gia phả?`)) deleteMember(tree.id, person.id);
                             }}
@@ -433,15 +433,15 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             <button
               type="button"
               onClick={() => setFormOpen(true)}
-              className="phatue-btn phatue-btn-outline h-11 w-full text-sm"
+              className="pat-btn pat-btn-outline h-11 w-full text-sm"
             >
               <Plus size={15} /> Thêm thành viên mới
             </button>
           </>
         )}
 
-        <div className="flex items-start gap-2 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--phatue-muted)]">
-          <Info size={15} className="mt-0.5 shrink-0 text-[var(--phatue-gold)]" />
+        <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--pat-muted)]">
+          <Info size={15} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
           <p>
             Đời được tính tự động từ liên kết cha/mẹ. Chạm vào thẻ để mở hồ sơ, hoặc dùng bút chì để sửa nhanh.
           </p>
@@ -449,7 +449,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       </div>
 
       <div className="print-only p-6 text-[#1a1a1a]">
-        <h1 className="phatue-serif text-2xl font-bold">{tree.name}</h1>
+        <h1 className="pat-serif text-2xl font-bold">{tree.name}</h1>
         <p className="mt-1 text-sm">
           Danh sách thành viên · {filtered.length} người · {stats.generations} đời
         </p>
@@ -494,7 +494,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           <div className="flex gap-2">
             <button
               type="button"
-              className="phatue-btn phatue-btn-outline h-10 flex-1 text-sm"
+              className="pat-btn pat-btn-outline h-10 flex-1 text-sm"
               onClick={() => {
                 setGender("all");
                 setStatus("all");
@@ -504,7 +504,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             >
               Đặt lại
             </button>
-            <button type="button" className="phatue-btn phatue-btn-red h-10 flex-[2] text-sm" onClick={() => setFilterOpen(false)}>
+            <button type="button" className="pat-btn pat-btn-red h-10 flex-[2] text-sm" onClick={() => setFilterOpen(false)}>
               Xem {filtered.length} thành viên
             </button>
           </div>
@@ -545,15 +545,15 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             />
           </Field>
           <Field label="Đời">
-            <div className="phatue-scroll flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
-              <button type="button" className="phatue-chip" data-active={gen === "all"} onClick={() => setGen("all")}>
+            <div className="pat-scroll flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+              <button type="button" className="pat-chip" data-active={gen === "all"} onClick={() => setGen("all")}>
                 Tất cả
               </button>
               {generationStats.map((row) => (
                 <button
                   key={row.generation}
                   type="button"
-                  className="phatue-chip"
+                  className="pat-chip"
                   data-active={gen === row.generation}
                   onClick={() => setGen(row.generation)}
                 >
@@ -564,10 +564,10 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           </Field>
           {tree.branches.length ? (
             <Field label="Nhánh họ">
-              <div className="phatue-scroll flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+              <div className="pat-scroll flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
                 <button
                   type="button"
-                  className="phatue-chip"
+                  className="pat-chip"
                   data-active={branch === "all"}
                   onClick={() => setBranch("all")}
                 >
@@ -577,7 +577,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                   <button
                     key={item.id}
                     type="button"
-                    className="phatue-chip"
+                    className="pat-chip"
                     data-active={branch === item.id}
                     onClick={() => setBranch(item.id)}
                   >

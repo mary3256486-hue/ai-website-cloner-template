@@ -259,7 +259,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree.id]);
 
-  const findSvg = () => document.getElementById("phatue-diagram-svg") as SVGSVGElement | null;
+  const findSvg = () => document.getElementById("pat-diagram-svg") as SVGSVGElement | null;
 
   const addDecoration = (input: {
     type: "text" | "image";
@@ -315,9 +315,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     <div className="space-y-4">
       <Field label="Tìm thành viên">
         <div className="relative">
-          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--phatue-muted)]" />
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--pat-muted)]" />
           <input
-            className="phatue-input pl-8 text-sm"
+            className="pat-input pl-8 text-sm"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Tên hoặc năm sinh"
@@ -331,12 +331,12 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               key={member.id}
               type="button"
               onClick={() => focusMember(member)}
-              className="flex w-full items-center gap-2 rounded-lg border border-[var(--phatue-line)] bg-white/60 px-2 py-1.5 text-left"
+              className="flex w-full items-center gap-2 rounded-lg border border-[var(--pat-line)] bg-white/60 px-2 py-1.5 text-left"
             >
               <Avatar person={member} size={26} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-semibold">{member.name}</span>
-                <span className="block text-[0.62rem] text-[var(--phatue-muted)]">Đời {gens.get(member.id) ?? 1}</span>
+                <span className="block text-[0.62rem] text-[var(--pat-muted)]">Đời {gens.get(member.id) ?? 1}</span>
               </span>
             </button>
           ))}
@@ -345,10 +345,10 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <p className="phatue-form-section mb-0 flex-1">Lọc theo đời</p>
+          <p className="pat-form-section mb-0 flex-1">Lọc theo đời</p>
           <button
             type="button"
-            className="ml-2 text-[0.65rem] font-semibold text-[var(--phatue-red)]"
+            className="ml-2 text-[0.65rem] font-semibold text-[var(--pat-red)]"
             onClick={() => setGenFilter(new Set(layout.generations.map((row) => row.generation)))}
           >
             Tất cả
@@ -366,10 +366,10 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                   type="checkbox"
                   checked={active}
                   onChange={() => toggleGen(row.generation)}
-                  className="h-3.5 w-3.5 accent-[var(--phatue-red)]"
+                  className="h-3.5 w-3.5 accent-[var(--pat-red)]"
                 />
                 <span className="flex-1 font-medium">Đời {row.generation}</span>
-                <span className="text-[0.65rem] text-[var(--phatue-muted)]">{row.count}</span>
+                <span className="text-[0.65rem] text-[var(--pat-muted)]">{row.count}</span>
               </label>
             );
           })}
@@ -377,18 +377,18 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       </div>
 
       <div>
-        <p className="phatue-form-section">Trang trí</p>
+        <p className="pat-form-section">Trang trí</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            className="phatue-btn phatue-btn-outline h-9 text-xs"
+            className="pat-btn pat-btn-outline h-9 text-xs"
             onClick={() => setDecorOpen(true)}
           >
             <Type size={13} /> Thêm chữ
           </button>
           <button
             type="button"
-            className="phatue-btn phatue-btn-outline h-9 text-xs"
+            className="pat-btn pat-btn-outline h-9 text-xs"
             onClick={() => setDecorOpen(true)}
           >
             <ImagePlus size={13} /> Thêm ảnh
@@ -396,8 +396,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         </div>
       </div>
 
-      <div className="rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.68rem] leading-relaxed text-[var(--phatue-muted)]">
-        <Info size={12} className="mr-1 inline text-[var(--phatue-gold)]" />
+      <div className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+        <Info size={12} className="mr-1 inline text-[var(--pat-gold)]" />
         Kéo ô thành viên để đổi vị trí, chạm để sửa. Nút <strong>Lưu</strong> ghi lại bố cục lên thiết bị.
       </div>
     </div>
@@ -407,7 +407,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     <TreeShell
       tree={tree}
       section="ve-pha-do"
-      title="Tác phả đồ"
+      title="Tạo phả đồ"
       subtitle={`${tree.design.paper} · ${orientation === "portrait" ? "dọc" : "ngang"} · ${tree.members.length} thành viên`}
       wide
       actions={
@@ -440,17 +440,17 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       }
     >
       <div className="grid gap-3 md:grid-cols-[240px_1fr]">
-        <aside className="phatue-card hidden self-start px-3 py-3 md:block no-print">{sidebar}</aside>
+        <aside className="pat-card hidden self-start px-3 py-3 md:block no-print">{sidebar}</aside>
 
         <div className="min-w-0 space-y-2">
-          <div className="phatue-card flex flex-wrap items-center gap-1 px-1.5 py-1.5 no-print">
+          <div className="pat-card flex flex-wrap items-center gap-1 px-1.5 py-1.5 no-print">
             <ToolButton label="Hoàn tác" onClick={undo} disabled={!past.length}>
               <Undo2 size={16} />
             </ToolButton>
             <ToolButton label="Làm lại" onClick={redo} disabled={!future.length}>
               <Redo2 size={16} />
             </ToolButton>
-            <span className="mx-1 h-5 w-px bg-[var(--phatue-line)]" />
+            <span className="mx-1 h-5 w-px bg-[var(--pat-line)]" />
             <ToolButton label="Lưới" onClick={() => setShowGrid((prev) => !prev)} active={showGrid}>
               <Grid3x3 size={16} />
             </ToolButton>
@@ -460,11 +460,11 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             <ToolButton label="Thêm trang trí" onClick={() => setDecorOpen(true)}>
               <Plus size={16} />
             </ToolButton>
-            <span className="mx-1 h-5 w-px bg-[var(--phatue-line)]" />
+            <span className="mx-1 h-5 w-px bg-[var(--pat-line)]" />
             <button
               type="button"
               onClick={save}
-              className="phatue-btn phatue-btn-red h-8 px-3 text-[0.7rem]"
+              className="pat-btn pat-btn-red h-8 px-3 text-[0.7rem]"
             >
               <Save size={14} /> Lưu
             </button>
@@ -475,14 +475,14 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             >
               {saved ? "Đã lưu" : "Chưa lưu"}
             </span>
-            <span className="ml-auto flex items-center gap-1 text-[0.65rem] text-[var(--phatue-muted)]">
-              <span className="rounded-md border border-[var(--phatue-line)] px-1.5 py-0.5 font-semibold">
+            <span className="ml-auto flex items-center gap-1 text-[0.65rem] text-[var(--pat-muted)]">
+              <span className="rounded-md border border-[var(--pat-line)] px-1.5 py-0.5 font-semibold">
                 {tree.design.paper} · {orientation === "portrait" ? "dọc" : "ngang"}
               </span>
               <button
                 type="button"
                 onClick={() => setExportOpen(true)}
-                className="inline-flex items-center gap-1 font-semibold text-[var(--phatue-red)]"
+                className="inline-flex items-center gap-1 font-semibold text-[var(--pat-red)]"
               >
                 <Download size={12} /> Xuất
               </button>
@@ -491,7 +491,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
 
           <div
             ref={viewportRef}
-            className="phatue-scroll relative max-h-[calc(100dvh-13rem)] min-h-[460px] overflow-auto rounded-2xl border border-[var(--phatue-line)] bg-[#eadfc8] p-2 shadow-inner"
+            className="pat-scroll relative max-h-[calc(100dvh-13rem)] min-h-[460px] overflow-auto rounded-2xl border border-[var(--pat-line)] bg-[#eadfc8] p-2 shadow-inner"
             onPointerDown={() => setSelectedDecoration(null)}
           >
             <div
@@ -514,7 +514,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                     tree={tree}
                     layout={layout}
                     decorations={decorations}
-                    svgId="phatue-diagram-svg"
+                    svgId="pat-diagram-svg"
                     idPrefix="editor"
                     visibleIds={visibleIds}
                     focusId={focusId}
@@ -534,13 +534,13 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               </div>
             </div>
             {selectedDecoration ? (
-              <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-white/85 px-3 py-1 text-[0.62rem] text-[var(--phatue-muted)]">
+              <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-white/85 px-3 py-1 text-[0.62rem] text-[var(--pat-muted)]">
                 Kéo để di chuyển trang trí · bấm × để xoá
               </p>
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[0.66rem] text-[var(--phatue-muted)] no-print">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[0.66rem] text-[var(--pat-muted)] no-print">
             <span>
               {visibleIds ? `${visibleIds.size} / ${tree.members.length} thành viên hiển thị` : `${tree.members.length} thành viên`} ·{" "}
               {Math.round(scale * 100)}%
@@ -564,11 +564,11 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       >
         {selectedMember ? (
           <div className="space-y-1">
-            <div className="mb-3 flex items-center gap-3 rounded-xl border border-[var(--phatue-line)] bg-white/60 px-3 py-2.5">
+            <div className="mb-3 flex items-center gap-3 rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-2.5">
               <Avatar person={selectedMember} size={44} />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold">{selectedMember.name}</p>
-                <p className="text-xs text-[var(--phatue-muted)]">
+                <p className="text-xs text-[var(--pat-muted)]">
                   {selectedMember.title ?? "Thành viên"} · {selectedMember.gender === "male" ? "Nam" : "Nữ"}
                 </p>
               </div>
@@ -620,7 +620,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             subtitle="Ảnh phả đồ độ phân giải cao"
             onClick={async () => {
               try {
-                await exportDiagramPng("phatue-diagram-svg", `${safeName(tree.name)}-pha-do.png`, "#fdf6e7");
+                await exportDiagramPng("pat-diagram-svg", `${safeName(tree.name)}-pha-do.png`, "#fdf6e7");
                 setExportOpen(false);
                 showToast("Đã tải ảnh PNG");
               } catch {
@@ -685,7 +685,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       ) : null}
 
       {toast ? (
-        <div className="fixed bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full border border-[var(--phatue-gold)]/60 bg-[#fffaf0] px-4 py-2 text-xs font-semibold text-[var(--phatue-red)] shadow-lg no-print md:bottom-6">
+        <div className="fixed bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full border border-[var(--pat-gold)]/60 bg-[#fffaf0] px-4 py-2 text-xs font-semibold text-[var(--pat-red)] shadow-lg no-print md:bottom-6">
           {toast}
         </div>
       ) : null}
@@ -715,8 +715,8 @@ function ToolButton({
       title={label}
       className={`flex h-8 w-8 items-center justify-center rounded-lg border transition ${
         active
-          ? "border-[var(--phatue-red)] bg-[#f9e3df] text-[var(--phatue-red)]"
-          : "border-transparent text-[var(--phatue-muted)] hover:border-[var(--phatue-line)] hover:bg-white/70"
+          ? "border-[var(--pat-red)] bg-[#f9e3df] text-[var(--pat-red)]"
+          : "border-transparent text-[var(--pat-muted)] hover:border-[var(--pat-line)] hover:bg-white/70"
       } disabled:cursor-not-allowed disabled:opacity-35`}
     >
       {children}
@@ -794,7 +794,7 @@ function DecorationSheet({
       footer={
         <button
           type="button"
-          className="phatue-btn phatue-btn-red h-11 w-full text-sm"
+          className="pat-btn pat-btn-red h-11 w-full text-sm"
           onClick={mode === "library" ? submitLibrary : submit}
         >
           <Plus size={15} /> Thêm vào phả đồ
@@ -819,7 +819,7 @@ function DecorationSheet({
                 <button
                   key={entry.id}
                   type="button"
-                  className="phatue-chip"
+                  className="pat-chip"
                   data-active={category === entry.id}
                   onClick={() => {
                     setCategory(entry.id);
@@ -832,7 +832,7 @@ function DecorationSheet({
               ))}
             </div>
 
-            <div className="rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 p-3">
+            <div className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 p-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.src}
@@ -843,21 +843,21 @@ function DecorationSheet({
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">{item.label}</p>
-                  <p className="text-[0.68rem] text-[var(--phatue-muted)]">
+                  <p className="text-[0.68rem] text-[var(--pat-muted)]">
                     Kích thước gốc {item.nativeWidth} × {item.nativeHeight}
                   </p>
                   {item.credit ? (
-                    <p className="text-[0.62rem] text-[var(--phatue-muted)]/80">{item.credit}</p>
+                    <p className="text-[0.62rem] text-[var(--pat-muted)]/80">{item.credit}</p>
                   ) : null}
                 </div>
-                <span className="rounded-full border border-[var(--phatue-line)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--phatue-muted)]">
+                <span className="rounded-full border border-[var(--pat-line)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--pat-muted)]">
                   {item.slot === "left" ? "Đặt bên trái" : "Đặt bên phải"}
                 </span>
               </div>
             </div>
 
             <div>
-              <p className="mb-2 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-[var(--phatue-red)]">
+              <p className="mb-2 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-[var(--pat-red)]">
                 Thư viện ảnh
               </p>
               <div className="grid grid-cols-3 gap-2">
@@ -868,8 +868,8 @@ function DecorationSheet({
                     onClick={() => setItemId(entry.id)}
                     className={`rounded-xl border p-1.5 text-center transition ${
                       itemId === entry.id
-                        ? "border-[var(--phatue-red)] bg-[#f9e3df]/50"
-                        : "border-[var(--phatue-line)] bg-white/60"
+                        ? "border-[var(--pat-red)] bg-[#f9e3df]/50"
+                        : "border-[var(--pat-line)] bg-white/60"
                     }`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -885,7 +885,7 @@ function DecorationSheet({
               </div>
             </div>
 
-            <p className="rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--phatue-muted)]">
+            <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--pat-muted)]">
               Hình trong suốt, không viền trắng khi in. Sau khi thêm, kéo trên phả đồ để căn vị trí rồi bấm{" "}
               <strong>Lưu</strong>.
             </p>
@@ -894,7 +894,7 @@ function DecorationSheet({
           <>
             <Field label="Nội dung">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 placeholder="Ví dụ: Tổ đức lưu phương"
@@ -903,7 +903,7 @@ function DecorationSheet({
             <div className="grid grid-cols-2 gap-3">
               <Field label="Cỡ chữ">
                 <input
-                  className="phatue-input"
+                  className="pat-input"
                   type="number"
                   min={8}
                   max={72}
@@ -913,7 +913,7 @@ function DecorationSheet({
               </Field>
               <Field label="Màu chữ">
                 <input
-                  className="phatue-input h-[42px] p-1"
+                  className="pat-input h-[42px] p-1"
                   type="color"
                   value={color}
                   onChange={(event) => setColor(event.target.value)}
@@ -925,7 +925,7 @@ function DecorationSheet({
           <>
             <Field label="Đường dẫn ảnh">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
                 placeholder="https://…"
@@ -934,7 +934,7 @@ function DecorationSheet({
             <div className="grid grid-cols-2 gap-3">
               <Field label="Rộng (px)">
                 <input
-                  className="phatue-input"
+                  className="pat-input"
                   type="number"
                   min={20}
                   value={width}
@@ -943,7 +943,7 @@ function DecorationSheet({
               </Field>
               <Field label="Cao (px)">
                 <input
-                  className="phatue-input"
+                  className="pat-input"
                   type="number"
                   min={20}
                   value={height}
@@ -956,7 +956,7 @@ function DecorationSheet({
 
         {error ? <p className="text-xs font-semibold text-[#a3271d]">{error}</p> : null}
         {mode === "library" ? null : (
-          <p className="rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--phatue-muted)]">
+          <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--pat-muted)]">
             Sau khi thêm, kéo trang trí đến vị trí mong muốn rồi bấm <strong>Lưu</strong>. Ảnh từ internet cần cho phép
             tải ảnh khi in.
           </p>

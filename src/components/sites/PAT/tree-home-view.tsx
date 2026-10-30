@@ -118,8 +118,8 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
       }
     >
       <div className="space-y-4">
-        <section className="phatue-card-red relative overflow-hidden px-5 py-5">
-          <div aria-hidden className="phatue-ornament absolute inset-x-5 top-3 opacity-50" />
+        <section className="pat-card-red relative overflow-hidden px-5 py-5">
+          <div aria-hidden className="pat-ornament absolute inset-x-5 top-3 opacity-50" />
           <div className="relative">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="gold">
@@ -127,7 +127,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               </Badge>
               {tree.sample ? <Badge tone="red">BẢN MẪU</Badge> : null}
             </div>
-            <h1 className="phatue-serif mt-2 text-2xl font-bold leading-tight text-[#fff4df]">{tree.name}</h1>
+            <h1 className="pat-serif mt-2 text-2xl font-bold leading-tight text-[#fff4df]">{tree.name}</h1>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-[#f0d9bd]">
               <MapPin size={13} /> {tree.address || "Chưa cập nhật địa chỉ"}
             </p>
@@ -172,20 +172,20 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                   key={item.key}
                   type="button"
                   onClick={() => open(item.href)}
-                  className="phatue-card group flex flex-col items-start gap-2 px-4 py-4 text-left transition hover:-translate-y-0.5 hover:border-[var(--phatue-gold)]"
+                  className="pat-card group flex flex-col items-start gap-2 px-4 py-4 text-left transition hover:-translate-y-0.5 hover:border-[var(--pat-gold)]"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f6e9c8] text-[var(--phatue-red)] transition group-hover:bg-[var(--phatue-red)] group-hover:text-[#fff4df]">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f6e9c8] text-[var(--pat-red)] transition group-hover:bg-[var(--pat-red)] group-hover:text-[#fff4df]">
                     <Icon size={19} />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[0.62rem] font-semibold uppercase leading-tight tracking-[0.12em] text-[var(--phatue-muted)]">
+                    <span className="block text-[0.62rem] font-semibold uppercase leading-tight tracking-[0.12em] text-[var(--pat-muted)]">
                       {item.caption}
                     </span>
-                    <span className="phatue-serif block text-base font-bold leading-tight text-[var(--phatue-red)]">
+                    <span className="pat-serif block text-base font-bold leading-tight text-[var(--pat-red)]">
                       {item.label}
                     </span>
                   </span>
-                  <ChevronRight size={15} className="absolute right-3 top-4 text-[var(--phatue-line)]" />
+                  <ChevronRight size={15} className="absolute right-3 top-4 text-[var(--pat-line)]" />
                 </button>
               );
             })}
@@ -193,7 +193,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
         </section>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle
               icon={<Users size={13} />}
               title="Thành viên theo đời"
@@ -201,7 +201,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                 <button
                   type="button"
                   onClick={() => open("danh-sach-thanh-vien")}
-                  className="text-[0.68rem] font-semibold text-[var(--phatue-red)]"
+                  className="text-[0.68rem] font-semibold text-[var(--pat-red)]"
                 >
                   Xem tất cả
                 </button>
@@ -217,12 +217,12 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                     onClick={() => open(`danh-sach-thanh-vien?doi=${row.generation}`)}
                     className="flex w-full items-center gap-3 text-left"
                   >
-                    <span className="w-14 shrink-0 text-[0.65rem] font-bold uppercase tracking-wide text-[var(--phatue-muted)]">
+                    <span className="w-14 shrink-0 text-[0.65rem] font-bold uppercase tracking-wide text-[var(--pat-muted)]">
                       Đời {row.generation}
                     </span>
                     <span className="h-2 flex-1 overflow-hidden rounded-full bg-[#f3e6cd]">
                       <span
-                        className="block h-full rounded-full bg-gradient-to-r from-[#b7791f] to-[var(--phatue-red)]"
+                        className="block h-full rounded-full bg-gradient-to-r from-[#b7791f] to-[var(--pat-red)]"
                         style={{ width: `${Math.max(6, pct)}%` }}
                       />
                     </span>
@@ -231,12 +231,12 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                 );
               })}
               {generationStats.length === 0 ? (
-                <p className="text-xs text-[var(--phatue-muted)]">Chưa có thành viên.</p>
+                <p className="text-xs text-[var(--pat-muted)]">Chưa có thành viên.</p>
               ) : null}
             </div>
           </section>
 
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle
               icon={<GitBranch size={13} />}
               title="Chi, cành"
@@ -244,19 +244,19 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                 <button
                   type="button"
                   onClick={() => open("danh-sach-nhanh")}
-                  className="text-[0.68rem] font-semibold text-[var(--phatue-red)]"
+                  className="text-[0.68rem] font-semibold text-[var(--pat-red)]"
                 >
                   Quản lý
                 </button>
               }
             />
             {sortedBranches.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--phatue-line)] px-3 py-4 text-center">
-                <p className="text-xs text-[var(--phatue-muted)]">Gia phả chưa tách nhánh nào.</p>
+              <div className="rounded-xl border border-dashed border-[var(--pat-line)] px-3 py-4 text-center">
+                <p className="text-xs text-[var(--pat-muted)]">Gia phả chưa tách nhánh nào.</p>
                 <button
                   type="button"
                   onClick={() => open("danh-sach-nhanh")}
-                  className="phatue-btn phatue-btn-outline mt-2 h-8 text-xs"
+                  className="pat-btn pat-btn-outline mt-2 h-8 text-xs"
                 >
                   <GitBranch size={13} /> Tách nhánh
                 </button>
@@ -271,16 +271,16 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                       key={branch.id}
                       type="button"
                       onClick={() => open("danh-sach-nhanh")}
-                      className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-left"
+                      className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-left"
                     >
                       <span className="h-6 w-1.5 rounded-full" style={{ background: branch.color }} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{branch.name}</span>
-                        <span className="block truncate text-[0.68rem] text-[var(--phatue-muted)]">
+                        <span className="block truncate text-[0.68rem] text-[var(--pat-muted)]">
                           {head ? `Trưởng nhánh: ${head.name}` : "Chưa chọn trưởng nhánh"} · {members} người
                         </span>
                       </span>
-                      <ChevronRight size={14} className="text-[var(--phatue-muted)]" />
+                      <ChevronRight size={14} className="text-[var(--pat-muted)]" />
                     </button>
                   );
                 })}
@@ -290,10 +290,10 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
         </div>
 
         {founder ? (
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<Crown size={13} />} title="Thủy tổ" />
             <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--phatue-red)] to-[#b7791f] text-lg font-semibold text-[#fff4df]">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--pat-red)] to-[#b7791f] text-lg font-semibold text-[#fff4df]">
                 {initials(founder.name)}
               </span>
               <div className="min-w-0 flex-1">
@@ -301,7 +301,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                   {founder.name}
                   {founder.title ? <Badge tone="gold">{founder.title}</Badge> : null}
                 </p>
-                <p className="text-xs text-[var(--phatue-muted)]">
+                <p className="text-xs text-[var(--pat-muted)]">
                   {founder.birthDate ? `Sinh ${founder.birthDate}` : "Chưa rõ năm sinh"}
                   {founder.hometown ? ` · ${founder.hometown}` : ""}
                 </p>
@@ -309,7 +309,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               <button
                 type="button"
                 onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${founder.id}`)}
-                className="phatue-btn phatue-btn-outline h-8 text-xs"
+                className="pat-btn pat-btn-outline h-8 text-xs"
               >
                 Hồ sơ <ChevronRight size={13} />
               </button>
@@ -317,24 +317,24 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           </section>
         ) : null}
 
-        <section className="phatue-card px-4 py-4">
+        <section className="pat-card px-4 py-4">
           <SectionTitle icon={<Download size={13} />} title="Xuất bản in" />
-          <p className="text-xs leading-relaxed text-[var(--phatue-muted)]">
+          <p className="text-xs leading-relaxed text-[var(--pat-muted)]">
             Dựng phả đồ theo khổ giấy A4–A0, in trực tiếp hoặc lưu PDF/PNG. Danh sách thành viên xuất được Excel và
             tệp sao lưu JSON.
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => open("ve-pha-do")} className="phatue-btn phatue-btn-red h-10 text-xs">
+            <button type="button" onClick={() => open("ve-pha-do")} className="pat-btn pat-btn-red h-10 text-xs">
               <PenTool size={14} /> Mở phả đồ
             </button>
-            <button type="button" onClick={() => open("giao-dien")} className="phatue-btn phatue-btn-outline h-10 text-xs">
+            <button type="button" onClick={() => open("giao-dien")} className="pat-btn pat-btn-outline h-10 text-xs">
               <Palette size={14} /> Thiết kế in
             </button>
           </div>
         </section>
 
-        <div className="flex items-start gap-2 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--phatue-muted)]">
-          <Info size={15} className="mt-0.5 shrink-0 text-[var(--phatue-gold)]" />
+        <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--pat-muted)]">
+          <Info size={15} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
           <p>
             Cập nhật lần cuối{" "}
             {new Date(tree.updatedAt).toLocaleString("vi-VN", {
@@ -376,7 +376,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
             title="Cây phả hệ"
             onClick={() => open("chinh-sua-voi-cay-gia-pha")}
           />
-          <SheetRow icon={<PenTool size={18} />} title="Tác phả đồ" onClick={() => open("ve-pha-do")} />
+          <SheetRow icon={<PenTool size={18} />} title="Tạo phả đồ" onClick={() => open("ve-pha-do")} />
           <SheetRow icon={<Palette size={18} />} title="Thiết kế phả đồ" onClick={() => open("giao-dien")} />
           <SheetRow icon={<BookOpen size={18} />} title="Phả ký" onClick={() => open("pha-ky")} />
           <SheetRow icon={<GitBranch size={18} />} title="Nhánh họ" onClick={() => open("danh-sach-nhanh")} />
@@ -392,7 +392,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
         footer={
           <button
             type="button"
-            className="phatue-btn phatue-btn-red h-11 w-full text-sm"
+            className="pat-btn pat-btn-red h-11 w-full text-sm"
             onClick={() => {
               updateTree(tree.id, {
                 name: form.name.trim() || tree.name,
@@ -409,22 +409,22 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
       >
         <div className="space-y-3">
           <Field label="Tên gia phả">
-            <input className="phatue-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input className="pat-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </Field>
           <Field label="Địa chỉ / quê quán">
-            <input className="phatue-input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+            <input className="pat-input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </Field>
           <Field label="Người tạo">
-            <input className="phatue-input" value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} />
+            <input className="pat-input" value={form.ownerName} onChange={(e) => setForm({ ...form, ownerName: e.target.value })} />
           </Field>
           <Field label="Mô tả">
             <textarea
-              className="phatue-input min-h-20"
+              className="pat-input min-h-20"
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </Field>
-          <div className="grid grid-cols-3 divide-x divide-[var(--phatue-line)] rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 py-2">
+          <div className="grid grid-cols-3 divide-x divide-[var(--pat-line)] rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 py-2">
             <div className="flex justify-center">
               <Stat value={stats.total} label="Thành viên" />
             </div>

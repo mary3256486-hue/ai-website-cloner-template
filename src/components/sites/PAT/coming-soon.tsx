@@ -9,7 +9,7 @@ const labels: Record<string, string> = {
   "danh-sach-thanh-vien": "Danh sách thành viên",
   "danh-sach-nhanh": "Danh sách nhánh",
   "chinh-sua-voi-cay-gia-pha": "Cây phả hệ",
-  "ve-pha-do": "Tác phả đồ",
+  "ve-pha-do": "Tạo phả đồ",
   "giao-dien": "Thiết kế phả đồ",
   "pha-ky": "Phả ký",
 };

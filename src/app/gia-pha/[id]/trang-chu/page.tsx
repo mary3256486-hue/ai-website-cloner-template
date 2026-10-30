@@ -1,7 +1,7 @@
 "use client";
 
-import { TreeHomeView } from "@/components/sites/phatue/tree-home-view";
-import { LoadingTree, MissingTree, useTreeFromRoute } from "@/components/sites/phatue/tree-route";
+import { TreeHomeView } from "@/components/sites/PAT/tree-home-view";
+import { LoadingTree, MissingTree, useTreeFromRoute } from "@/components/sites/PAT/tree-route";
 
 export default function TreeDashboardPage() {
   const { tree, hydrated } = useTreeFromRoute();

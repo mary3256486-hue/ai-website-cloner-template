@@ -2,10 +2,10 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { UserX } from "lucide-react";
-import { MemberDetailView } from "@/components/sites/phatue/member-detail-view";
-import { TreeShell } from "@/components/sites/phatue/app-shell";
-import { EmptyState } from "@/components/sites/phatue/ui";
-import { LoadingTree, MissingTree, useTreeFromRoute } from "@/components/sites/phatue/tree-route";
+import { MemberDetailView } from "@/components/sites/PAT/member-detail-view";
+import { TreeShell } from "@/components/sites/PAT/app-shell";
+import { EmptyState } from "@/components/sites/PAT/ui";
+import { LoadingTree, MissingTree, useTreeFromRoute } from "@/components/sites/PAT/tree-route";
 
 export default function MemberDetailPage() {
   const params = useParams<{ memberId: string }>();
@@ -27,7 +27,7 @@ export default function MemberDetailPage() {
           action={
             <button
               type="button"
-              className="phatue-btn phatue-btn-red h-9 text-xs"
+              className="pat-btn pat-btn-red h-9 text-xs"
               onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-thanh-vien`)}
             >
               Về danh sách thành viên

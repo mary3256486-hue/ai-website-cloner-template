@@ -164,30 +164,30 @@ export function MemberFormSheet({
       wide
       footer={
         <div className="flex gap-2">
-          <button type="button" className="phatue-btn phatue-btn-outline h-11 flex-1 text-sm" onClick={onClose}>
+          <button type="button" className="pat-btn pat-btn-outline h-11 flex-1 text-sm" onClick={onClose}>
             Huỷ
           </button>
-          <button type="button" className="phatue-btn phatue-btn-red h-11 flex-[2] text-sm" onClick={submit}>
+          <button type="button" className="pat-btn pat-btn-red h-11 flex-[2] text-sm" onClick={submit}>
             <Save size={15} /> {member ? "Lưu thay đổi" : "Thêm thành viên"}
           </button>
         </div>
       }
     >
       <div className="space-y-5">
-        <section className="flex items-center gap-4 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-4 py-3">
+        <section className="flex items-center gap-4 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-4 py-3">
           <Avatar person={{ name: values.name || "?", gender: values.gender, avatar: values.avatar, alive: values.alive }} size={62} />
           <div className="min-w-0 flex-1">
-            <p className="phatue-serif text-base font-semibold text-[var(--phatue-red)]">
+            <p className="pat-serif text-base font-semibold text-[var(--pat-red)]">
               {values.name || "Thành viên mới"}
             </p>
-            <p className="text-xs text-[var(--phatue-muted)]">Ảnh chân dung hiển thị trên phả đồ khi bật ảnh đại diện.</p>
+            <p className="text-xs text-[var(--pat-muted)]">Ảnh chân dung hiển thị trên phả đồ khi bật ảnh đại diện.</p>
           </div>
           <div className="flex flex-col gap-1">
-            <button type="button" className="phatue-btn phatue-btn-outline h-8 text-xs" onClick={() => fileRef.current?.click()}>
+            <button type="button" className="pat-btn pat-btn-outline h-8 text-xs" onClick={() => fileRef.current?.click()}>
               <ImagePlus size={13} /> Chọn ảnh
             </button>
             {values.avatar ? (
-              <button type="button" className="phatue-btn phatue-btn-ghost h-7 text-[0.68rem] text-[#a3271d]" onClick={() => set("avatar", "")}>
+              <button type="button" className="pat-btn pat-btn-ghost h-7 text-[0.68rem] text-[#a3271d]" onClick={() => set("avatar", "")}>
                 <Trash2 size={12} /> Bỏ ảnh
               </button>
             ) : null}
@@ -202,10 +202,10 @@ export function MemberFormSheet({
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Thông tin cơ bản</p>
+          <p className="pat-form-section">Thông tin cơ bản</p>
           <Field label="Họ và tên *" hint="Tên hiển thị trên phả đồ và sổ gia phả.">
             <input
-              className="phatue-input"
+              className="pat-input"
               value={values.name}
               onChange={(event) => set("name", event.target.value)}
               placeholder="Họ tên đầy đủ"
@@ -214,7 +214,7 @@ export function MemberFormSheet({
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Danh xưng / thế thứ" hint="Vị trí của người ấy trong dòng họ qua các đời.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 list="member-ancestor-titles"
                 value={values.title}
                 onChange={(event) => set("title", event.target.value)}
@@ -223,7 +223,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Ghi chú thế thứ" hint="Đích tôn, trưởng nam, con thứ, chi trưởng…">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.generationNote}
                 onChange={(event) => set("generationNote", event.target.value)}
                 placeholder="Đích tôn chi trưởng"
@@ -235,7 +235,7 @@ export function MemberFormSheet({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className="phatue-chip flex-1 justify-center"
+                  className="pat-chip flex-1 justify-center"
                   data-active={values.gender === "male"}
                   onClick={() => set("gender", "male")}
                 >
@@ -243,7 +243,7 @@ export function MemberFormSheet({
                 </button>
                 <button
                   type="button"
-                  className="phatue-chip flex-1 justify-center"
+                  className="pat-chip flex-1 justify-center"
                   data-active={values.gender === "female"}
                   onClick={() => set("gender", "female")}
                 >
@@ -253,7 +253,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Thứ tự sinh">
               <input
-                className="phatue-input"
+                className="pat-input"
                 type="number"
                 min={1}
                 value={values.birthOrder}
@@ -263,7 +263,7 @@ export function MemberFormSheet({
             <Field label="Trạng thái">
               <button
                 type="button"
-                className="phatue-chip w-full justify-center"
+                className="pat-chip w-full justify-center"
                 data-active={values.alive}
                 onClick={() => set("alive", !values.alive)}
               >
@@ -274,7 +274,7 @@ export function MemberFormSheet({
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Năm sinh / ngày sinh" hint="Ghi năm âm lịch hoặc dương lịch nếu biết.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.birthDate}
                 onChange={(event) => set("birthDate", event.target.value)}
                 placeholder="1850 hoặc 12/03/1950"
@@ -282,7 +282,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Ngày mất">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.deathDate}
                 disabled={values.alive}
                 onChange={(event) => set("deathDate", event.target.value)}
@@ -293,11 +293,11 @@ export function MemberFormSheet({
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Tên húy, tự, hiệu, thụy</p>
+          <p className="pat-form-section">Tên húy, tự, hiệu, thụy</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Tên húy" hint="Tên thật, con cháu kiêng gọi khi cúng tế.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.tabooName}
                 onChange={(event) => set("tabooName", event.target.value)}
                 placeholder="Tên kiêng"
@@ -305,7 +305,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Tên tự" hint="Tên chữ do cha mẹ hoặc thầy đặt.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.courtesyName}
                 onChange={(event) => set("courtesyName", event.target.value)}
                 placeholder="Tên tự"
@@ -313,7 +313,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Tên hiệu" hint="Biệt hiệu người ấy tự đặt khi trưởng thành.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.styleName}
                 onChange={(event) => set("styleName", event.target.value)}
                 placeholder="Hiệu, biệt hiệu"
@@ -321,24 +321,24 @@ export function MemberFormSheet({
             </Field>
             <Field label="Thụy hiệu" hint="Tên đặt sau khi mất, ghi trên thần chủ, bia mộ.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.posthumousName}
                 onChange={(event) => set("posthumousName", event.target.value)}
                 placeholder="Thụy hiệu"
               />
             </Field>
           </div>
-          <p className="rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--phatue-muted)]">
+          <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
             Gia phả xưa thường chép đủ “húy – tự – hiệu – thụy” để con cháu kiêng tên và hiểu rõ lai lịch. Mục nào chưa
             rõ có thể để trống.
           </p>
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Quan hệ gia đình</p>
+          <p className="pat-form-section">Quan hệ gia đình</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Cha">
-              <select className="phatue-input" value={values.fatherId} onChange={(event) => set("fatherId", event.target.value)}>
+              <select className="pat-input" value={values.fatherId} onChange={(event) => set("fatherId", event.target.value)}>
                 <option value="">— Chưa rõ —</option>
                 {fatherOptions.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -349,7 +349,7 @@ export function MemberFormSheet({
               </select>
             </Field>
             <Field label="Mẹ">
-              <select className="phatue-input" value={values.motherId} onChange={(event) => set("motherId", event.target.value)}>
+              <select className="pat-input" value={values.motherId} onChange={(event) => set("motherId", event.target.value)}>
                 <option value="">— Chưa rõ —</option>
                 {motherOptions.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -361,9 +361,9 @@ export function MemberFormSheet({
             </Field>
           </div>
           <Field label="Vợ / chồng" hint="Chọn một hoặc nhiều người. Liên kết được tạo cả hai chiều.">
-            <div className="phatue-scroll max-h-36 space-y-1 overflow-y-auto rounded-xl border border-[var(--phatue-line)] bg-white/60 p-2">
+            <div className="pat-scroll max-h-36 space-y-1 overflow-y-auto rounded-xl border border-[var(--pat-line)] bg-white/60 p-2">
               {spouseOptions.length === 0 ? (
-                <p className="px-1 py-2 text-xs text-[var(--phatue-muted)]">Chưa có thành viên khác.</p>
+                <p className="px-1 py-2 text-xs text-[var(--pat-muted)]">Chưa có thành viên khác.</p>
               ) : (
                 spouseOptions.map((p) => {
                   const checked = values.spouseIds.includes(p.id);
@@ -381,10 +381,10 @@ export function MemberFormSheet({
                             checked ? values.spouseIds.filter((id) => id !== p.id) : [...values.spouseIds, p.id],
                           )
                         }
-                        className="h-4 w-4 accent-[var(--phatue-red)]"
+                        className="h-4 w-4 accent-[var(--pat-red)]"
                       />
                       <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                      <span className="text-[0.66rem] text-[var(--phatue-muted)]">{p.gender === "male" ? "Nam" : "Nữ"}</span>
+                      <span className="text-[0.66rem] text-[var(--pat-muted)]">{p.gender === "male" ? "Nam" : "Nữ"}</span>
                     </label>
                   );
                 })
@@ -393,7 +393,7 @@ export function MemberFormSheet({
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Nhánh họ">
-              <select className="phatue-input" value={values.branchId} onChange={(event) => set("branchId", event.target.value)}>
+              <select className="pat-input" value={values.branchId} onChange={(event) => set("branchId", event.target.value)}>
                 <option value="">— Chưa xếp nhánh —</option>
                 {tree.branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
@@ -404,7 +404,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Hôn nhân" hint="Chánh thất, kế thất, thứ thất hoặc năm kết hôn.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.maritalStatus}
                 onChange={(event) => set("maritalStatus", event.target.value)}
                 placeholder="Chánh thất, kết hôn năm…"
@@ -414,11 +414,11 @@ export function MemberFormSheet({
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Thân thế & công danh</p>
+          <p className="pat-form-section">Thân thế & công danh</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Chức tước" hint="Tước vị, chức quan thời trước.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 list="member-noble-titles"
                 value={values.officeTitle}
                 onChange={(event) => set("officeTitle", event.target.value)}
@@ -427,7 +427,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Phẩm hàm" hint="Phẩm cấp được phong, từ chánh nhất đến tòng cửu phẩm.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 list="member-mandarin-ranks"
                 value={values.mandarinRank}
                 onChange={(event) => set("mandarinRank", event.target.value)}
@@ -436,7 +436,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Khoa bảng / danh hiệu" hint="Thi cử, đỗ đạt hoặc danh hiệu được ban.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 list="member-honors"
                 value={values.honors}
                 onChange={(event) => set("honors", event.target.value)}
@@ -445,7 +445,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Nghề nghiệp">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.occupation}
                 onChange={(event) => set("occupation", event.target.value)}
                 placeholder="Nông nghiệp, giáo viên…"
@@ -453,7 +453,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Quê quán" hint="Nguyên quán của gia đình.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.hometown}
                 onChange={(event) => set("hometown", event.target.value)}
                 placeholder="Xã, huyện, tỉnh"
@@ -461,7 +461,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Học vấn" hint="Học vấn hiện đại, khác với khoa bảng thời trước.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.education}
                 onChange={(event) => set("education", event.target.value)}
                 placeholder="Cao đẳng, đại học…"
@@ -471,11 +471,11 @@ export function MemberFormSheet({
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Thờ tự & an táng</p>
+          <p className="pat-form-section">Thờ tự & an táng</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Ngày giỗ (âm lịch)">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.deathAnniversary}
                 onChange={(event) => set("deathAnniversary", event.target.value)}
                 placeholder="12 tháng 3"
@@ -483,7 +483,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Nơi thờ tự" hint="Từ đường, nhà thờ họ hoặc nơi thờ riêng.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.worshipPlace}
                 onChange={(event) => set("worshipPlace", event.target.value)}
                 placeholder="Từ đường dòng họ"
@@ -491,7 +491,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Nơi an nghỉ">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.restingPlace}
                 onChange={(event) => set("restingPlace", event.target.value)}
                 placeholder="Nghĩa trang dòng họ"
@@ -499,7 +499,7 @@ export function MemberFormSheet({
             </Field>
             <Field label="Vị trí mộ">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={values.graveAddress}
                 onChange={(event) => set("graveAddress", event.target.value)}
                 placeholder="Lô, khu, thôn…"
@@ -509,22 +509,22 @@ export function MemberFormSheet({
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Liên hệ</p>
+          <p className="pat-form-section">Liên hệ</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Điện thoại">
-              <input className="phatue-input" value={values.phone} onChange={(event) => set("phone", event.target.value)} />
+              <input className="pat-input" value={values.phone} onChange={(event) => set("phone", event.target.value)} />
             </Field>
             <Field label="Địa chỉ hiện tại">
-              <input className="phatue-input" value={values.address} onChange={(event) => set("address", event.target.value)} />
+              <input className="pat-input" value={values.address} onChange={(event) => set("address", event.target.value)} />
             </Field>
           </div>
         </section>
 
         <section className="space-y-3">
-          <p className="phatue-form-section">Tiểu sử & tư liệu</p>
+          <p className="pat-form-section">Tiểu sử & tư liệu</p>
           <Field label="Tiểu sử">
             <textarea
-              className="phatue-input min-h-24"
+              className="pat-input min-h-24"
               value={values.biography}
               onChange={(event) => set("biography", event.target.value)}
               placeholder="Ghi chép về cuộc đời, công đức với dòng họ…"
@@ -532,14 +532,14 @@ export function MemberFormSheet({
           </Field>
           <Field label="Ghi chú">
             <textarea
-              className="phatue-input min-h-16"
+              className="pat-input min-h-16"
               value={values.notes}
               onChange={(event) => set("notes", event.target.value)}
             />
           </Field>
           <Field label="Ảnh tư liệu" hint="Mỗi dòng một đường dẫn ảnh (URL).">
             <textarea
-              className="phatue-input min-h-16"
+              className="pat-input min-h-16"
               value={values.photosText}
               onChange={(event) => set("photosText", event.target.value)}
               placeholder="https://…"
@@ -570,8 +570,8 @@ export function MemberFormSheet({
 
         {error ? <p className="text-xs font-semibold text-[#a3271d]">{error}</p> : null}
 
-        <p className="flex items-start gap-2 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--phatue-muted)]">
-          <Users size={14} className="mt-0.5 shrink-0 text-[var(--phatue-gold)]" />
+        <p className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--pat-muted)]">
+          <Users size={14} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
           Chọn cha/mẹ và vợ/chồng để phả đồ tự sắp xếp đời và nhánh. Không cần nhập thủ công đời.
         </p>
       </div>

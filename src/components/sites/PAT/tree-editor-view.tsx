@@ -212,7 +212,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
           </button>
         ) : null}
 
-        <div className="relative overflow-hidden rounded-2xl border border-[var(--phatue-line)] bg-[#fdf6e7] shadow-inner">
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--pat-line)] bg-[#fdf6e7] shadow-inner">
           <div
             ref={viewportRef}
             className="relative h-[calc(100dvh-15rem)] min-h-[440px] w-full touch-none overflow-hidden"
@@ -284,7 +284,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                     type="button"
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => setSelectedId(person.id)}
-                    className="phatue-node absolute flex items-center gap-2 overflow-hidden rounded-lg border bg-[#fff9e4] px-2 text-left shadow-sm"
+                    className="pat-node absolute flex items-center gap-2 overflow-hidden rounded-lg border bg-[#fff9e4] px-2 text-left shadow-sm"
                     style={{
                       left: node.x,
                       top: node.y,
@@ -299,13 +299,13 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                     <span className="absolute inset-y-0 left-0 w-1" style={{ background: color }} />
                     <Avatar person={person} size={30} className="ml-1 shrink-0" />
                     <span className="min-w-0 flex-1 pr-1">
-                      <span className="block truncate text-[0.58rem] font-semibold uppercase tracking-wide text-[var(--phatue-muted)]">
+                      <span className="block truncate text-[0.58rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
                         {person.title ?? `Đời ${gens.get(person.id) ?? node.generation}`}
                       </span>
-                      <span className="block truncate text-[0.72rem] font-bold leading-tight text-[var(--phatue-ink)]">
+                      <span className="block truncate text-[0.72rem] font-bold leading-tight text-[var(--pat-ink)]">
                         {person.name}
                       </span>
-                      <span className="block truncate text-[0.58rem] text-[var(--phatue-muted)]">{lifeSpan(person)}</span>
+                      <span className="block truncate text-[0.58rem] text-[var(--pat-muted)]">{lifeSpan(person)}</span>
                     </span>
                   </button>
                 );
@@ -313,46 +313,46 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
             </div>
 
             <div
-              className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--phatue-line)] bg-[#fffdf7]/95 p-1 shadow-lg"
+              className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-[var(--pat-line)] bg-[#fffdf7]/95 p-1 shadow-lg"
               onPointerDown={(event) => event.stopPropagation()}
             >
               <button
                 type="button"
                 onClick={() => setView((prev) => ({ ...prev, scale: Math.max(0.22, prev.scale - 0.15) }))}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--phatue-red)]"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--pat-red)]"
                 aria-label="Thu nhỏ"
               >
                 <Minus size={15} />
               </button>
-              <span className="w-10 text-center text-[0.68rem] font-semibold text-[var(--phatue-muted)]">
+              <span className="w-10 text-center text-[0.68rem] font-semibold text-[var(--pat-muted)]">
                 {Math.round(view.scale * 100)}%
               </span>
               <button
                 type="button"
                 onClick={() => setView((prev) => ({ ...prev, scale: Math.min(1.8, prev.scale + 0.15) }))}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--phatue-red)]"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--pat-red)]"
                 aria-label="Phóng to"
               >
                 <ZoomIn size={15} />
               </button>
-              <span className="mx-0.5 h-4 w-px bg-[var(--phatue-line)]" />
+              <span className="mx-0.5 h-4 w-px bg-[var(--pat-line)]" />
               <button
                 type="button"
                 onClick={fit}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--phatue-red)]"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--pat-red)]"
                 aria-label="Vừa khung"
               >
                 <Maximize2 size={14} />
               </button>
             </div>
 
-            <p className="pointer-events-none absolute bottom-3 left-3 hidden rounded-full bg-white/75 px-2 py-1 text-[0.6rem] text-[var(--phatue-muted)] sm:block">
+            <p className="pointer-events-none absolute bottom-3 left-3 hidden rounded-full bg-white/75 px-2 py-1 text-[0.6rem] text-[var(--pat-muted)] sm:block">
               Kéo nền để di chuyển · lăn chuột để phóng to
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-[0.68rem] text-[var(--phatue-muted)]">
+        <div className="flex flex-wrap items-center gap-2 text-[0.68rem] text-[var(--pat-muted)]">
           <Badge tone="gold">{tree.members.length} thành viên</Badge>
           <Badge tone="muted">{tree.branches.length} nhánh</Badge>
           <Badge tone="muted">{layout.generations.length} đời</Badge>
@@ -370,14 +370,14 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
       >
         {selected ? (
           <div className="space-y-1">
-            <div className="mb-3 flex items-center gap-3 rounded-xl border border-[var(--phatue-line)] bg-white/60 px-3 py-2.5">
+            <div className="mb-3 flex items-center gap-3 rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-2.5">
               <Avatar person={selected} size={44} />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-1.5 text-sm font-bold">
                   {selected.name}
                   {selected.title ? <Badge tone="gold">{selected.title}</Badge> : null}
                 </p>
-                <p className="text-xs text-[var(--phatue-muted)]">
+                <p className="text-xs text-[var(--pat-muted)]">
                   {selected.spouseIds.length} vợ/chồng · {tree.members.filter((m) => m.fatherId === selected.id || m.motherId === selected.id).length} con
                 </p>
               </div>
@@ -440,35 +440,35 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                   setSelectedId(person.id);
                   centerOn(person.id);
                 }}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--phatue-line)] bg-white/60 px-3 py-2 text-left"
+                className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-2 text-left"
               >
                 <Avatar person={person} size={32} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{person.name}</span>
-                  <span className="block text-[0.68rem] text-[var(--phatue-muted)]">
+                  <span className="block text-[0.68rem] text-[var(--pat-muted)]">
                     Đời {gens.get(person.id) ?? 1} · {person.gender === "male" ? "Nam" : "Nữ"}
                   </span>
                 </span>
-                <ChevronRight size={14} className="text-[var(--phatue-muted)]" />
+                <ChevronRight size={14} className="text-[var(--pat-muted)]" />
               </button>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-[var(--phatue-muted)]">Tất cả thành viên đã có đủ liên kết cha.</p>
+          <p className="text-sm text-[var(--pat-muted)]">Tất cả thành viên đã có đủ liên kết cha.</p>
         )}
       </Sheet>
 
       <Sheet open={searchOpen} onClose={() => setSearchOpen(false)} title="Tìm thành viên" subtitle="Đi tới vị trí trên cây">
         <Field label="Tên hoặc năm sinh">
           <input
-            className="phatue-input"
+            className="pat-input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Ví dụ: Phạm, 1950"
             autoFocus
           />
         </Field>
-        <div className="phatue-scroll mt-3 max-h-[50dvh] space-y-1.5 overflow-y-auto">
+        <div className="pat-scroll mt-3 max-h-[50dvh] space-y-1.5 overflow-y-auto">
           {searchResults.map((person) => (
             <button
               key={person.id}
@@ -478,20 +478,20 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                 setSelectedId(person.id);
                 centerOn(person.id);
               }}
-              className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--phatue-line)] bg-white/60 px-3 py-2 text-left"
+              className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-2 text-left"
             >
               <Avatar person={person} size={32} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">{person.name}</span>
-                <span className="block text-[0.68rem] text-[var(--phatue-muted)]">
+                <span className="block text-[0.68rem] text-[var(--pat-muted)]">
                   Đời {gens.get(person.id) ?? 1} · {lifeSpan(person)}
                 </span>
               </span>
-              <ChevronRight size={14} className="text-[var(--phatue-muted)]" />
+              <ChevronRight size={14} className="text-[var(--pat-muted)]" />
             </button>
           ))}
           {searchResults.length === 0 ? (
-            <p className="py-6 text-center text-sm text-[var(--phatue-muted)]">Không tìm thấy thành viên.</p>
+            <p className="py-6 text-center text-sm text-[var(--pat-muted)]">Không tìm thấy thành viên.</p>
           ) : null}
         </div>
       </Sheet>

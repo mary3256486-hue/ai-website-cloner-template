@@ -86,7 +86,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
     window.setTimeout(() => setToast(""), 2200);
   };
 
-  const findSvg = () => document.getElementById("phatue-design-svg") as SVGSVGElement | null;
+  const findSvg = () => document.getElementById("pat-design-svg") as SVGSVGElement | null;
 
   return (
     <TreeShell
@@ -111,7 +111,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             type="button"
             onClick={async () => {
               try {
-                await exportDiagramPng("phatue-design-svg", `${safeName(tree.name)}-pha-do.png`, "#fdf6e7");
+                await exportDiagramPng("pat-design-svg", `${safeName(tree.name)}-pha-do.png`, "#fdf6e7");
                 flash("Đã tải ảnh PNG");
               } catch {
                 flash("Không tạo được PNG, thử in thành PDF");
@@ -125,13 +125,13 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
       }
     >
       <div className="space-y-4">
-        <section className="phatue-card overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--phatue-line)] bg-[#fffaf0]/80 px-4 py-2.5">
+        <section className="pat-card overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--pat-line)] bg-[#fffaf0]/80 px-4 py-2.5">
             <div className="flex items-center gap-2">
-              <FileText size={15} className="text-[var(--phatue-red)]" />
+              <FileText size={15} className="text-[var(--pat-red)]" />
               <p className="text-xs font-semibold">Xem trước bản in</p>
             </div>
-            <span className="rounded-full border border-[var(--phatue-line)] px-2.5 py-0.5 text-[0.65rem] font-semibold text-[var(--phatue-muted)]">
+            <span className="rounded-full border border-[var(--pat-line)] px-2.5 py-0.5 text-[0.65rem] font-semibold text-[var(--pat-muted)]">
               {design.paper} · {orientation === "portrait" ? "dọc" : "ngang"} · {paperCm}
               {autoRotate && isLargeTree(tree) ? " · tự xoay" : ""}
             </span>
@@ -149,7 +149,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                   layout={layout}
                   design={design}
                   decorations={tree.decorations}
-                  svgId="phatue-design-svg"
+                  svgId="pat-design-svg"
                   idPrefix="design"
                 />
               </div>
@@ -158,7 +158,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
           <div className="flex flex-wrap items-center gap-2 px-4 py-3">
             <button
               type="button"
-              className="phatue-btn phatue-btn-red h-9 px-4 text-xs"
+              className="pat-btn pat-btn-red h-9 px-4 text-xs"
               onClick={() => {
                 const svg = findSvg();
                 if (svg) void printSvgDiagram(svg, tree);
@@ -168,10 +168,10 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             </button>
             <button
               type="button"
-              className="phatue-btn phatue-btn-outline h-9 px-4 text-xs"
+              className="pat-btn pat-btn-outline h-9 px-4 text-xs"
               onClick={async () => {
                 try {
-                  await exportDiagramPng("phatue-design-svg", `${safeName(tree.name)}-pha-do.png`, "#fdf6e7");
+                  await exportDiagramPng("pat-design-svg", `${safeName(tree.name)}-pha-do.png`, "#fdf6e7");
                   flash("Đã tải ảnh PNG");
                 } catch {
                   flash("Không tạo được PNG");
@@ -180,20 +180,20 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             >
               <ImageIcon size={14} /> Tải PNG
             </button>
-            <span className="ml-auto text-[0.65rem] text-[var(--phatue-muted)]">
+            <span className="ml-auto text-[0.65rem] text-[var(--pat-muted)]">
               Thay đổi được lưu tự động
             </span>
           </div>
         </section>
 
-        <section className="phatue-card px-4 py-4">
+        <section className="pat-card px-4 py-4">
           <SectionTitle icon={<RotateCcw size={13} />} title="Khổ giấy" />
           <div className="flex flex-wrap gap-2">
             {PAPER_OPTIONS.map((size) => (
               <button
                 key={size}
                 type="button"
-                className="phatue-chip min-w-[64px] justify-center"
+                className="pat-chip min-w-[64px] justify-center"
                 data-active={design.paper === size}
                 onClick={() => setDesign(tree.id, { paper: size })}
               >
@@ -238,14 +238,14 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
               </div>
             </div>
           </div>
-          <p className="mt-2 text-[0.68rem] text-[var(--phatue-muted)]">
+          <p className="mt-2 text-[0.68rem] text-[var(--pat-muted)]">
             Bản in dùng đúng khổ chọn ở trên. Cây từ {AUTO_ROTATE_MIN_MEMBERS} thành viên trở lên tự chọn dọc/ngang
             theo hướng phả đồ khi bật tự xoay.
           </p>
         </section>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<Sparkles size={13} />} title="Kiểu bố cục" />
             <div className="space-y-2">
               {THEMES.map((theme) => (
@@ -255,23 +255,23 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                   onClick={() => setDesign(tree.id, { theme: theme.value })}
                   className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
                     design.theme === theme.value
-                      ? "border-[var(--phatue-red)] bg-[#f9e3df]/60"
-                      : "border-[var(--phatue-line)] bg-white/60"
+                      ? "border-[var(--pat-red)] bg-[#f9e3df]/60"
+                      : "border-[var(--pat-line)] bg-white/60"
                   }`}
                 >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f6e9c8] text-[var(--phatue-red)]">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f6e9c8] text-[var(--pat-red)]">
                     {design.theme === theme.value ? <Check size={15} /> : <Palette size={14} />}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold">{theme.label}</span>
-                    <span className="block text-[0.68rem] text-[var(--phatue-muted)]">{theme.caption}</span>
+                    <span className="block text-[0.68rem] text-[var(--pat-muted)]">{theme.caption}</span>
                   </span>
                 </button>
               ))}
             </div>
           </section>
 
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<Palette size={13} />} title="Màu sắc & nền" />
             <Field label="Bảng màu">
               <div className="flex flex-wrap gap-2">
@@ -282,8 +282,8 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                     onClick={() => setDesign(tree.id, { palette: item.value })}
                     className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
                       design.palette === item.value
-                        ? "border-[var(--phatue-red)] text-[var(--phatue-red)]"
-                        : "border-[var(--phatue-line)] text-[var(--phatue-muted)]"
+                        ? "border-[var(--pat-red)] text-[var(--pat-red)]"
+                        : "border-[var(--pat-line)] text-[var(--pat-muted)]"
                     }`}
                   >
                     <span className="h-3.5 w-3.5 rounded-full" style={{ background: item.swatch }} />
@@ -299,7 +299,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                     <button
                       key={item.value}
                       type="button"
-                      className="phatue-chip"
+                      className="pat-chip"
                       data-active={design.background === item.value}
                       onClick={() => setDesign(tree.id, { background: item.value })}
                     >
@@ -325,11 +325,11 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
           </section>
         </div>
 
-        <section className="phatue-card px-4 py-4">
+        <section className="pat-card px-4 py-4">
           <SectionTitle icon={<FileText size={13} />} title="Hoành phi & câu đối" />
           <Field label="Chữ trên hoành phi">
             <input
-              className="phatue-input"
+              className="pat-input"
               value={design.bannerText}
               onChange={(event) => setDesign(tree.id, { bannerText: event.target.value })}
               placeholder="GIA PHẢ"
@@ -364,17 +364,17 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             <Toggle
               label="Lưới căn chỉnh"
               active={false}
-              onClick={() => flash("Lưới bật/tắt trong trang Tác phả đồ")}
+              onClick={() => flash("Lưới bật/tắt trong trang Tạo phả đồ")}
             />
           </div>
-          <p className="mt-2 text-[0.68rem] text-[var(--phatue-muted)]">
+          <p className="mt-2 text-[0.68rem] text-[var(--pat-muted)]">
             Câu đối mặc định: “Tổ đức lưu phương” — “Gia phong kế thế”. Sửa nội dung chi tiết trong phần trang trí của
-            Tác phả đồ.
+            Tạo phả đồ.
           </p>
         </section>
 
-        <div className="flex items-start gap-2 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--phatue-muted)]">
-          <Info size={15} className="mt-0.5 shrink-0 text-[var(--phatue-gold)]" />
+        <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--pat-muted)]">
+          <Info size={15} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
           <p>
             Thiết kế áp dụng cho cả bản in và ảnh PNG. Dữ liệu và bố cục kéo thả được lưu trên thiết bị này, không cần
             đăng nhập.
@@ -383,7 +383,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
       </div>
 
       {toast ? (
-        <div className="fixed bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full border border-[var(--phatue-gold)]/60 bg-[#fffaf0] px-4 py-2 text-xs font-semibold text-[var(--phatue-red)] shadow-lg md:bottom-6">
+        <div className="fixed bottom-20 left-1/2 z-[70] -translate-x-1/2 rounded-full border border-[var(--pat-gold)]/60 bg-[#fffaf0] px-4 py-2 text-xs font-semibold text-[var(--pat-red)] shadow-lg md:bottom-6">
           {toast}
         </div>
       ) : null}
@@ -398,14 +398,14 @@ function Toggle({ label, active, onClick }: { label: string; active: boolean; on
       onClick={onClick}
       className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold ${
         active
-          ? "border-[var(--phatue-red)] bg-[#f9e3df]/60 text-[var(--phatue-red)]"
-          : "border-[var(--phatue-line)] bg-white/60 text-[var(--phatue-muted)]"
+          ? "border-[var(--pat-red)] bg-[#f9e3df]/60 text-[var(--pat-red)]"
+          : "border-[var(--pat-line)] bg-white/60 text-[var(--pat-muted)]"
       }`}
     >
       {label}
       <span
         className={`flex h-4 w-7 items-center rounded-full p-0.5 transition ${
-          active ? "justify-end bg-[var(--phatue-red)]" : "justify-start bg-[#d8c8ae]"
+          active ? "justify-end bg-[var(--pat-red)]" : "justify-start bg-[#d8c8ae]"
         }`}
       >
         <span className="h-3 w-3 rounded-full bg-white shadow" />

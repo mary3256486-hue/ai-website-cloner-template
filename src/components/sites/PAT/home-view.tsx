@@ -96,24 +96,24 @@ export function HomeView() {
   };
 
   return (
-    <div className="phatue-shell min-h-dvh pb-24">
+    <div className="pat-shell min-h-dvh pb-24">
       <HomeHeader onCreate={() => setCreateOpen(true)} onHelp={() => setHelpOpen(true)} />
 
       <main className="mx-auto w-full max-w-3xl px-3 pt-4">
         <div className="mb-3 flex items-center justify-between px-1">
-          <h1 className="phatue-serif text-xl font-semibold text-[var(--phatue-red)]">Gia phả của tôi</h1>
-          <span className="text-xs text-[var(--phatue-muted)]">{visible.length} gia phả</span>
+          <h1 className="pat-serif text-xl font-semibold text-[var(--pat-red)]">Gia phả của tôi</h1>
+          <span className="text-xs text-[var(--pat-muted)]">{visible.length} gia phả</span>
         </div>
 
         {!hydrated ? (
-          <div className="phatue-card px-5 py-10 text-center text-sm text-[var(--phatue-muted)]">Đang tải gia phả…</div>
+          <div className="pat-card px-5 py-10 text-center text-sm text-[var(--pat-muted)]">Đang tải gia phả…</div>
         ) : visible.length === 0 ? (
-          <div className="phatue-card px-6 py-10 text-center">
-            <p className="phatue-serif text-lg font-semibold text-[var(--phatue-red)]">Chưa có cây gia phả nào</p>
-            <p className="mx-auto mt-1 max-w-sm text-sm text-[var(--phatue-muted)]">
+          <div className="pat-card px-6 py-10 text-center">
+            <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">Chưa có cây gia phả nào</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-[var(--pat-muted)]">
               Nhấn nút <strong>+ Lập Gia Phả</strong> để bắt đầu ghi chép cội nguồn dòng họ. Không cần đăng nhập.
             </p>
-            <button type="button" className="phatue-btn phatue-btn-red mt-4 h-10 px-5 text-sm" onClick={() => setCreateOpen(true)}>
+            <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={() => setCreateOpen(true)}>
               <Plus size={16} /> Tạo gia phả đầu tiên
             </button>
           </div>
@@ -122,50 +122,50 @@ export function HomeView() {
             {visible.map((tree) => {
               const stats = getStats(tree);
               return (
-                <article key={tree.id} className="phatue-card relative overflow-hidden">
+                <article key={tree.id} className="pat-card relative overflow-hidden">
                   <Link
                     href={`/gia-pha/${tree.id}/trang-chu`}
                     className="block px-4 pt-4 text-left"
                   >
                     <div className="min-w-0 pr-10">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="phatue-serif truncate text-lg font-semibold text-[var(--phatue-red)]">{tree.name}</h2>
+                        <h2 className="pat-serif truncate text-lg font-semibold text-[var(--pat-red)]">{tree.name}</h2>
                         {tree.sample ? <Badge tone="gold">GIA PHẢ MẪU</Badge> : null}
                       </div>
-                      <p className="mt-0.5 line-clamp-1 text-xs text-[var(--phatue-muted)]">
+                      <p className="mt-0.5 line-clamp-1 text-xs text-[var(--pat-muted)]">
                         {tree.address ?? "Chưa cập nhật địa chỉ"}
                       </p>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-3 divide-x divide-[var(--phatue-line)] rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 py-2 text-center">
-                      <div className="text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--phatue-muted)]">
-                        <div className="text-sm font-bold text-[var(--phatue-ink)]">{stats.generations} Đời</div>
+                    <div className="mt-3 grid grid-cols-3 divide-x divide-[var(--pat-line)] rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 py-2 text-center">
+                      <div className="text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
+                        <div className="text-sm font-bold text-[var(--pat-ink)]">{stats.generations} Đời</div>
                       </div>
-                      <div className="text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--phatue-muted)]">
-                        <div className="text-sm font-bold text-[var(--phatue-ink)]">{stats.total} Thành viên</div>
+                      <div className="text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
+                        <div className="text-sm font-bold text-[var(--pat-ink)]">{stats.total} Thành viên</div>
                       </div>
-                      <div className="flex items-center justify-center gap-1 text-[0.68rem] text-[var(--phatue-muted)]">
+                      <div className="flex items-center justify-center gap-1 text-[0.68rem] text-[var(--pat-muted)]">
                         <CalendarDays size={12} />
                         {formatDate(tree.updatedAt)}
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-center gap-2 border-t border-dashed border-[var(--phatue-line)] py-3">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f3e6cd] text-[var(--phatue-red)]">
+                    <div className="mt-3 flex items-center gap-2 border-t border-dashed border-[var(--pat-line)] py-3">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f3e6cd] text-[var(--pat-red)]">
                         <Users size={15} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--phatue-muted)]">Người tạo</p>
+                        <p className="text-[0.65rem] uppercase tracking-[0.14em] text-[var(--pat-muted)]">Người tạo</p>
                         <p className="truncate text-sm font-semibold">{tree.ownerName ?? "Chủ gia phả"}</p>
                       </div>
-                      <ChevronRight size={16} className="text-[var(--phatue-muted)]" />
+                      <ChevronRight size={16} className="text-[var(--pat-muted)]" />
                     </div>
                   </Link>
 
                   <button
                     type="button"
                     onClick={() => setManageTree(tree)}
-                    className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--phatue-line)] bg-[#fffaf0] text-[var(--phatue-muted)]"
+                    className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-[#fffaf0] text-[var(--pat-muted)]"
                     aria-label="Thao tác gia phả"
                   >
                     <MoreHorizontal size={16} />
@@ -175,7 +175,7 @@ export function HomeView() {
                     <button
                       type="button"
                       onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-thanh-vien`)}
-                      className="phatue-btn phatue-btn-red h-14 flex-col gap-0.5 rounded-lg text-[0.7rem]"
+                      className="pat-btn pat-btn-red h-14 flex-col gap-0.5 rounded-lg text-[0.7rem]"
                     >
                       <span>Danh sách thành viên</span>
                       <span className="flex items-center gap-1 text-sm font-bold">
@@ -185,7 +185,7 @@ export function HomeView() {
                     <button
                       type="button"
                       onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-nhanh`)}
-                      className="phatue-btn phatue-btn-red h-14 flex-col gap-0.5 rounded-lg text-[0.7rem]"
+                      className="pat-btn pat-btn-red h-14 flex-col gap-0.5 rounded-lg text-[0.7rem]"
                     >
                       <span>Danh sách chi, cành</span>
                       <span className="flex items-center gap-1 text-sm font-bold">
@@ -199,7 +199,7 @@ export function HomeView() {
           </div>
         )}
 
-        <div className="mt-5 flex items-start gap-2 rounded-xl border border-[var(--phatue-gold)]/40 bg-[#f9edcf] px-3 py-2.5 text-xs text-[#7a5a10]">
+        <div className="mt-5 flex items-start gap-2 rounded-xl border border-[var(--pat-gold)]/40 bg-[#f9edcf] px-3 py-2.5 text-xs text-[#7a5a10]">
           <Info size={15} className="mt-0.5 shrink-0" />
           <p>
             Gia phả mẫu tự ẩn khi bạn tạo thành công gia phả đầu tiên. Dữ liệu lưu ngay trên thiết bị này, không cần
@@ -217,7 +217,7 @@ export function HomeView() {
         title="Lập Gia Phả"
         subtitle="Khởi tạo cây gia phả và ghi danh vị tổ"
         footer={
-          <button type="button" className="phatue-btn phatue-btn-red h-11 w-full text-sm" onClick={submit}>
+          <button type="button" className="pat-btn pat-btn-red h-11 w-full text-sm" onClick={submit}>
             Tạo gia phả
           </button>
         }
@@ -225,7 +225,7 @@ export function HomeView() {
         <div className="space-y-3">
           <Field label="Tên gia phả *">
             <input
-              className="phatue-input"
+              className="pat-input"
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               placeholder="Ví dụ: Gia phả dòng họ Phạm"
@@ -233,7 +233,7 @@ export function HomeView() {
           </Field>
           <Field label="Địa chỉ / quê quán">
             <input
-              className="phatue-input"
+              className="pat-input"
               value={form.address}
               onChange={(event) => setForm({ ...form, address: event.target.value })}
               placeholder="Xã, huyện, tỉnh"
@@ -241,17 +241,17 @@ export function HomeView() {
           </Field>
           <Field label="Người tạo">
             <input
-              className="phatue-input"
+              className="pat-input"
               value={form.ownerName}
               onChange={(event) => setForm({ ...form, ownerName: event.target.value })}
               placeholder="Họ tên người lập gia phả"
             />
           </Field>
-          <div className="phatue-ornament my-2" />
-          <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--phatue-red)]">Vị tổ khai sáng</p>
+          <div className="pat-ornament my-2" />
+          <p className="text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">Vị tổ khai sáng</p>
           <Field label="Họ tên vị tổ *" hint="Tên thường dùng, hiển thị trên phả đồ.">
             <input
-              className="phatue-input"
+              className="pat-input"
               value={form.founderName}
               onChange={(event) => setForm({ ...form, founderName: event.target.value })}
               placeholder="Họ tên vị tổ đầu tiên"
@@ -260,7 +260,7 @@ export function HomeView() {
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Danh xưng / thế thứ" hint="Thủy tổ, Khởi tổ, Viễn tổ…">
               <input
-                className="phatue-input"
+                className="pat-input"
                 list="founder-ancestor-titles"
                 value={form.founderTitle}
                 onChange={(event) => setForm({ ...form, founderTitle: event.target.value })}
@@ -269,7 +269,7 @@ export function HomeView() {
             </Field>
             <Field label="Ghi chú thế thứ" hint="Đích tôn, trưởng chi, chi thứ…">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={form.founderGenerationNote}
                 onChange={(event) => setForm({ ...form, founderGenerationNote: event.target.value })}
                 placeholder="Đích tôn chi trưởng"
@@ -282,7 +282,7 @@ export function HomeView() {
                 <button
                   type="button"
                   data-active={form.founderGender === "male"}
-                  className="phatue-chip flex-1 justify-center"
+                  className="pat-chip flex-1 justify-center"
                   onClick={() => setForm({ ...form, founderGender: "male" })}
                 >
                   Nam
@@ -290,7 +290,7 @@ export function HomeView() {
                 <button
                   type="button"
                   data-active={form.founderGender === "female"}
-                  className="phatue-chip flex-1 justify-center"
+                  className="pat-chip flex-1 justify-center"
                   onClick={() => setForm({ ...form, founderGender: "female" })}
                 >
                   Nữ
@@ -299,7 +299,7 @@ export function HomeView() {
             </Field>
             <Field label="Năm sinh">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={form.founderBirth}
                 onChange={(event) => setForm({ ...form, founderBirth: event.target.value })}
                 placeholder="1850"
@@ -307,13 +307,13 @@ export function HomeView() {
             </Field>
           </div>
 
-          <p className="pt-1 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--phatue-red)]">
+          <p className="pt-1 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">
             Tên húy, tự, hiệu, thụy · công danh
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Tên húy" hint="Tên thật, con cháu kiêng gọi.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={form.founderTabooName}
                 onChange={(event) => setForm({ ...form, founderTabooName: event.target.value })}
                 placeholder="Tên kiêng"
@@ -321,7 +321,7 @@ export function HomeView() {
             </Field>
             <Field label="Tên tự" hint="Tên chữ do cha mẹ, thầy đặt.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={form.founderCourtesyName}
                 onChange={(event) => setForm({ ...form, founderCourtesyName: event.target.value })}
                 placeholder="Tên tự"
@@ -329,7 +329,7 @@ export function HomeView() {
             </Field>
             <Field label="Tên hiệu">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={form.founderStyleName}
                 onChange={(event) => setForm({ ...form, founderStyleName: event.target.value })}
                 placeholder="Hiệu, biệt hiệu"
@@ -337,7 +337,7 @@ export function HomeView() {
             </Field>
             <Field label="Thụy hiệu" hint="Tên đặt sau khi mất.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 value={form.founderPosthumousName}
                 onChange={(event) => setForm({ ...form, founderPosthumousName: event.target.value })}
                 placeholder="Thụy hiệu"
@@ -345,7 +345,7 @@ export function HomeView() {
             </Field>
             <Field label="Chức tước" hint="Tước vị, chức quan thời trước.">
               <input
-                className="phatue-input"
+                className="pat-input"
                 list="founder-noble-titles"
                 value={form.founderOfficeTitle}
                 onChange={(event) => setForm({ ...form, founderOfficeTitle: event.target.value })}
@@ -354,7 +354,7 @@ export function HomeView() {
             </Field>
             <Field label="Phẩm hàm">
               <input
-                className="phatue-input"
+                className="pat-input"
                 list="founder-mandarin-ranks"
                 value={form.founderMandarinRank}
                 onChange={(event) => setForm({ ...form, founderMandarinRank: event.target.value })}
@@ -364,7 +364,7 @@ export function HomeView() {
           </div>
           <Field label="Khoa bảng / danh hiệu" hint="Thi cử, đỗ đạt hoặc danh hiệu được ban.">
             <input
-              className="phatue-input"
+              className="pat-input"
               list="founder-honors"
               value={form.founderHonors}
               onChange={(event) => setForm({ ...form, founderHonors: event.target.value })}
@@ -393,7 +393,7 @@ export function HomeView() {
           </datalist>
 
           {error ? <p className="text-xs font-semibold text-[#a3271d]">{error}</p> : null}
-          <p className="text-[0.7rem] leading-relaxed text-[var(--phatue-muted)]">
+          <p className="text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
             Gia phả xưa chép đủ “húy – tự – hiệu – thụy” và chức tước, phẩm hàm để con cháu nhớ cội nguồn. Mục nào chưa
             rõ có thể để trống và bổ sung sau. Không có bước đăng nhập.
           </p>

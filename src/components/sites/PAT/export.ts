@@ -148,7 +148,7 @@ export function paperDimensions(tree: FamilyTree, layout?: TreeLayout): { widthM
 export function printDiagram(tree: FamilyTree) {
   const { widthMm, heightMm } = paperDimensions(tree);
   const style = document.createElement("style");
-  style.id = "phatue-print-size";
+  style.id = "pat-print-size";
   style.textContent = `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`;
   document.head.appendChild(style);
   window.print();

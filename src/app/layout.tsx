@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Be_Vietnam_Pro, Playfair_Display } from "next/font/google";
-import { GenealogyProvider } from "@/components/sites/phatue/store";
+import { GenealogyProvider } from "@/components/sites/PAT/store";
 import "./globals.css";
 
 const beVietnam = Be_Vietnam_Pro({

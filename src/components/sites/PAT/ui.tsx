@@ -111,24 +111,24 @@ export function Sheet({
   if (!open) return null;
   return (
     <>
-      <div className="phatue-sheet-backdrop no-print" onClick={onClose} />
+      <div className="pat-sheet-backdrop no-print" onClick={onClose} />
       <div
-        className={cn("phatue-sheet phatue-scroll no-print", wide && "md:w-[860px] md:max-w-[calc(100vw-3rem)]")}
+        className={cn("pat-sheet pat-scroll no-print", wide && "md:w-[860px] md:max-w-[calc(100vw-3rem)]")}
         role="dialog"
         aria-modal="true"
         aria-label={title}
       >
-        <div className="sticky top-0 z-10 rounded-t-[1.4rem] border-b border-[var(--phatue-line)] bg-[var(--phatue-cream)]/95 px-5 pb-3 pt-2 backdrop-blur">
-          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--phatue-line)] md:hidden" />
+        <div className="sticky top-0 z-10 rounded-t-[1.4rem] border-b border-[var(--pat-line)] bg-[var(--pat-cream)]/95 px-5 pb-3 pt-2 backdrop-blur">
+          <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--pat-line)] md:hidden" />
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="phatue-serif text-xl font-semibold text-[var(--phatue-red)]">{title}</h2>
-              {subtitle ? <p className="mt-0.5 text-xs text-[var(--phatue-muted)]">{subtitle}</p> : null}
+              <h2 className="pat-serif text-xl font-semibold text-[var(--pat-red)]">{title}</h2>
+              {subtitle ? <p className="mt-0.5 text-xs text-[var(--pat-muted)]">{subtitle}</p> : null}
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--phatue-line)] bg-white/70 text-[var(--phatue-muted)] transition hover:text-[var(--phatue-red)]"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-white/70 text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
               aria-label="Đóng"
             >
               <X size={16} />
@@ -137,7 +137,7 @@ export function Sheet({
         </div>
         <div className="px-5 pb-6 pt-4">{children}</div>
         {footer ? (
-          <div className="sticky bottom-0 border-t border-[var(--phatue-line)] bg-[var(--phatue-cream)]/95 px-5 py-3 backdrop-blur">
+          <div className="sticky bottom-0 border-t border-[var(--pat-line)] bg-[var(--pat-cream)]/95 px-5 py-3 backdrop-blur">
             {footer}
           </div>
         ) : null}
@@ -159,9 +159,9 @@ export function Field({
 }) {
   return (
     <label className={cn("block", className)}>
-      <span className="phatue-label">{label}</span>
+      <span className="pat-label">{label}</span>
       {children}
-      {hint ? <span className="mt-1 block text-[0.68rem] text-[var(--phatue-muted)]">{hint}</span> : null}
+      {hint ? <span className="mt-1 block text-[0.68rem] text-[var(--pat-muted)]">{hint}</span> : null}
     </label>
   );
 }
@@ -179,7 +179,7 @@ export function SectionTitle({
 }) {
   return (
     <div className={cn("mb-3 flex items-center justify-between gap-3", className)}>
-      <h3 className="flex items-center gap-2 text-[0.72rem] font-bold uppercase tracking-[0.16em] text-[var(--phatue-red)]">
+      <h3 className="flex items-center gap-2 text-[0.72rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">
         {icon}
         {title}
       </h3>
@@ -200,10 +200,10 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="phatue-card flex flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-      {icon ? <div className="text-[var(--phatue-gold)]">{icon}</div> : null}
-      <p className="phatue-serif text-lg font-semibold text-[var(--phatue-red)]">{title}</p>
-      {description ? <p className="max-w-sm text-sm text-[var(--phatue-muted)]">{description}</p> : null}
+    <div className="pat-card flex flex-col items-center justify-center gap-3 px-6 py-10 text-center">
+      {icon ? <div className="text-[var(--pat-gold)]">{icon}</div> : null}
+      <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">{title}</p>
+      {description ? <p className="max-w-sm text-sm text-[var(--pat-muted)]">{description}</p> : null}
       {action}
     </div>
   );
@@ -212,10 +212,10 @@ export function EmptyState({
 export function Stat({ value, label, tone = "normal" }: { value: ReactNode; label: string; tone?: "normal" | "red" }) {
   return (
     <div className="flex flex-col items-center">
-      <span className={cn("text-lg font-bold", tone === "red" ? "text-[var(--phatue-red)]" : "text-[var(--phatue-ink)]")}>
+      <span className={cn("text-lg font-bold", tone === "red" ? "text-[var(--pat-red)]" : "text-[var(--pat-ink)]")}>
         {value}
       </span>
-      <span className="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-[var(--phatue-muted)]">{label}</span>
+      <span className="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-[var(--pat-muted)]">{label}</span>
     </div>
   );
 }
@@ -235,7 +235,7 @@ export function Segmented<T extends string>({
         <button
           key={option.value}
           type="button"
-          className="phatue-chip"
+          className="pat-chip"
           data-active={value === option.value}
           onClick={() => onChange(option.value)}
         >
@@ -264,14 +264,14 @@ export function SheetRow({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3 rounded-xl border border-transparent px-2 py-3 text-left transition hover:border-[var(--phatue-line)] hover:bg-white/60",
+        "flex w-full items-center gap-3 rounded-xl border border-transparent px-2 py-3 text-left transition hover:border-[var(--pat-line)] hover:bg-white/60",
         danger && "text-[#a3271d]",
       )}
     >
-      {icon ? <span className="text-[var(--phatue-gold)]">{icon}</span> : null}
+      {icon ? <span className="text-[var(--pat-gold)]">{icon}</span> : null}
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold">{title}</span>
-        {subtitle ? <span className="block text-xs text-[var(--phatue-muted)]">{subtitle}</span> : null}
+        {subtitle ? <span className="block text-xs text-[var(--pat-muted)]">{subtitle}</span> : null}
       </span>
     </button>
   );

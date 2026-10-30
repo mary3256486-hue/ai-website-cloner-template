@@ -89,8 +89,8 @@ export function DiagramCanvas({
   const branchColor = new Map(tree.branches.map((branch) => [branch.id, branch.color]));
   const { width, height } = diagramDimensions(layout, settings);
   const top = contentTop(settings);
-  const patternId = `phatue-bg-${idPrefix}`;
-  const gridId = `phatue-grid-${idPrefix}`;
+  const patternId = `pat-bg-${idPrefix}`;
+  const gridId = `pat-grid-${idPrefix}`;
 
   const nodeVisible = (id: string) => !visibleIds || visibleIds.has(id);
   const edgeVisible = (edge: TreeEdge) => {

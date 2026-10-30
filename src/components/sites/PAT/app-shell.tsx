@@ -60,8 +60,8 @@ export function TreeShell({
   const home = `/gia-pha/${tree.id}/trang-chu`;
 
   return (
-    <div className="phatue-shell flex min-h-dvh flex-col">
-      <header className="phatue-header sticky top-0 z-30 no-print">
+    <div className="pat-shell flex min-h-dvh flex-col">
+      <header className="pat-header sticky top-0 z-30 no-print">
         <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 pb-3 pt-3">
           <Link
             href={backHref ?? home}
@@ -71,7 +71,7 @@ export function TreeShell({
             <ArrowLeft size={18} />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="truncate phatue-serif text-lg font-semibold leading-tight text-[#fff7e8]">{title}</p>
+            <p className="truncate pat-serif text-lg font-semibold leading-tight text-[#fff7e8]">{title}</p>
             {subtitle ? <p className="truncate text-[0.68rem] text-[#f0d9bd]/85">{subtitle}</p> : null}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
@@ -87,7 +87,7 @@ export function TreeShell({
                 className={cn(
                   "flex items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-2 text-xs font-semibold transition",
                   active
-                    ? "border-[var(--phatue-gold)] bg-white/10 text-white"
+                    ? "border-[var(--pat-gold)] bg-white/10 text-white"
                     : "border-transparent text-[#f3ddc2]/75 hover:bg-white/10 hover:text-white",
                 )}
               >
@@ -103,7 +103,7 @@ export function TreeShell({
         {children}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--phatue-line)] bg-[#fffaf0]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_-20px_rgba(90,15,10,0.4)] backdrop-blur md:hidden no-print">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--pat-line)] bg-[#fffaf0]/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_-20px_rgba(90,15,10,0.4)] backdrop-blur md:hidden no-print">
         <div className="mx-auto flex max-w-md items-stretch justify-between px-2">
           <BottomLink href={home} icon={<Home size={19} />} label="Gia phả" active={section === "trang-chu"} />
           <BottomLink
@@ -127,7 +127,7 @@ export function TreeShell({
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.62rem] font-semibold text-[var(--phatue-muted)]"
+            className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.62rem] font-semibold text-[var(--pat-muted)]"
           >
             <Menu size={19} />
             Thêm
@@ -153,7 +153,7 @@ function BottomLink({ href, icon, label, active }: { href: string; icon: ReactNo
       href={href}
       className={cn(
         "flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.62rem] font-semibold transition",
-        active ? "text-[var(--phatue-red)]" : "text-[var(--phatue-muted)]",
+        active ? "text-[var(--pat-red)]" : "text-[var(--pat-muted)]",
       )}
     >
       {icon}
@@ -164,7 +164,7 @@ function BottomLink({ href, icon, label, active }: { href: string; icon: ReactNo
 
 export function HomeHeader({ onCreate, onHelp }: { onCreate: () => void; onHelp: () => void }) {
   return (
-    <header className="phatue-header no-print">
+    <header className="pat-header no-print">
       <div className="mx-auto flex w-full max-w-3xl items-center gap-2 px-3 pb-3 pt-3">
         <button
           type="button"
@@ -203,7 +203,7 @@ export function HomeBottomNav({ onScope }: { onScope: (name: string) => void }) 
     { label: "Tài khoản", icon: <UserRound size={19} /> },
   ];
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--phatue-line)] bg-[#fffaf0]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur no-print">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--pat-line)] bg-[#fffaf0]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur no-print">
       <div className="mx-auto flex max-w-md items-stretch justify-between px-2">
         {items.map((item) => (
           <button
@@ -214,7 +214,7 @@ export function HomeBottomNav({ onScope }: { onScope: (name: string) => void }) 
             }}
             className={cn(
               "flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.62rem] font-semibold",
-              item.active ? "text-[var(--phatue-red)]" : "text-[var(--phatue-muted)]",
+              item.active ? "text-[var(--pat-red)]" : "text-[var(--pat-muted)]",
             )}
           >
             {item.icon}
@@ -229,18 +229,18 @@ export function HomeBottomNav({ onScope }: { onScope: (name: string) => void }) 
 export function ScopeNotice({ name, onClose }: { name: string; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(46,20,10,0.45)] p-4" onClick={onClose}>
-      <div className="phatue-card w-full max-w-sm p-5" onClick={(event) => event.stopPropagation()}>
+      <div className="pat-card w-full max-w-sm p-5" onClick={(event) => event.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
-          <p className="phatue-serif text-lg font-semibold text-[var(--phatue-red)]">{name}</p>
-          <button type="button" onClick={onClose} aria-label="Đóng" className="text-[var(--phatue-muted)]">
+          <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">{name}</p>
+          <button type="button" onClick={onClose} aria-label="Đóng" className="text-[var(--pat-muted)]">
             <X size={18} />
           </button>
         </div>
-        <p className="text-sm leading-relaxed text-[var(--phatue-muted)]">
+        <p className="text-sm leading-relaxed text-[var(--pat-muted)]">
           Bản dựng này tập trung vào phần dựng gia phả và xuất bản in. Tính năng <strong>{name}</strong> nằm ngoài
           phạm vi, không cần đăng nhập hay mua xu.
         </p>
-        <button type="button" onClick={onClose} className="phatue-btn phatue-btn-red mt-4 h-9 w-full text-sm">
+        <button type="button" onClick={onClose} className="pat-btn pat-btn-red mt-4 h-9 w-full text-sm">
           Đã hiểu
         </button>
       </div>

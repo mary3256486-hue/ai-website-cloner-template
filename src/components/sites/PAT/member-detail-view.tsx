@@ -43,9 +43,9 @@ import { KinshipSheet } from "./kinship-sheet";
 function InfoRow({ label, value }: { label: string; value?: React.ReactNode }) {
   if (!value) return null;
   return (
-    <div className="grid grid-cols-[7rem_1fr] gap-2 border-b border-dashed border-[var(--phatue-line)] py-1.5 text-sm last:border-b-0">
-      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[var(--phatue-muted)]">{label}</span>
-      <span className="min-w-0 break-words text-[var(--phatue-ink)]">{value}</span>
+    <div className="grid grid-cols-[7rem_1fr] gap-2 border-b border-dashed border-[var(--pat-line)] py-1.5 text-sm last:border-b-0">
+      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-[var(--pat-muted)]">{label}</span>
+      <span className="min-w-0 break-words text-[var(--pat-ink)]">{value}</span>
     </div>
   );
 }
@@ -63,17 +63,17 @@ function PersonChip({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-xl border border-[var(--phatue-line)] bg-white/60 px-2.5 py-2 text-left transition hover:border-[var(--phatue-gold)] hover:bg-[#fdf4e0]"
+      className="flex w-full items-center gap-2 rounded-xl border border-[var(--pat-line)] bg-white/60 px-2.5 py-2 text-left transition hover:border-[var(--pat-gold)] hover:bg-[#fdf4e0]"
     >
       <Avatar person={person} size={32} />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-semibold">{person.name}</span>
-        <span className="block truncate text-[0.62rem] text-[var(--phatue-muted)]">
+        <span className="block truncate text-[0.62rem] text-[var(--pat-muted)]">
           {lifeSpan(person)} · {person.gender === "male" ? "Nam" : "Nữ"}
         </span>
       </span>
-      {tone === "red" ? <Ban size={13} className="text-[var(--phatue-muted)]" /> : null}
-      <ChevronRight size={13} className="shrink-0 text-[var(--phatue-muted)]" />
+      {tone === "red" ? <Ban size={13} className="text-[var(--pat-muted)]" /> : null}
+      <ChevronRight size={13} className="shrink-0 text-[var(--pat-muted)]" />
     </button>
   );
 }
@@ -158,8 +158,8 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
       }
     >
       <div className="space-y-4">
-        <section className="phatue-card relative overflow-hidden px-4 py-5">
-          <div aria-hidden className="phatue-ornament absolute inset-x-6 top-3 opacity-60" />
+        <section className="pat-card relative overflow-hidden px-4 py-5">
+          <div aria-hidden className="pat-ornament absolute inset-x-6 top-3 opacity-60" />
           <div className="flex items-start gap-4">
             <Avatar person={member} size={72} className="border-2 border-[#f2d27c]" />
             <div className="min-w-0 flex-1">
@@ -168,17 +168,17 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
                 <Badge tone={member.alive ? "green" : "muted"}>{member.alive ? "Còn sống" : "Đã mất"}</Badge>
                 <Badge tone="red">Đời {generation}</Badge>
               </div>
-              <h1 className="phatue-serif mt-1 text-xl font-bold leading-tight text-[var(--phatue-red)]">
+              <h1 className="pat-serif mt-1 text-xl font-bold leading-tight text-[var(--pat-red)]">
                 {member.name}
               </h1>
               {aliasLine ? (
                 <p className="text-[0.72rem] italic leading-snug text-[#7a5a10]">{aliasLine}</p>
               ) : null}
-              <p className="text-xs text-[var(--phatue-muted)]">
+              <p className="text-xs text-[var(--pat-muted)]">
                 {lifeSpan(member)}
                 {ageText(member) ? ` · ${ageText(member)}` : ""}
               </p>
-              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[0.7rem] text-[var(--phatue-muted)]">
+              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-[0.7rem] text-[var(--pat-muted)]">
                 <span className="inline-flex items-center gap-1">
                   <UserRound size={12} /> {member.gender === "male" ? "Nam" : "Nữ"}
                 </span>
@@ -192,7 +192,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-4 divide-x divide-[var(--phatue-line)] rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/80 py-2.5">
+          <div className="mt-4 grid grid-cols-4 divide-x divide-[var(--pat-line)] rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/80 py-2.5">
             <Stat value={spouses.length} label="Vợ/chồng" />
             <Stat value={children.length} label="Con" tone="red" />
             <Stat value={grandchildren} label="Cháu" />
@@ -203,17 +203,17 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <button
               type="button"
               onClick={() => router.push(`/gia-pha/${tree.id}/ve-pha-do?focus=${member.id}`)}
-              className="phatue-btn phatue-btn-red h-10 text-xs"
+              className="pat-btn pat-btn-red h-10 text-xs"
             >
               <Network size={14} /> Xem trên phả đồ
             </button>
-            <button type="button" onClick={() => setKinOpen(true)} className="phatue-btn phatue-btn-outline h-10 text-xs">
+            <button type="button" onClick={() => setKinOpen(true)} className="pat-btn pat-btn-outline h-10 text-xs">
               <HeartHandshake size={14} /> Cách xưng hô
             </button>
           </div>
         </section>
 
-        <section className="phatue-card px-4 py-4">
+        <section className="pat-card px-4 py-4">
           <SectionTitle icon={<Award size={13} />} title="Gia thế & công danh" />
           <div className="grid gap-x-4 sm:grid-cols-2">
             <div>
@@ -231,9 +231,9 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             </div>
           </div>
           {!hasLineageInfo && !hasCareerInfo ? (
-            <p className="mt-2 text-xs text-[var(--phatue-muted)]">
+            <p className="mt-2 text-xs text-[var(--pat-muted)]">
               Chưa chép tên húy, tự, hiệu và công danh.{" "}
-              <button type="button" className="font-semibold text-[var(--phatue-red)]" onClick={() => setEditOpen(true)}>
+              <button type="button" className="font-semibold text-[var(--pat-red)]" onClick={() => setEditOpen(true)}>
                 Bổ sung ngay
               </button>
             </p>
@@ -241,7 +241,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
         </section>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<UserRound size={13} />} title="Thông tin cá nhân" />
             <div>
               <InfoRow label="Họ tên" value={member.name} />
@@ -255,16 +255,16 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               <InfoRow label="Thứ tự sinh" value={`Con thứ ${member.birthOrder}`} />
             </div>
             {!member.birthDate && !member.hometown && !member.occupation ? (
-              <p className="mt-2 text-xs text-[var(--phatue-muted)]">
+              <p className="mt-2 text-xs text-[var(--pat-muted)]">
                 Chưa có thông tin cá nhân.{" "}
-                <button type="button" className="font-semibold text-[var(--phatue-red)]" onClick={() => setEditOpen(true)}>
+                <button type="button" className="font-semibold text-[var(--pat-red)]" onClick={() => setEditOpen(true)}>
                   Bổ sung ngay
                 </button>
               </p>
             ) : null}
           </section>
 
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<Flower2 size={13} />} title="Thờ tự & an táng" />
             <div>
               <InfoRow label="Ngày giỗ" value={member.deathAnniversary} />
@@ -274,30 +274,30 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               <InfoRow label="Tình trạng" value={member.alive ? "Đang sinh sống" : "Đã khuất"} />
             </div>
             {!member.deathAnniversary && !member.worshipPlace && !member.restingPlace && !member.graveAddress ? (
-              <p className="mt-2 text-xs text-[var(--phatue-muted)]">Chưa ghi nhận thông tin thờ tự, phần mộ.</p>
+              <p className="mt-2 text-xs text-[var(--pat-muted)]">Chưa ghi nhận thông tin thờ tự, phần mộ.</p>
             ) : null}
           </section>
         </div>
 
-        <section className="phatue-card px-4 py-4">
+        <section className="pat-card px-4 py-4">
           <SectionTitle icon={<UsersRound size={13} />} title="Quan hệ gia đình" />
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <p className="mb-1.5 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--phatue-muted)]">
+              <p className="mb-1.5 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
                 Cha & mẹ
               </p>
               <div className="grid gap-1.5">
                 {father ? (
                   <PersonChip person={father} onClick={() => goMember(father.id)} />
                 ) : (
-                  <p className="rounded-lg border border-dashed border-[var(--phatue-line)] px-2.5 py-2 text-xs text-[var(--phatue-muted)]">
+                  <p className="rounded-lg border border-dashed border-[var(--pat-line)] px-2.5 py-2 text-xs text-[var(--pat-muted)]">
                     Chưa xác định cha
                   </p>
                 )}
                 {mother ? (
                   <PersonChip person={mother} onClick={() => goMember(mother.id)} />
                 ) : (
-                  <p className="rounded-lg border border-dashed border-[var(--phatue-line)] px-2.5 py-2 text-xs text-[var(--phatue-muted)]">
+                  <p className="rounded-lg border border-dashed border-[var(--pat-line)] px-2.5 py-2 text-xs text-[var(--pat-muted)]">
                     Chưa xác định mẹ
                   </p>
                 )}
@@ -305,14 +305,14 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               <div className="mt-3 flex gap-2">
                 <button
                   type="button"
-                  className="phatue-btn phatue-btn-outline h-8 flex-1 text-[0.68rem]"
+                  className="pat-btn pat-btn-outline h-8 flex-1 text-[0.68rem]"
                   onClick={() => setAddChildOpen(true)}
                 >
                   <Baby size={13} /> Thêm con
                 </button>
                 <button
                   type="button"
-                  className="phatue-btn phatue-btn-outline h-8 flex-1 text-[0.68rem]"
+                  className="pat-btn pat-btn-outline h-8 flex-1 text-[0.68rem]"
                   onClick={() => setAddSpouseOpen(true)}
                 >
                   <HeartHandshake size={13} /> Thêm vợ/chồng
@@ -321,14 +321,14 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             </div>
 
             <div>
-              <p className="mb-1.5 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--phatue-muted)]">
+              <p className="mb-1.5 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
                 Vợ / chồng ({spouses.length})
               </p>
               <div className="grid gap-1.5">
                 {spouses.length ? (
                   spouses.map((spouse) => <PersonChip key={spouse.id} person={spouse} onClick={() => goMember(spouse.id)} />)
                 ) : (
-                  <p className="rounded-lg border border-dashed border-[var(--phatue-line)] px-2.5 py-2 text-xs text-[var(--phatue-muted)]">
+                  <p className="rounded-lg border border-dashed border-[var(--pat-line)] px-2.5 py-2 text-xs text-[var(--pat-muted)]">
                     Chưa ghi nhận hôn nhân
                   </p>
                 )}
@@ -337,7 +337,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
           </div>
 
           <div className="mt-4">
-            <p className="mb-1.5 flex items-center justify-between text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--phatue-muted)]">
+            <p className="mb-1.5 flex items-center justify-between text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
               <span>Con ({children.length})</span>
               {children.length > 8 ? <span className="normal-case tracking-normal">Hiển thị 8 đầu</span> : null}
             </p>
@@ -347,7 +347,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
                   .slice(0, 8)
                   .map((child) => <PersonChip key={child.id} person={child} onClick={() => goMember(child.id)} />)
               ) : (
-                <p className="rounded-lg border border-dashed border-[var(--phatue-line)] px-2.5 py-2 text-xs text-[var(--phatue-muted)] sm:col-span-2">
+                <p className="rounded-lg border border-dashed border-[var(--pat-line)] px-2.5 py-2 text-xs text-[var(--pat-muted)] sm:col-span-2">
                   Chưa có con trong gia phả.
                 </p>
               )}
@@ -356,7 +356,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
 
           {siblings.length ? (
             <div className="mt-4">
-              <p className="mb-1.5 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--phatue-muted)]">
+              <p className="mb-1.5 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
                 Anh chị em ({siblings.length})
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -371,7 +371,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
                   </button>
                 ))}
                 {siblings.length > 10 ? (
-                  <span className="px-1 py-1 text-[0.7rem] text-[var(--phatue-muted)]">+{siblings.length - 10}</span>
+                  <span className="px-1 py-1 text-[0.7rem] text-[var(--pat-muted)]">+{siblings.length - 10}</span>
                 ) : null}
               </div>
             </div>
@@ -379,14 +379,14 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
         </section>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<Phone size={13} />} title="Liên hệ" />
             <div>
               <InfoRow
                 label="Điện thoại"
                 value={
                   member.phone ? (
-                    <a className="text-[var(--phatue-red)] underline underline-offset-2" href={`tel:${member.phone}`}>
+                    <a className="text-[var(--pat-red)] underline underline-offset-2" href={`tel:${member.phone}`}>
                       {member.phone}
                     </a>
                   ) : undefined
@@ -397,7 +397,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
                 value={
                   member.address ? (
                     <a
-                      className="text-[var(--phatue-red)] underline underline-offset-2"
+                      className="text-[var(--pat-red)] underline underline-offset-2"
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(member.address)}`}
                       target="_blank"
                       rel="noreferrer"
@@ -410,25 +410,25 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               <InfoRow label="Học vấn" value={member.education} />
             </div>
             {!member.phone && !member.address && !member.education ? (
-              <p className="mt-2 text-xs text-[var(--phatue-muted)]">Chưa có thông tin liên hệ.</p>
+              <p className="mt-2 text-xs text-[var(--pat-muted)]">Chưa có thông tin liên hệ.</p>
             ) : null}
           </section>
 
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<ScrollText size={13} />} title="Tiểu sử & ghi chú" />
             {member.biography ? (
-              <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--phatue-ink)]">{member.biography}</p>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--pat-ink)]">{member.biography}</p>
             ) : (
-              <p className="text-xs text-[var(--phatue-muted)]">
+              <p className="text-xs text-[var(--pat-muted)]">
                 Chưa có tiểu sử.{" "}
-                <button type="button" className="font-semibold text-[var(--phatue-red)]" onClick={() => setEditOpen(true)}>
+                <button type="button" className="font-semibold text-[var(--pat-red)]" onClick={() => setEditOpen(true)}>
                   Viết tiểu sử
                 </button>
               </p>
             )}
             {member.notes ? (
-              <div className="mt-3 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2 text-xs leading-relaxed text-[var(--phatue-muted)]">
-                <span className="font-semibold text-[var(--phatue-ink)]">Ghi chú: </span>
+              <div className="mt-3 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-xs leading-relaxed text-[var(--pat-muted)]">
+                <span className="font-semibold text-[var(--pat-ink)]">Ghi chú: </span>
                 {member.notes}
               </div>
             ) : null}
@@ -436,7 +436,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
         </div>
 
         {photos.length ? (
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<CalendarHeart size={13} />} title={`Ảnh tư liệu (${photos.length})`} />
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {photos.map((url, i) => (
@@ -445,20 +445,20 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
                   key={`${url}-${i}`}
                   src={url}
                   alt={`${member.name} — ảnh ${i + 1}`}
-                  className="aspect-[4/3] w-full rounded-xl border border-[var(--phatue-line)] object-cover"
+                  className="aspect-[4/3] w-full rounded-xl border border-[var(--pat-line)] object-cover"
                 />
               ))}
             </div>
           </section>
         ) : (
-          <section className="phatue-card px-4 py-4">
+          <section className="pat-card px-4 py-4">
             <SectionTitle icon={<CalendarHeart size={13} />} title="Ảnh tư liệu" />
             <EmptyState
               icon={<Home size={24} />}
               title="Chưa có ảnh"
               description="Thêm ảnh chân dung hoặc ảnh tư liệu trong phần sửa thành viên."
               action={
-                <button type="button" className="phatue-btn phatue-btn-outline h-8 text-xs" onClick={() => setEditOpen(true)}>
+                <button type="button" className="pat-btn pat-btn-outline h-8 text-xs" onClick={() => setEditOpen(true)}>
                   <Plus size={13} /> Thêm ảnh
                 </button>
               }
@@ -467,8 +467,8 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
         )}
 
         {member.biography || member.notes ? null : (
-          <div className="flex items-start gap-2 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--phatue-muted)]">
-            <Info size={15} className="mt-0.5 shrink-0 text-[var(--phatue-gold)]" />
+          <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--pat-muted)]">
+            <Info size={15} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
             <p>
               Ghi lại tiểu sử, công đức và ngày giỗ để con cháu đời sau tra cứu. Mọi thay đổi được lưu ngay trên thiết bị.
             </p>
@@ -478,12 +478,12 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
         <div className="grid grid-cols-2 gap-2 pb-2">
           <button
             type="button"
-            className="phatue-btn phatue-btn-outline h-10 text-xs"
+            className="pat-btn pat-btn-outline h-10 text-xs"
             onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-thanh-vien`)}
           >
             <Users size={14} /> Về danh sách
           </button>
-          <button type="button" className="phatue-btn phatue-btn-outline h-10 text-xs text-[#a3271d]" onClick={remove}>
+          <button type="button" className="pat-btn pat-btn-outline h-10 text-xs text-[#a3271d]" onClick={remove}>
             <Trash2 size={14} /> Xoá thành viên
           </button>
         </div>

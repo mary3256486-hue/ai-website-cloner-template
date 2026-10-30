@@ -19,7 +19,7 @@ import { Badge } from "./ui";
 
 function printBook() {
   const style = document.createElement("style");
-  style.id = "phatue-chronicle-print";
+  style.id = "pat-chronicle-print";
   style.textContent = "@page { size: A4 portrait; margin: 12mm; }";
   document.head.appendChild(style);
   window.print();
@@ -58,7 +58,7 @@ function draftHistory(tree: FamilyTree) {
 
 function Page({ children }: { children: ReactNode }) {
   return (
-    <article className="chronicle-page phatue-paper relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border border-[#d9c39a] px-5 py-7 shadow-[0_18px_50px_-32px_rgba(90,15,10,0.55)] sm:px-10 sm:py-11">
+    <article className="chronicle-page pat-paper relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border border-[#d9c39a] px-5 py-7 shadow-[0_18px_50px_-32px_rgba(90,15,10,0.55)] sm:px-10 sm:py-11">
       <div aria-hidden className="pointer-events-none absolute inset-2.5 rounded-sm border border-[#c9a227]/35" />
       <div aria-hidden className="pointer-events-none absolute inset-3.5 rounded-sm border border-[#8a1c15]/10" />
       <div className="relative">{children}</div>
@@ -70,7 +70,7 @@ function PageHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <header className="mb-6 text-center">
       <p className="text-[0.6rem] font-semibold uppercase tracking-[0.34em] text-[#8a6a52]">{eyebrow}</p>
-      <h2 className="phatue-serif mt-1 text-2xl font-bold text-[var(--phatue-red)] sm:text-3xl">{title}</h2>
+      <h2 className="pat-serif mt-1 text-2xl font-bold text-[var(--pat-red)] sm:text-3xl">{title}</h2>
       <div className="mx-auto mt-3 flex items-center justify-center gap-2">
         <span className="h-px w-12 bg-gradient-to-r from-transparent to-[#c9a227]" />
         <span className="h-1.5 w-1.5 rotate-45 border border-[#c9a227]" />
@@ -84,13 +84,13 @@ function MemberLine({ person, generation }: { person: Person; generation: number
   return (
     <li className="flex items-baseline justify-between gap-3 border-b border-dashed border-[#c9a227]/25 py-1.5 text-sm">
       <span className="min-w-0">
-        <span className="font-semibold text-[var(--phatue-ink)]">{person.name}</span>
+        <span className="font-semibold text-[var(--pat-ink)]">{person.name}</span>
         {person.title ? <span className="ml-1.5 text-[0.68rem] text-[#8a6a52]">({person.title})</span> : null}
         {nameAliases(person) ? (
           <span className="ml-1.5 text-[0.64rem] italic text-[#8a6a52]">{nameAliases(person)}</span>
         ) : null}
       </span>
-      <span className="shrink-0 text-[0.7rem] text-[var(--phatue-muted)]">
+      <span className="shrink-0 text-[0.7rem] text-[var(--pat-muted)]">
         Đời {generation} · {lifeSpan(person)}
       </span>
     </li>
@@ -172,22 +172,22 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
       }
     >
       <div className="space-y-4">
-        <section className="phatue-card no-print px-4 py-4">
+        <section className="pat-card no-print px-4 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f6e9c8] text-[var(--phatue-red)]">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f6e9c8] text-[var(--pat-red)]">
                 <BookOpen size={19} />
               </span>
               <div>
                 <p className="text-sm font-semibold">Sách phả ký dòng họ</p>
-                <p className="text-[0.68rem] text-[var(--phatue-muted)]">
+                <p className="text-[0.68rem] text-[var(--pat-muted)]">
                   {paragraphs.length ? `${paragraphs.length} đoạn lời tựa` : "Chưa có lời tựa"} ·{" "}
                   {generationMembers.length} trang thế thứ
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex rounded-full border border-[var(--phatue-line)] bg-[#fffaf0] p-0.5">
+              <div className="flex rounded-full border border-[var(--pat-line)] bg-[#fffaf0] p-0.5">
                 {(
                   [
                     { value: "read", label: "Đọc bản in" },
@@ -200,15 +200,15 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                     onClick={() => setMode(option.value)}
                     className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                       mode === option.value
-                        ? "bg-[var(--phatue-red)] text-[#fff4df] shadow-sm"
-                        : "text-[var(--phatue-muted)]"
+                        ? "bg-[var(--pat-red)] text-[#fff4df] shadow-sm"
+                        : "text-[var(--pat-muted)]"
                     }`}
                   >
                     {option.label}
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={handlePrint} className="phatue-btn phatue-btn-red h-9 text-xs">
+              <button type="button" onClick={handlePrint} className="pat-btn pat-btn-red h-9 text-xs">
                 <Printer size={14} /> In / PDF
               </button>
             </div>
@@ -216,18 +216,18 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
         </section>
 
         {mode === "write" ? (
-          <section className="phatue-card p-4 sm:p-5">
+          <section className="pat-card p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="phatue-serif text-lg font-semibold text-[var(--phatue-red)]">Lời tựa phả ký</p>
-                <p className="text-[0.68rem] text-[var(--phatue-muted)]">
+                <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">Lời tựa phả ký</p>
+                <p className="text-[0.68rem] text-[var(--pat-muted)]">
                   Phần này in ở đầu sách. Mỗi đoạn cách nhau bằng một dòng trống.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setDraft(draftHistory(tree))}
-                className="phatue-btn phatue-btn-outline h-8 text-xs"
+                className="pat-btn pat-btn-outline h-8 text-xs"
               >
                 <Sparkles size={13} /> Gợi ý bản thảo
               </button>
@@ -236,10 +236,10 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="Viết về cội nguồn, công lao tổ tiên, truyền thống dòng họ…"
-              className="phatue-input min-h-[320px] resize-y text-sm leading-relaxed"
+              className="pat-input min-h-[320px] resize-y text-sm leading-relaxed"
             />
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[0.68rem] text-[var(--phatue-muted)]">
+              <p className="text-[0.68rem] text-[var(--pat-muted)]">
                 {draft.trim().length.toLocaleString("vi-VN")} ký tự ·{" "}
                 {draft.split(/\n{2,}/).filter((part) => part.trim()).length} đoạn
               </p>
@@ -250,11 +250,11 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                     setDraft(tree.history);
                     setMode("read");
                   }}
-                  className="phatue-btn phatue-btn-ghost h-9 text-xs"
+                  className="pat-btn pat-btn-ghost h-9 text-xs"
                 >
                   Hoàn tác
                 </button>
-                <button type="button" onClick={saveHistory} className="phatue-btn phatue-btn-red h-9 text-xs">
+                <button type="button" onClick={saveHistory} className="pat-btn pat-btn-red h-9 text-xs">
                   {saved ? <Check size={14} /> : <Feather size={14} />} {saved ? "Đã lưu" : "Lưu nội dung"}
                 </button>
               </div>
@@ -269,10 +269,10 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
               <p className="mt-3 text-[0.62rem] font-semibold uppercase tracking-[0.4em] text-[#8a6a52]">
                 Gia phả dòng họ
               </p>
-              <h1 className="phatue-serif mt-3 text-4xl font-bold leading-tight text-[var(--phatue-red)] sm:text-5xl">
+              <h1 className="pat-serif mt-3 text-4xl font-bold leading-tight text-[var(--pat-red)] sm:text-5xl">
                 {tree.name}
               </h1>
-              <p className="mt-3 text-sm text-[var(--phatue-muted)]">{tree.address || "Chưa cập nhật địa chỉ"}</p>
+              <p className="mt-3 text-sm text-[var(--pat-muted)]">{tree.address || "Chưa cập nhật địa chỉ"}</p>
               <div className="my-8 flex items-center gap-3">
                 <span className="h-px w-16 bg-gradient-to-r from-transparent to-[#c9a227]" />
                 <span className="text-[#c9a227]">❖</span>
@@ -285,16 +285,16 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                   [tree.branches.length, "Chi, cành"],
                 ].map(([value, label]) => (
                   <div key={String(label)} className="px-2">
-                    <p className="phatue-serif text-2xl font-bold text-[var(--phatue-red)]">{value}</p>
+                    <p className="pat-serif text-2xl font-bold text-[var(--pat-red)]">{value}</p>
                     <p className="text-[0.6rem] font-semibold uppercase tracking-[0.16em] text-[#8a6a52]">
                       {label}
                     </p>
                   </div>
                 ))}
               </div>
-              <div className="mt-10 space-y-1 text-xs text-[var(--phatue-muted)]">
+              <div className="mt-10 space-y-1 text-xs text-[var(--pat-muted)]">
                 <p>
-                  Người biên soạn: <strong className="text-[var(--phatue-ink)]">{tree.ownerName || "Chủ gia phả"}</strong>
+                  Người biên soạn: <strong className="text-[var(--pat-ink)]">{tree.ownerName || "Chủ gia phả"}</strong>
                 </p>
                 <p>Hoàn thành năm {year}</p>
               </div>
@@ -304,12 +304,12 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
           <Page>
             <PageHeading eyebrow="Phần mở đầu" title="Lời tựa" />
             {tree.description ? (
-              <p className="mb-4 text-center text-sm italic text-[var(--phatue-muted)]">{tree.description}</p>
+              <p className="mb-4 text-center text-sm italic text-[var(--pat-muted)]">{tree.description}</p>
             ) : null}
             {paragraphs.length ? (
-              <div className="space-y-4 text-justify text-sm leading-7 text-[var(--phatue-ink)] sm:text-[0.95rem]">
+              <div className="space-y-4 text-justify text-sm leading-7 text-[var(--pat-ink)] sm:text-[0.95rem]">
                 {paragraphs.map((paragraph, position) => (
-                  <p key={position} className={position === 0 ? "first-letter:phatue-serif first-letter:float-left first-letter:mr-2 first-letter:text-4xl first-letter:font-bold first-letter:leading-[0.9] first-letter:text-[var(--phatue-red)]" : ""}>
+                  <p key={position} className={position === 0 ? "first-letter:pat-serif first-letter:float-left first-letter:mr-2 first-letter:text-4xl first-letter:font-bold first-letter:leading-[0.9] first-letter:text-[var(--pat-red)]" : ""}>
                     {paragraph}
                   </p>
                 ))}
@@ -317,14 +317,14 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
             ) : (
               <div className="rounded-lg border border-dashed border-[#c9a227]/50 bg-[#fffaf0]/60 px-5 py-8 text-center">
                 <Feather size={22} className="mx-auto text-[#c9a227]" />
-                <p className="mt-2 text-sm font-semibold text-[var(--phatue-red)]">Chưa có lời tựa</p>
-                <p className="mt-1 text-xs text-[var(--phatue-muted)]">
+                <p className="mt-2 text-sm font-semibold text-[var(--pat-red)]">Chưa có lời tựa</p>
+                <p className="mt-1 text-xs text-[var(--pat-muted)]">
                   Chuyển sang “Soạn nội dung” để viết lời tựa hoặc dùng gợi ý bản thảo.
                 </p>
               </div>
             )}
-            <div className="mt-10 text-right text-xs text-[var(--phatue-muted)]">
-              <p className="phatue-serif text-sm font-semibold text-[var(--phatue-ink)]">
+            <div className="mt-10 text-right text-xs text-[var(--pat-muted)]">
+              <p className="pat-serif text-sm font-semibold text-[var(--pat-ink)]">
                 {tree.ownerName || "Chủ gia phả"}
               </p>
               <p>Người biên soạn</p>
@@ -336,30 +336,30 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
             {founder ? (
               <div className="mb-6 rounded-lg border border-[#c9a227]/40 bg-[#fffaf0]/70 px-4 py-4">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="phatue-serif text-lg font-bold text-[var(--phatue-red)]">{founder.name}</p>
+                  <p className="pat-serif text-lg font-bold text-[var(--pat-red)]">{founder.name}</p>
                   {founder.title ? <Badge tone="gold">{founder.title}</Badge> : null}
                   <Badge tone="muted">Đời 1</Badge>
                 </div>
                 {nameAliases(founder) ? (
                   <p className="mt-1 text-xs italic text-[#7a5a10]">{nameAliases(founder)}</p>
                 ) : null}
-                <p className="mt-1 text-xs text-[var(--phatue-muted)]">
+                <p className="mt-1 text-xs text-[var(--pat-muted)]">
                   {lifeSpan(founder)}
                   {founder.hometown ? ` · ${founder.hometown}` : ""}
                   {founder.occupation ? ` · ${founder.occupation}` : ""}
                 </p>
                 {careerSummary(founder) ? (
-                  <p className="mt-1 text-xs text-[var(--phatue-muted)]">
+                  <p className="mt-1 text-xs text-[var(--pat-muted)]">
                     Công danh: {careerSummary(founder)}
                   </p>
                 ) : null}
                 {founderSpouses.length ? (
-                  <p className="mt-1 text-xs text-[var(--phatue-muted)]">
+                  <p className="mt-1 text-xs text-[var(--pat-muted)]">
                     Phối ngẫu: {founderSpouses.map((person) => person.name).join(", ")}
                   </p>
                 ) : null}
                 {founder.biography ? (
-                  <p className="mt-2 text-justify text-sm leading-relaxed text-[var(--phatue-ink)]">
+                  <p className="mt-2 text-justify text-sm leading-relaxed text-[var(--pat-ink)]">
                     {founder.biography}
                   </p>
                 ) : null}
@@ -371,14 +371,14 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                   key={row.generation}
                   className="flex items-center justify-between gap-3 rounded-md border-b border-dashed border-[#c9a227]/30 pb-2 text-sm"
                 >
-                  <p className="font-semibold text-[var(--phatue-ink)]">Đời thứ {row.generation}</p>
-                  <p className="text-xs text-[var(--phatue-muted)]">
+                  <p className="font-semibold text-[var(--pat-ink)]">Đời thứ {row.generation}</p>
+                  <p className="text-xs text-[var(--pat-muted)]">
                     {row.total} người · {row.male} nam · {row.female} nữ
                   </p>
                 </div>
               ))}
               {generationStats.length === 0 ? (
-                <p className="text-sm text-[var(--phatue-muted)]">Chưa có dữ liệu thành viên.</p>
+                <p className="text-sm text-[var(--pat-muted)]">Chưa có dữ liệu thành viên.</p>
               ) : null}
             </div>
           </Page>
@@ -405,14 +405,14 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                     <div key={branch.id} className="rounded-lg border border-[#c9a227]/35 bg-[#fffaf0]/60 px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="h-5 w-1.5 rounded-full" style={{ background: branch.color }} />
-                        <p className="font-semibold text-[var(--phatue-red)]">{branch.name}</p>
-                        <span className="text-[0.68rem] text-[var(--phatue-muted)]">{count} người</span>
+                        <p className="font-semibold text-[var(--pat-red)]">{branch.name}</p>
+                        <span className="text-[0.68rem] text-[var(--pat-muted)]">{count} người</span>
                       </div>
-                      <p className="mt-1 text-xs text-[var(--phatue-muted)]">
+                      <p className="mt-1 text-xs text-[var(--pat-muted)]">
                         {head ? `Trưởng nhánh: ${head.name}` : "Chưa chọn trưởng nhánh"}
                       </p>
                       {branch.description ? (
-                        <p className="mt-1 text-sm leading-relaxed text-[var(--phatue-ink)]">{branch.description}</p>
+                        <p className="mt-1 text-sm leading-relaxed text-[var(--pat-ink)]">{branch.description}</p>
                       ) : null}
                     </div>
                   );
@@ -423,7 +423,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
 
           <Page>
             <PageHeading eyebrow="Kết thúc" title="Lời bạt" />
-            <div className="space-y-4 text-justify text-sm leading-7 text-[var(--phatue-ink)] sm:text-[0.95rem]">
+            <div className="space-y-4 text-justify text-sm leading-7 text-[var(--pat-ink)] sm:text-[0.95rem]">
               <p>
                 Gia phả là tấm gương phản chiếu truyền thống của một dòng họ. Mỗi trang sách là một lời nhắc để con
                 cháu nhớ về công lao khai cơ lập nghiệp của tổ tiên, về những người đã đi trước và vun đắp nên ngôi
@@ -440,19 +440,19 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
               </p>
             </div>
             <div className="mt-10 text-right">
-              <p className="text-xs text-[var(--phatue-muted)]">Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {year}</p>
-              <p className="phatue-serif mt-3 text-base font-semibold text-[var(--phatue-ink)]">
+              <p className="text-xs text-[var(--pat-muted)]">Ngày {new Date().getDate()} tháng {new Date().getMonth() + 1} năm {year}</p>
+              <p className="pat-serif mt-3 text-base font-semibold text-[var(--pat-ink)]">
                 {tree.ownerName || "Chủ gia phả"}
               </p>
-              <p className="text-[0.68rem] text-[var(--phatue-muted)]">Người biên soạn</p>
+              <p className="text-[0.68rem] text-[var(--pat-muted)]">Người biên soạn</p>
             </div>
           </Page>
         </div>
 
-        <footer className="no-print flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--phatue-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-[0.68rem] text-[var(--phatue-muted)]">
+        <footer className="no-print flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-[0.68rem] text-[var(--pat-muted)]">
           <span className="inline-flex items-center gap-1.5">
-            <Users size={13} className="text-[var(--phatue-gold)]" /> {stats.total} thành viên ·{" "}
-            <GitBranch size={13} className="text-[var(--phatue-gold)]" /> {tree.branches.length} nhánh
+            <Users size={13} className="text-[var(--pat-gold)]" /> {stats.total} thành viên ·{" "}
+            <GitBranch size={13} className="text-[var(--pat-gold)]" /> {tree.branches.length} nhánh
           </span>
           <span>In khổ A4, mỗi trang phả ký ngắt trang tự động.</span>
         </footer>

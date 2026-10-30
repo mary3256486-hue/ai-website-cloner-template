@@ -397,7 +397,7 @@ const webPair = (
     height,
     nativeWidth,
     nativeHeight,
-    src: `/sites/phatue/decor/${file}`,
+    src: `/sites/PAT/decor/${file}`,
     credit,
   },
   {
@@ -409,7 +409,7 @@ const webPair = (
     height,
     nativeWidth,
     nativeHeight,
-    src: `/sites/phatue/decor/${file}`,
+    src: `/sites/PAT/decor/${file}`,
     flip: true,
     credit,
   },

@@ -1,14 +1,14 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { BranchesView } from "@/components/sites/phatue/branches-view";
-import { ChronicleView } from "@/components/sites/phatue/chronicle-view";
-import { ComingSoon } from "@/components/sites/phatue/coming-soon";
-import { DesignView } from "@/components/sites/phatue/design-view";
-import { DiagramEditorView } from "@/components/sites/phatue/diagram-editor-view";
-import { MembersView } from "@/components/sites/phatue/members-view";
-import { TreeEditorView } from "@/components/sites/phatue/tree-editor-view";
-import { LoadingTree, MissingTree, useTreeFromRoute } from "@/components/sites/phatue/tree-route";
+import { BranchesView } from "@/components/sites/PAT/branches-view";
+import { ChronicleView } from "@/components/sites/PAT/chronicle-view";
+import { ComingSoon } from "@/components/sites/PAT/coming-soon";
+import { DesignView } from "@/components/sites/PAT/design-view";
+import { DiagramEditorView } from "@/components/sites/PAT/diagram-editor-view";
+import { MembersView } from "@/components/sites/PAT/members-view";
+import { TreeEditorView } from "@/components/sites/PAT/tree-editor-view";
+import { LoadingTree, MissingTree, useTreeFromRoute } from "@/components/sites/PAT/tree-route";
 
 export default function TreeSectionPage() {
   const params = useParams<{ section: string }>();

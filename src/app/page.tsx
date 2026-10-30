@@ -1,4 +1,4 @@
-import { HomeView } from "@/components/sites/phatue/home-view";
+import { HomeView } from "@/components/sites/PAT/home-view";
 
 export default function HomePage() {
   return <HomeView />;
