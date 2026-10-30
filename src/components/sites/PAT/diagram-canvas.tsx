@@ -2,7 +2,6 @@
 
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { Decoration, DesignSettings, FamilyTree, TreeEdge, TreeLayout, TreeNode } from "./types";
-import { CARD_H, CARD_W } from "./types";
 import { computeGenerations, lifeSpan, sortPersons } from "./utils";
 
 const PALETTES: Record<DesignSettings["palette"], { accent: string; deep: string; gold: string; soft: string }> = {
@@ -28,6 +27,27 @@ export function diagramDimensions(layout: TreeLayout, design: DesignSettings) {
 function truncate(text: string, max: number) {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;
+}
+
+function wrapText(text: string, maxChars: number, maxLines: number): string[] {
+  const limit = Math.max(4, maxChars);
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (candidate.length <= limit) {
+      line = candidate;
+      continue;
+    }
+    if (line) lines.push(line);
+    line = word.slice(0, limit);
+  }
+  if (line) lines.push(line);
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = `${kept[maxLines - 1].slice(0, Math.max(1, limit - 1)).trimEnd()}…`;
+  return kept;
 }
 
 function initials(name: string) {
@@ -283,6 +303,36 @@ export function DiagramCanvas({
               const color = (person.branchId && branchColor.get(person.branchId)) || (person.gender === "male" ? palette.accent : "#9a4a6b");
               const focused = focusId === person.id;
               const clip = `${idPrefix}-clip-${node.id}`;
+              const vertical = settings.cardOrientation === "vertical";
+              const showTitle = settings.showTitle !== false;
+              const showName = settings.showName !== false;
+              const showDates = settings.showDates !== false;
+              const anniversary = person.deathAnniversary?.trim();
+              const showAnniversary = settings.showDeathAnniversary === true && Boolean(anniversary);
+              const title = person.title || `ĐỜI ${isGen(node)}`;
+              const meta: string[] = [];
+              if (showDates) meta.push(lifeSpan(person));
+              if (showAnniversary) meta.push(`Giỗ: ${anniversary}`);
+
+              const avatar = vertical
+                ? { cx: node.width / 2, cy: 25, r: 13, initialsY: 29, initialsSize: 9 }
+                : { cx: 22, cy: 26, r: 11, initialsY: 30, initialsSize: 8.5 };
+              const textX = vertical ? node.width / 2 : 40;
+              const anchor = vertical ? "middle" : "start";
+              const nameSize = 10.5;
+              const nameWidth = vertical ? node.width - 16 : node.width - 50;
+              const nameLines = showName
+                ? wrapText(person.name, Math.floor(nameWidth / (nameSize * 0.56)), 2)
+                : [];
+              const nameStart = vertical ? (showTitle ? 63 : 54) : showTitle ? 31 : 27;
+              const nameLastY = nameStart + Math.max(0, nameLines.length - 1) * 12.5;
+              const metaStart = nameLines.length
+                ? nameLastY + 13
+                : showTitle && vertical
+                  ? 50
+                  : nameStart;
+              const cardFill = node.isSpouse ? "#fffdf7" : settings.theme === "generations" ? palette.soft : "#fff9e4";
+
               return (
                 <g
                   key={person.id}
@@ -292,39 +342,47 @@ export function DiagramCanvas({
                   style={interactive ? { touchAction: "none" } : undefined}
                 >
                   <rect
-                    width={CARD_W}
-                    height={CARD_H}
+                    width={node.width}
+                    height={node.height}
                     rx="7"
-                    fill={node.isSpouse ? "#fffdf7" : settings.theme === "generations" ? palette.soft : "#fff9e4"}
+                    fill={cardFill}
                     fillOpacity={node.isSpouse ? 0.86 : 0.96}
                     stroke={focused ? palette.accent : color}
                     strokeWidth={focused ? 2.6 : 1}
                     strokeDasharray={node.isSpouse ? "5 3" : undefined}
                   />
-                  <rect x="0" y="0" width="4" height={CARD_H} rx="2" fill={color} opacity="0.85" />
+                  <rect
+                    x="0"
+                    y="0"
+                    width={vertical ? node.width : 4}
+                    height={vertical ? 4 : node.height}
+                    rx="2"
+                    fill={color}
+                    opacity="0.85"
+                  />
                   <defs>
                     <clipPath id={clip}>
-                      <circle cx="21" cy="23" r="11" />
+                      <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} />
                     </clipPath>
                   </defs>
                   {settings.showAvatar && person.avatar ? (
                     <image
                       href={person.avatar}
-                      x="10"
-                      y="12"
-                      width="22"
-                      height="22"
+                      x={avatar.cx - avatar.r}
+                      y={avatar.cy - avatar.r}
+                      width={avatar.r * 2}
+                      height={avatar.r * 2}
                       clipPath={`url(#${clip})`}
                       preserveAspectRatio="xMidYMid slice"
                     />
                   ) : (
                     <>
-                      <circle cx="21" cy="23" r="11" fill={color} opacity="0.92" />
+                      <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} fill={color} opacity="0.92" />
                       <text
-                        x="21"
-                        y="27"
+                        x={avatar.cx}
+                        y={avatar.initialsY}
                         textAnchor="middle"
-                        fontSize="8.5"
+                        fontSize={avatar.initialsSize}
                         fontWeight="700"
                         fill="#fff8e9"
                         fontFamily="'Be Vietnam Pro', sans-serif"
@@ -333,37 +391,52 @@ export function DiagramCanvas({
                       </text>
                     </>
                   )}
-                  <text
-                    x="39"
-                    y="17"
-                    fontSize="7.6"
-                    fontWeight="600"
-                    letterSpacing="0.6"
-                    fill={palette.deep}
-                    opacity="0.65"
-                    fontFamily="'Be Vietnam Pro', sans-serif"
-                  >
-                    {truncate(person.title || `ĐỜI ${isGen(node)}`, 22)}
-                  </text>
-                  <text
-                    x="39"
-                    y="32"
-                    fontSize="11"
-                    fontWeight="600"
-                    fill="#3d2a1e"
-                    fontFamily="'Be Vietnam Pro', sans-serif"
-                  >
-                    {truncate(person.name, 18)}
-                  </text>
-                  {settings.showDates ? (
+                  {showTitle ? (
                     <text
-                      x="39"
-                      y="48"
-                      fontSize="8"
+                      x={textX}
+                      y={vertical ? 50 : 16}
+                      textAnchor={anchor}
+                      fontSize="7.4"
+                      fontWeight="600"
+                      letterSpacing={vertical ? 0.2 : 0.6}
+                      fill={palette.deep}
+                      opacity="0.65"
+                      fontFamily="'Be Vietnam Pro', sans-serif"
+                    >
+                      {truncate(title, vertical ? 24 : 22)}
+                    </text>
+                  ) : null}
+                  {nameLines.length ? (
+                    <text
+                      x={textX}
+                      y={nameStart}
+                      textAnchor={anchor}
+                      fontSize={nameSize}
+                      fontWeight="600"
+                      fill="#3d2a1e"
+                      fontFamily="'Be Vietnam Pro', sans-serif"
+                    >
+                      {nameLines.map((line, index) => (
+                        <tspan key={`${person.id}-name-${index}`} x={textX} dy={index === 0 ? 0 : 12.5}>
+                          {line}
+                        </tspan>
+                      ))}
+                    </text>
+                  ) : null}
+                  {meta.length ? (
+                    <text
+                      x={textX}
+                      y={metaStart}
+                      textAnchor={anchor}
+                      fontSize="7.8"
                       fill="#8a6a52"
                       fontFamily="'Be Vietnam Pro', sans-serif"
                     >
-                      {truncate(lifeSpan(person), 26)}
+                      {meta.map((line, index) => (
+                        <tspan key={`${person.id}-meta-${index}`} x={textX} dy={index === 0 ? 0 : 10.5}>
+                          {truncate(line, vertical ? 24 : 26)}
+                        </tspan>
+                      ))}
                     </text>
                   ) : null}
                 </g>

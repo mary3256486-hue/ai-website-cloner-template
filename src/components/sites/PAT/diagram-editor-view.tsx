@@ -17,14 +17,14 @@ import {
   Redo2,
   Save,
   Search,
+  SlidersHorizontal,
   Trash2,
   Type,
   Undo2,
   Wand2,
 } from "lucide-react";
 import { useGenealogy } from "./store";
-import type { Decoration, FamilyTree, Person, TreeNode } from "./types";
-import { CARD_H, CARD_W } from "./types";
+import type { CardOrientation, Decoration, DesignSettings, FamilyTree, Person, TreeNode } from "./types";
 import { computeGenerations, lifeSpan, sortPersons, uid } from "./utils";
 import { computeLayout } from "./layout";
 import { DiagramCanvas, contentTop, diagramDimensions } from "./diagram-canvas";
@@ -43,6 +43,15 @@ import { MemberFormSheet } from "./member-form-sheet";
 
 type Positions = Record<string, { x: number; y: number }>;
 
+type CardFieldKey = "showTitle" | "showName" | "showDates" | "showDeathAnniversary";
+
+const CARD_FIELDS: { key: CardFieldKey; label: string; hint: string }[] = [
+  { key: "showTitle", label: "Danh xưng", hint: "Thủy tổ, Hương trưởng hoặc số đời" },
+  { key: "showName", label: "Họ và tên", hint: "Tự xuống dòng theo khung thẻ" },
+  { key: "showDates", label: "Năm sinh – năm mất", hint: "Ví dụ: 1850 — 1920" },
+  { key: "showDeathAnniversary", label: "Ngày giỗ", hint: "Chỉ hiện với thành viên có ghi ngày giỗ" },
+];
+
 interface DragState {
   kind: "node" | "decoration";
   id: string;
@@ -55,7 +64,7 @@ interface DragState {
 
 export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const router = useRouter();
-  const { setPositions, setDecoration, removeDecoration } = useGenealogy();
+  const { setPositions, setDecoration, removeDecoration, setDesign } = useGenealogy();
   const viewportRef = useRef<HTMLDivElement>(null);
   const decorationsRef = useRef<Decoration[]>(tree.decorations);
 
@@ -79,6 +88,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [sideOpen, setSideOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [decorOpen, setDecorOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Person | null>(null);
   const [editMember, setEditMember] = useState<Person | null>(null);
 
@@ -91,6 +101,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const orientation = resolveOrientation(tree);
   const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
   const top = contentTop(tree.design);
+  const showField = (key: CardFieldKey) =>
+    key === "showDeathAnniversary" ? tree.design.showDeathAnniversary === true : tree.design[key] !== false;
 
   useEffect(() => {
     decorationsRef.current = decorations;
@@ -243,8 +255,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     const el = viewportRef.current;
     if (node && el) {
       el.scrollTo({
-        left: Math.max(0, node.x * scale - el.clientWidth / 2 + (CARD_W * scale) / 2),
-        top: Math.max(0, (node.y + top) * scale - el.clientHeight / 2 + (CARD_H * scale) / 2),
+        left: Math.max(0, node.x * scale - el.clientWidth / 2 + (node.width * scale) / 2),
+        top: Math.max(0, (node.y + top) * scale - el.clientHeight / 2 + (node.height * scale) / 2),
         behavior: "smooth",
       });
     }
@@ -460,6 +472,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             <ToolButton label="Thêm trang trí" onClick={() => setDecorOpen(true)}>
               <Plus size={16} />
             </ToolButton>
+            <ToolButton label="Hiển thị thẻ" onClick={() => setCardOpen(true)}>
+              <SlidersHorizontal size={16} />
+            </ToolButton>
             <span className="mx-1 h-5 w-px bg-[var(--pat-line)]" />
             <button
               type="button"
@@ -605,6 +620,63 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             />
           </div>
         ) : null}
+      </Sheet>
+
+      <Sheet
+        open={cardOpen}
+        onClose={() => setCardOpen(false)}
+        title="Hiển thị thẻ thành viên"
+        subtitle="Kiểu khung và thông tin trên phả đồ"
+      >
+        <div className="space-y-4">
+          <Field label="Kiểu khung thẻ">
+            <Segmented<CardOrientation>
+              value={tree.design.cardOrientation === "vertical" ? "vertical" : "horizontal"}
+              onChange={(value) => setDesign(tree.id, { cardOrientation: value })}
+              options={[
+                { value: "horizontal", label: "Ngang" },
+                { value: "vertical", label: "Dọc" },
+              ]}
+            />
+          </Field>
+
+          <div>
+            <p className="pat-form-section">Thông tin hiển thị</p>
+            <div className="space-y-1">
+              {CARD_FIELDS.map((field) => {
+                const active = showField(field.key);
+                return (
+                  <label
+                    key={field.key}
+                    className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-2 hover:bg-[#f6e9c8]/50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() =>
+                        setDesign(tree.id, { [field.key]: !active } as Partial<DesignSettings>)
+                      }
+                      className="mt-0.5 h-4 w-4 accent-[var(--pat-red)]"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold">{field.label}</span>
+                      <span className="block text-[0.68rem] text-[var(--pat-muted)]">{field.hint}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {CARD_FIELDS.every((field) => !showField(field.key)) ? (
+              <p className="mt-2 rounded-lg bg-[#f9e3df] px-3 py-2 text-[0.7rem] text-[#8a1c15]">
+                Đang ẩn toàn bộ thông tin; thẻ chỉ còn khung và ảnh đại diện.
+              </p>
+            ) : null}
+          </div>
+
+          <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
+            Chữ trong thẻ tự động xuống dòng theo khung. Thay đổi được lưu ngay và áp dụng cho bản in, ảnh PNG.
+          </p>
+        </div>
       </Sheet>
 
       <Sheet

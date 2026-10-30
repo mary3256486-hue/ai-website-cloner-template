@@ -20,7 +20,6 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
-import { CARD_H, CARD_W } from "./types";
 import { computeGenerations, lifeSpan, sortPersons } from "./utils";
 import { computeLayout } from "./layout";
 import { TreeShell } from "./app-shell";
@@ -90,8 +89,8 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
       const rect = el.getBoundingClientRect();
       setView((prev) => ({
         scale: Math.max(prev.scale, 0.8),
-        x: rect.width / 2 - (node.x + CARD_W / 2) * Math.max(prev.scale, 0.8),
-        y: rect.height / 2 - (node.y + CARD_H / 2) * Math.max(prev.scale, 0.8),
+        x: rect.width / 2 - (node.x + node.width / 2) * Math.max(prev.scale, 0.8),
+        y: rect.height / 2 - (node.y + node.height / 2) * Math.max(prev.scale, 0.8),
       }));
     },
     [layout.nodes],
@@ -119,8 +118,8 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
     const scale = 0.75;
     setView({
       scale,
-      x: rect.width / 2 - (root.x + CARD_W / 2) * scale,
-      y: rect.height / 2 - (root.y + CARD_H / 2) * scale,
+      x: rect.width / 2 - (root.x + root.width / 2) * scale,
+      y: rect.height / 2 - (root.y + root.height / 2) * scale,
     });
   }, [tree.id, layout.nodes, fit, centerOn]);
 
@@ -278,31 +277,43 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                 const person = node.person;
                 const color = (person.branchId && branchColor.get(person.branchId)) || (person.gender === "male" ? "#8a1c15" : "#9a4a6b");
                 const active = selectedId === person.id;
+                const vertical = tree.design.cardOrientation === "vertical";
                 return (
                   <button
                     key={person.id}
                     type="button"
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={() => setSelectedId(person.id)}
-                    className="pat-node absolute flex items-center gap-2 overflow-hidden rounded-lg border bg-[#fff9e4] px-2 text-left shadow-sm"
+                    className={`pat-node absolute overflow-hidden rounded-lg border bg-[#fff9e4] shadow-sm ${
+                      vertical
+                        ? "flex flex-col items-center justify-center px-1.5 py-1 text-center"
+                        : "flex items-center gap-2 px-2 text-left"
+                    }`}
                     style={{
                       left: node.x,
                       top: node.y,
-                      width: CARD_W,
-                      height: CARD_H,
+                      width: node.width,
+                      height: node.height,
                       borderColor: active ? "#8a1c15" : color,
                       borderStyle: node.isSpouse ? "dashed" : "solid",
                       borderWidth: active ? 2 : 1,
                       outline: active ? "3px solid rgba(138,28,21,0.14)" : undefined,
                     }}
                   >
-                    <span className="absolute inset-y-0 left-0 w-1" style={{ background: color }} />
-                    <Avatar person={person} size={30} className="ml-1 shrink-0" />
-                    <span className="min-w-0 flex-1 pr-1">
+                    <span
+                      className={vertical ? "absolute inset-x-0 top-0 h-1" : "absolute inset-y-0 left-0 w-1"}
+                      style={{ background: color }}
+                    />
+                    <Avatar person={person} size={30} className={vertical ? "mt-0.5 shrink-0" : "ml-1 shrink-0"} />
+                    <span className={vertical ? "mt-1 w-full min-w-0" : "min-w-0 flex-1 pr-1"}>
                       <span className="block truncate text-[0.58rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
                         {person.title ?? `Đời ${gens.get(person.id) ?? node.generation}`}
                       </span>
-                      <span className="block truncate text-[0.72rem] font-bold leading-tight text-[var(--pat-ink)]">
+                      <span
+                        className={`block text-[0.7rem] font-bold leading-tight text-[var(--pat-ink)] ${
+                          vertical ? "line-clamp-2" : "truncate"
+                        }`}
+                      >
                         {person.name}
                       </span>
                       <span className="block truncate text-[0.58rem] text-[var(--pat-muted)]">{lifeSpan(person)}</span>

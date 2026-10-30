@@ -8,6 +8,8 @@ export type BackgroundPattern = "none" | "clouds" | "dragon" | "lotus" | "scroll
 
 export type PaletteName = "classic" | "gold" | "ink" | "jade";
 
+export type CardOrientation = "horizontal" | "vertical";
+
 export interface Person {
   id: string;
   name: string;
@@ -78,7 +80,11 @@ export interface DesignSettings {
   showBanner: boolean;
   showCouplets: boolean;
   showGenerationLabels: boolean;
+  cardOrientation: CardOrientation;
+  showTitle: boolean;
+  showName: boolean;
   showDates: boolean;
+  showDeathAnniversary: boolean;
   showAvatar: boolean;
   borderStyle: "none" | "simple" | "ornate";
 }
@@ -130,11 +136,19 @@ export interface TreeLayout {
 }
 
 export const CARD_W = 168;
-export const CARD_H = 66;
+export const CARD_H = 74;
+export const CARD_VERTICAL_W = 136;
+export const CARD_VERTICAL_H = 118;
 export const SPOUSE_GAP = 12;
 export const UNIT_GAP = 26;
 export const ROW_GAP = 58;
 export const PADDING = 48;
+
+export function cardDims(design?: Partial<DesignSettings> | null) {
+  return design?.cardOrientation === "vertical"
+    ? { width: CARD_VERTICAL_W, height: CARD_VERTICAL_H }
+    : { width: CARD_W, height: CARD_H };
+}
 
 export const ANCESTOR_TITLES = [
   "Thủy tổ",
@@ -228,7 +242,11 @@ export const DEFAULT_DESIGN: DesignSettings = {
   showBanner: true,
   showCouplets: true,
   showGenerationLabels: true,
+  cardOrientation: "horizontal",
+  showTitle: true,
+  showName: true,
   showDates: true,
+  showDeathAnniversary: false,
   showAvatar: true,
   borderStyle: "ornate",
 };

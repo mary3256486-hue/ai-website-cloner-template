@@ -7,13 +7,21 @@ import {
   FileText,
   ImageIcon,
   Info,
+  LayoutTemplate,
   Palette,
   Printer,
   RotateCcw,
   Sparkles,
 } from "lucide-react";
 import { useGenealogy } from "./store";
-import type { BackgroundPattern, DiagramTheme, FamilyTree, PaletteName, PaperSize } from "./types";
+import type {
+  BackgroundPattern,
+  CardOrientation,
+  DiagramTheme,
+  FamilyTree,
+  PaletteName,
+  PaperSize,
+} from "./types";
 import { PAPER_MM } from "./types";
 import { computeLayout } from "./layout";
 import { DiagramCanvas, diagramDimensions } from "./diagram-canvas";
@@ -326,6 +334,52 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
         </div>
 
         <section className="pat-card px-4 py-4">
+          <SectionTitle icon={<LayoutTemplate size={13} />} title="Thẻ thành viên" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Kiểu khung">
+              <Segmented<CardOrientation>
+                value={design.cardOrientation === "vertical" ? "vertical" : "horizontal"}
+                onChange={(cardOrientation) => {
+                  setDesign(tree.id, { cardOrientation });
+                  flash(`Đã chọn khung thẻ ${cardOrientation === "vertical" ? "dọc" : "ngang"}`);
+                }}
+                options={[
+                  { value: "horizontal", label: "Ngang" },
+                  { value: "vertical", label: "Dọc" },
+                ]}
+              />
+            </Field>
+            <div className="flex items-end">
+              <p className="w-full rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+                Khung dọc hợp với phả đồ nhiều đời; chữ tự xuống dòng trong khung thẻ.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Toggle
+              label="Danh xưng"
+              active={design.showTitle !== false}
+              onClick={() => setDesign(tree.id, { showTitle: design.showTitle === false })}
+            />
+            <Toggle
+              label="Họ và tên"
+              active={design.showName !== false}
+              onClick={() => setDesign(tree.id, { showName: design.showName === false })}
+            />
+            <Toggle
+              label="Năm sinh – mất"
+              active={design.showDates !== false}
+              onClick={() => setDesign(tree.id, { showDates: design.showDates === false })}
+            />
+            <Toggle
+              label="Ngày giỗ"
+              active={design.showDeathAnniversary === true}
+              onClick={() => setDesign(tree.id, { showDeathAnniversary: design.showDeathAnniversary !== true })}
+            />
+          </div>
+        </section>
+
+        <section className="pat-card px-4 py-4">
           <SectionTitle icon={<FileText size={13} />} title="Hoành phi & câu đối" />
           <Field label="Chữ trên hoành phi">
             <input
@@ -350,11 +404,6 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
               label="Nhãn đời"
               active={design.showGenerationLabels}
               onClick={() => setDesign(tree.id, { showGenerationLabels: !design.showGenerationLabels })}
-            />
-            <Toggle
-              label="Năm sinh / mất"
-              active={design.showDates}
-              onClick={() => setDesign(tree.id, { showDates: !design.showDates })}
             />
             <Toggle
               label="Ảnh đại diện"

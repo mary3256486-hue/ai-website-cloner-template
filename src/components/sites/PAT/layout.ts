@@ -1,5 +1,5 @@
 import type { FamilyTree, Person, TreeEdge, TreeLayout, TreeNode } from "./types";
-import { CARD_H, CARD_W, PADDING, ROW_GAP, SPOUSE_GAP, UNIT_GAP } from "./types";
+import { cardDims, PADDING, ROW_GAP, SPOUSE_GAP, UNIT_GAP } from "./types";
 import { buildFamilyIndex, computeGenerations, sortPersons } from "./utils";
 
 interface Measure {
@@ -11,6 +11,7 @@ interface Measure {
 }
 
 export function computeLayout(tree: FamilyTree): TreeLayout {
+  const { width: cardW, height: cardH } = cardDims(tree.design);
   const byId = new Map(tree.members.map((m) => [m.id, m]));
   const generations = computeGenerations(tree.members);
   const index = buildFamilyIndex(tree.members);
@@ -24,7 +25,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
       .filter((p): p is Person => p !== undefined && !index.bloodline.has(p.id))
       .sort(sortPersons);
     const children = (index.childrenOf.get(person.id) ?? []).map(measure);
-    const unitWidth = CARD_W + spouses.length * (SPOUSE_GAP + CARD_W);
+    const unitWidth = cardW + spouses.length * (SPOUSE_GAP + cardW);
     const childWidth =
       children.reduce((sum, c) => sum + c.width, 0) + Math.max(0, children.length - 1) * UNIT_GAP;
     return { person, spouses, children, unitWidth, width: Math.max(unitWidth, childWidth) };
@@ -36,14 +37,14 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const place = (m: Measure, left: number) => {
     const unitLeft = left + (m.width - m.unitWidth) / 2;
     const generation = generations.get(m.person.id) ?? 1;
-    const y = PADDING + (generation - 1) * (CARD_H + ROW_GAP);
+    const y = PADDING + (generation - 1) * (cardH + ROW_GAP);
     const add = (person: Person, x: number, isSpouse: boolean) => {
       nodes.push({
         id: person.id,
         x,
         y,
-        width: CARD_W,
-        height: CARD_H,
+        width: cardW,
+        height: cardH,
         generation,
         person,
         isSpouse,
@@ -51,7 +52,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
       });
     };
     add(m.person, unitLeft, false);
-    m.spouses.forEach((spouse, i) => add(spouse, unitLeft + (i + 1) * (CARD_W + SPOUSE_GAP), true));
+    m.spouses.forEach((spouse, i) => add(spouse, unitLeft + (i + 1) * (cardW + SPOUSE_GAP), true));
 
     if (m.children.length === 0) return;
 
@@ -75,7 +76,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
 
     const unitCenter = (key: string) => {
       const idx = order.indexOf(key);
-      return unitLeft + idx * (CARD_W + SPOUSE_GAP) + CARD_W / 2;
+      return unitLeft + idx * (cardW + SPOUSE_GAP) + cardW / 2;
     };
 
     const ideal = clusters.map((cl) => unitCenter(cl.key) - cl.width / 2);
@@ -130,7 +131,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     return {
       generation,
       count: nodes.filter((n) => n.generation === generation).length,
-      y: PADDING + i * (CARD_H + ROW_GAP),
+      y: PADDING + i * (cardH + ROW_GAP),
     };
   });
   const width = Math.max(...nodes.map((n) => n.x + n.width)) + PADDING;
