@@ -1,4 +1,4 @@
-# Phả Tuệ — page brief
+# Tiểu Phạm — page brief
 
 Source: https://app.phatue.vn/ (Flutter web). Captured 2026-10-30 at 663×680 mobile viewport.
 
@@ -28,8 +28,8 @@ Source: https://app.phatue.vn/ (Flutter web). Captured 2026-10-30 at 663×680 mo
 - Deep lacquer red `#8a1c15` → `#6e140f`, cream paper `#fdf6e7`, gold `#c9a227`, ink `#3d2a1e`.
 - Serif display headings, clean sans body (Be Vietnam Pro-like).
 - Rounded cream cards on a warm paper background, gold hairline borders.
-- Mobile: red app bar with back/actions, bottom tab bar (Gia phả, Sự kiện, Phả Tuệ, Cộng đồng, Tài khoản).
-- Family diagram: yellow member boxes, red connectors, ornate frame, banner "Gia Phả 4.0", dragon/lotus ornaments.
+- Mobile: red app bar with back/actions, bottom tab bar (Gia phả, Sự kiện, Tiểu Phạm, Cộng đồng, Tài khoản); the third tab is the brand tab.
+- Family diagram: yellow member boxes, red connectors, ornate frame, banner “Gia Phả”, dragon/lotus ornaments.
 
 ## Features
 

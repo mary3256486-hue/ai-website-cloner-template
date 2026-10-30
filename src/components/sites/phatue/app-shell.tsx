@@ -198,7 +198,7 @@ export function HomeBottomNav({ onScope }: { onScope: (name: string) => void }) 
   const items = [
     { label: "Gia phả", icon: <Home size={19} />, active: true },
     { label: "Sự kiện", icon: <CalendarDays size={19} /> },
-    { label: "Phả Tuệ", icon: <Flower2 size={19} /> },
+    { label: "Tiểu Phạm", icon: <Flower2 size={19} /> },
     { label: "Cộng đồng", icon: <Sparkles size={19} /> },
     { label: "Tài khoản", icon: <UserRound size={19} /> },
   ];
