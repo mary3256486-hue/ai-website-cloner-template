@@ -49,7 +49,7 @@ interface StoreValue {
   setPositions: (treeId: string, positions: Record<string, { x: number; y: number }>) => void;
   setDecoration: (treeId: string, decoration: Decoration) => void;
   removeDecoration: (treeId: string, decorationId: string) => void;
-  importTree: (tree: FamilyTree) => string;
+  importTree: (tree: FamilyTree, opts?: { suffix?: boolean }) => string;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -333,9 +333,16 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   );
 
   const importTree = useCallback(
-    (tree: FamilyTree) => {
+    (tree: FamilyTree, opts?: { suffix?: boolean }) => {
       const id = tree.id && !trees.some((t) => t.id === tree.id) ? tree.id : uid("g");
-      const imported: FamilyTree = { ...tree, id, name: `${tree.name} (bản nhập)`, sample: false, updatedAt: nowIso() };
+      const withSuffix = opts?.suffix !== false;
+      const imported: FamilyTree = {
+        ...tree,
+        id,
+        name: withSuffix ? `${tree.name} (bản nhập)` : tree.name,
+        sample: false,
+        updatedAt: nowIso(),
+      };
       commit((prev) => [...prev, imported]);
       return id;
     },

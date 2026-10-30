@@ -1,15 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   ChevronRight,
+  FileSpreadsheet,
+  FileUp,
   GitBranch,
+  History,
   Info,
   MapPin,
   MoreHorizontal,
+  PenLine,
   Plus,
   Trash2,
   Users,
@@ -18,6 +22,8 @@ import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
 import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
 import { getStats } from "./utils";
+import { downloadExcelTemplate, importSpreadsheet, type ImportResult } from "./import";
+import { readBackup } from "./export";
 import { HomeBottomNav, HomeHeader, ScopeNotice } from "./app-shell";
 import { Badge, Field, Sheet, SheetRow } from "./ui";
 
@@ -46,14 +52,19 @@ const EMPTY_CREATE_FORM = {
 };
 
 export function HomeView() {
-  const { trees, hydrated, createTree, deleteTree } = useGenealogy();
+  const { trees, hydrated, createTree, deleteTree, importTree } = useGenealogy();
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [scope, setScope] = useState<string | null>(null);
   const [manageTree, setManageTree] = useState<FamilyTree | null>(null);
   const [form, setForm] = useState(EMPTY_CREATE_FORM);
   const [error, setError] = useState("");
+  const [importError, setImportError] = useState("");
+  const [pendingImport, setPendingImport] = useState<ImportResult | null>(null);
+  const spreadsheetRef = useRef<HTMLInputElement>(null);
+  const backupRef = useRef<HTMLInputElement>(null);
 
   const visible = useMemo(() => {
     const hasOwn = trees.some((tree) => !tree.sample);
@@ -95,9 +106,43 @@ export function HomeView() {
     router.push(`/gia-pha/${id}/trang-chu`);
   };
 
+  const openCreate = () => {
+    setImportError("");
+    setModeOpen(true);
+  };
+
+  const onSpreadsheetPicked = async (file: File | undefined) => {
+    if (!file) return;
+    setImportError("");
+    try {
+      setPendingImport(await importSpreadsheet(file));
+    } catch (cause) {
+      setImportError(cause instanceof Error ? cause.message : "Không đọc được tệp Excel.");
+    }
+  };
+
+  const onBackupPicked = async (file: File | undefined) => {
+    if (!file) return;
+    setImportError("");
+    try {
+      const tree = await readBackup(file);
+      const id = importTree(tree);
+      router.push(`/gia-pha/${id}/trang-chu`);
+    } catch (cause) {
+      setImportError(cause instanceof Error ? cause.message : "Không đọc được tệp sao lưu.");
+    }
+  };
+
+  const confirmImport = () => {
+    if (!pendingImport) return;
+    const id = importTree(pendingImport.tree, { suffix: false });
+    setPendingImport(null);
+    router.push(`/gia-pha/${id}/trang-chu`);
+  };
+
   return (
     <div className="pat-shell min-h-dvh pb-24">
-      <HomeHeader onCreate={() => setCreateOpen(true)} onHelp={() => setHelpOpen(true)} />
+      <HomeHeader onCreate={openCreate} onHelp={() => setHelpOpen(true)} />
 
       <main className="mx-auto w-full max-w-3xl px-3 pt-4">
         <div className="mb-3 flex items-center justify-between px-1">
@@ -113,7 +158,7 @@ export function HomeView() {
             <p className="mx-auto mt-1 max-w-sm text-sm text-[var(--pat-muted)]">
               Nhấn nút <strong>+ Lập Gia Phả</strong> để bắt đầu ghi chép cội nguồn dòng họ. Không cần đăng nhập.
             </p>
-            <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={() => setCreateOpen(true)}>
+            <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={openCreate}>
               <Plus size={16} /> Tạo gia phả đầu tiên
             </button>
           </div>
@@ -210,6 +255,101 @@ export function HomeView() {
 
       <HomeBottomNav onScope={setScope} />
       {scope ? <ScopeNotice name={scope} onClose={() => setScope(null)} /> : null}
+
+      <input
+        ref={spreadsheetRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={(event) => {
+          void onSpreadsheetPicked(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+      <input
+        ref={backupRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={(event) => {
+          void onBackupPicked(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+
+      <Sheet
+        open={modeOpen}
+        onClose={() => setModeOpen(false)}
+        title="Tạo gia phả mới"
+        subtitle="Chọn cách bạn muốn khởi tạo cây gia phả"
+      >
+        <div className="space-y-1">
+          <SheetRow
+            icon={<PenLine size={18} />}
+            title="Tạo thủ công"
+            subtitle="Nhập tên gia phả, người tạo… rồi tự thêm từng thành viên."
+            onClick={() => {
+              setModeOpen(false);
+              setCreateOpen(true);
+            }}
+          />
+          <SheetRow
+            icon={<FileSpreadsheet size={18} />}
+            title="Tải file Excel mẫu"
+            subtitle="Dùng đúng cột chuẩn, điền dữ liệu rồi nhập lại — dựng cây chính xác 100%."
+            onClick={() => downloadExcelTemplate()}
+          />
+          <SheetRow
+            icon={<FileUp size={18} />}
+            title="Nhập file Excel đã điền"
+            subtitle="Chấp nhận .xlsx, .xls, .csv theo cột của file mẫu."
+            onClick={() => spreadsheetRef.current?.click()}
+          />
+          <SheetRow
+            icon={<History size={18} />}
+            title="Khôi phục từ tệp sao lưu"
+            subtitle="Nhập lại cây gia phả từ tệp backup .json đã xuất ra trước đó."
+            onClick={() => backupRef.current?.click()}
+          />
+          {importError ? <p className="pt-2 text-xs font-semibold text-[#a3271d]">{importError}</p> : null}
+        </div>
+      </Sheet>
+
+      <Sheet
+        open={Boolean(pendingImport)}
+        onClose={() => setPendingImport(null)}
+        title="Xác nhận nhập gia phả"
+        subtitle={pendingImport?.tree.name ?? ""}
+        footer={
+          <div className="flex gap-2">
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={() => setPendingImport(null)}>
+              Huỷ
+            </button>
+            <button type="button" className="pat-btn pat-btn-red h-11 flex-1 text-sm" onClick={confirmImport}>
+              Nhập {pendingImport?.memberCount ?? 0} thành viên
+            </button>
+          </div>
+        }
+      >
+        {pendingImport ? (
+          <div className="space-y-2">
+            <p className="text-sm text-[var(--pat-ink)]">
+              Tìm thấy <strong>{pendingImport.memberCount}</strong> thành viên
+              {pendingImport.tree.branches.length ? ` trong ${pendingImport.tree.branches.length} nhánh` : ""}. Kiểm tra
+              kỹ trước khi nhập.
+            </p>
+            {pendingImport.warnings.length ? (
+              <ul className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-[var(--pat-gold)]/50 bg-[#f9edcf]/60 px-3 py-2 text-[0.7rem] leading-relaxed text-[#7a5a10]">
+                {pendingImport.warnings.map((warning) => (
+                  <li key={warning}>• {warning}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-[var(--pat-muted)]">Không có cảnh báo — mọi quan hệ đều khớp.</p>
+            )}
+          </div>
+        ) : null}
+      </Sheet>
 
       <Sheet
         open={createOpen}
