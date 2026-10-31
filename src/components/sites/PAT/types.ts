@@ -10,6 +10,67 @@ export type PaletteName = "classic" | "gold" | "ink" | "jade";
 
 export type CardOrientation = "horizontal" | "vertical";
 
+export type ExtraFieldKey =
+  | "hometown"
+  | "occupation"
+  | "address"
+  | "tabooName"
+  | "education"
+  | "deathAnniversary"
+  | "age"
+  | "generation";
+
+export type GenerationBandLabel = "ordinal" | "ordinalName" | "generation";
+
+export interface GenerationStyle {
+  orientation?: CardOrientation;
+  showAvatar?: boolean;
+  showTitle?: boolean;
+  showName?: boolean;
+  showDates?: boolean;
+  showDeathAnniversary?: boolean;
+  fontSize?: number;
+  fontFamily?: string;
+  lineCount?: number;
+  extraFields?: ExtraFieldKey[];
+  cardColor?: string;
+}
+
+export interface PersonStyle {
+  hideDates?: boolean;
+  color?: string;
+  lineColor?: string;
+}
+
+export interface DiagramTuning {
+  generationGap: number;
+  siblingGap: number;
+  branchGap: number;
+  marginTop: number;
+  marginBottom: number;
+  marginLeft: number;
+  marginRight: number;
+  connectorWidth: number;
+  connectorColor?: string;
+  connectorDash: boolean;
+  tintByLevel: boolean;
+  generationBandLabel: GenerationBandLabel;
+  generationBandColor?: string;
+  frameStyle: "none" | "wood";
+  fontFamily: string;
+  fontSize: number;
+  lineCount: number;
+  extraFields: ExtraFieldKey[];
+  generationStyles?: Record<string, GenerationStyle>;
+  personStyles?: Record<string, PersonStyle>;
+}
+
+export interface CustomPaper {
+  widthMm: number;
+  heightMm: number;
+  ratio: "1:1" | "3:2" | "custom";
+}
+
 export interface Person {
   id: string;
   name: string;
@@ -88,6 +149,8 @@ export interface DesignSettings {
   showDeathAnniversary: boolean;
   showAvatar: boolean;
   borderStyle: "none" | "simple" | "ornate";
+  customPaper?: CustomPaper | null;
+  tuning?: DiagramTuning;
 }
 
 export interface FamilyTree {
@@ -126,6 +189,8 @@ export interface TreeEdge {
   y1: number;
   x2: number;
   y2: number;
+  generation?: number;
+  subjectId?: string;
 }
 
 export interface TreeLayout {
@@ -149,6 +214,8 @@ export function cardOrientationFor(
   design: Partial<DesignSettings> | null | undefined,
   generation: number,
 ): CardOrientation {
+  const tuned = design?.tuning?.generationStyles?.[String(generation)]?.orientation;
+  if (tuned) return tuned;
   const override = design?.cardOrientations?.[String(generation)];
   if (override) return override;
   return design?.cardOrientation === "vertical" ? "vertical" : "horizontal";
@@ -260,3 +327,89 @@ export const DEFAULT_DESIGN: DesignSettings = {
   showAvatar: true,
   borderStyle: "ornate",
 };
+
+export const DEFAULT_TUNING: DiagramTuning = {
+  generationGap: 58,
+  siblingGap: 26,
+  branchGap: 52,
+  marginTop: 48,
+  marginBottom: 48,
+  marginLeft: 48,
+  marginRight: 48,
+  connectorWidth: 1.6,
+  connectorColor: "",
+  connectorDash: false,
+  tintByLevel: false,
+  generationBandLabel: "ordinal",
+  generationBandColor: "",
+  frameStyle: "none",
+  fontFamily: "'Be Vietnam Pro', sans-serif",
+  fontSize: 10.5,
+  lineCount: 2,
+  extraFields: [],
+  generationStyles: {},
+  personStyles: {},
+};
+
+function clampNumber(value: number | undefined, fallback: number, min: number, max: number) {
+  if (value === undefined || Number.isNaN(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
+}
+
+export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): DiagramTuning {
+  return {
+    ...DEFAULT_TUNING,
+    ...tuning,
+    generationGap: clampNumber(tuning?.generationGap, DEFAULT_TUNING.generationGap, 20, 240),
+    siblingGap: clampNumber(tuning?.siblingGap, DEFAULT_TUNING.siblingGap, 8, 120),
+    branchGap: clampNumber(tuning?.branchGap, DEFAULT_TUNING.branchGap, 12, 200),
+    marginTop: clampNumber(tuning?.marginTop, DEFAULT_TUNING.marginTop, 20, 240),
+    marginBottom: clampNumber(tuning?.marginBottom, DEFAULT_TUNING.marginBottom, 20, 240),
+    marginLeft: clampNumber(tuning?.marginLeft, DEFAULT_TUNING.marginLeft, 20, 240),
+    marginRight: clampNumber(tuning?.marginRight, DEFAULT_TUNING.marginRight, 20, 240),
+    connectorWidth: clampNumber(tuning?.connectorWidth, DEFAULT_TUNING.connectorWidth, 1, 20),
+    fontSize: clampNumber(tuning?.fontSize, DEFAULT_TUNING.fontSize, 7, 24),
+    lineCount: Math.round(clampNumber(tuning?.lineCount, DEFAULT_TUNING.lineCount, 1, 5)),
+    extraFields: Array.isArray(tuning?.extraFields) ? tuning.extraFields : [],
+    generationStyles: tuning?.generationStyles ?? {},
+    personStyles: tuning?.personStyles ?? {},
+  };
+}
+
+export function normalizeCustomPaper(paper?: CustomPaper | null): CustomPaper | null {
+  if (!paper) return null;
+  return {
+    widthMm: Math.round(clampNumber(paper.widthMm, 1189, 200, 5000)),
+    heightMm: Math.round(clampNumber(paper.heightMm, 841, 200, 5000)),
+    ratio: paper.ratio === "1:1" || paper.ratio === "3:2" ? paper.ratio : "custom",
+  };
+}
+
+export const EXTRA_FIELD_LABELS: Record<ExtraFieldKey, string> = {
+  hometown: "Quê quán",
+  occupation: "Nghề nghiệp",
+  address: "Nơi ở",
+  tabooName: "Tên húy",
+  education: "Học vấn",
+  deathAnniversary: "Ngày giỗ",
+  age: "Hưởng thọ",
+  generation: "Đời thứ",
+};
+
+export const BAND_LABELS: Record<GenerationBandLabel, string> = {
+  ordinal: "Đời n",
+  ordinalName: "Đời thứ n",
+  generation: "Thế hệ n",
+};
+
+export function bandLabelFor(style: GenerationBandLabel, generation: number) {
+  switch (style) {
+    case "ordinalName":
+      return `ĐỜI THỨ ${generation}`;
+    case "generation":
+      return `THẾ HỆ ${generation}`;
+    default:
+      return `ĐỜI ${generation}`;
+  }
+}
+

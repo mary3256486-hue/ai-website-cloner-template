@@ -1,5 +1,5 @@
 import type { FamilyTree, Person, TreeEdge, TreeLayout, TreeNode } from "./types";
-import { cardDimsFor, PADDING, ROW_GAP, SPOUSE_GAP, UNIT_GAP } from "./types";
+import { cardDimsFor, normalizeTuning, SPOUSE_GAP } from "./types";
 import { buildFamilyIndex, computeGenerations, sortPersons } from "./utils";
 
 interface Measure {
@@ -11,6 +11,7 @@ interface Measure {
 }
 
 export function computeLayout(tree: FamilyTree): TreeLayout {
+  const tuning = normalizeTuning(tree.design.tuning);
   const byId = new Map(tree.members.map((m) => [m.id, m]));
   const generations = computeGenerations(tree.members);
   const index = buildFamilyIndex(tree.members);
@@ -28,7 +29,8 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     const children = (index.childrenOf.get(person.id) ?? []).map(measure);
     const unitWidth = cardW + spouses.length * (SPOUSE_GAP + cardW);
     const childWidth =
-      children.reduce((sum, c) => sum + c.width, 0) + Math.max(0, children.length - 1) * UNIT_GAP;
+      children.reduce((sum, c) => sum + c.width, 0) +
+      Math.max(0, children.length - 1) * tuning.siblingGap;
     return { person, spouses, children, unitWidth, width: Math.max(unitWidth, childWidth) };
   };
 
@@ -37,17 +39,17 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
 
   const maxGeneration = Math.max(1, ...Array.from(generations.values()));
   const rowTop = new Map<number, number>();
-  let rowCursor = PADDING;
+  let rowCursor = tuning.marginTop;
   for (let generation = 1; generation <= maxGeneration; generation += 1) {
     rowTop.set(generation, rowCursor);
-    rowCursor += cardDimsFor(tree.design, generation).height + ROW_GAP;
+    rowCursor += cardDimsFor(tree.design, generation).height + tuning.generationGap;
   }
 
   const place = (m: Measure, left: number) => {
     const unitLeft = left + (m.width - m.unitWidth) / 2;
     const generation = generations.get(m.person.id) ?? 1;
     const { width: cardW, height: cardH } = cardDimsFor(tree.design, generation);
-    const y = rowTop.get(generation) ?? PADDING;
+    const y = rowTop.get(generation) ?? tuning.marginTop;
     const add = (person: Person, x: number, isSpouse: boolean) => {
       nodes.push({
         id: person.id,
@@ -80,7 +82,9 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
       .filter((key) => byMother.has(key))
       .map((key) => {
         const members = byMother.get(key)!;
-        const width = members.reduce((sum, c) => sum + c.width, 0) + Math.max(0, members.length - 1) * UNIT_GAP;
+        const width =
+          members.reduce((sum, c) => sum + c.width, 0) +
+          Math.max(0, members.length - 1) * tuning.siblingGap;
         return { key, members, width };
       });
 
@@ -94,7 +98,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     let prevRight = Number.NEGATIVE_INFINITY;
     let overflow = false;
     for (let i = 0; i < clusters.length; i++) {
-      const minX = prevRight === Number.NEGATIVE_INFINITY ? ideal[i] : prevRight + UNIT_GAP;
+      const minX = prevRight === Number.NEGATIVE_INFINITY ? ideal[i] : prevRight + tuning.branchGap;
       const x = Math.max(ideal[i], minX, left);
       resolved.push(x);
       prevRight = x + clusters[i].width;
@@ -103,27 +107,34 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     if (span > m.width + 0.5) overflow = true;
     const offset = overflow ? 0 : left + (m.width - span) / 2 - resolved[0];
     const packedWidth =
-      clusters.reduce((sum, c) => sum + c.width, 0) + Math.max(0, clusters.length - 1) * UNIT_GAP;
+      clusters.reduce((sum, c) => sum + c.width, 0) +
+      Math.max(0, clusters.length - 1) * tuning.branchGap;
 
     let cursor = left + (m.width - packedWidth) / 2;
     clusters.forEach((cl, i) => {
       let inner = overflow ? cursor : resolved[i] + offset;
       for (const child of cl.members) {
         place(child, inner);
-        inner += child.width + UNIT_GAP;
+        inner += child.width + tuning.siblingGap;
       }
-      cursor = (overflow ? cursor : resolved[i] + offset) + cl.width + UNIT_GAP;
+      cursor = (overflow ? cursor : resolved[i] + offset) + cl.width + tuning.branchGap;
     });
   };
 
-  let cursor = PADDING;
+  let cursor = tuning.marginLeft;
   for (const m of measured) {
     place(m, cursor);
-    cursor += m.width + UNIT_GAP * 2;
+    cursor += m.width + tuning.branchGap;
   }
 
   if (nodes.length === 0) {
-    return { nodes: [], edges: [], generations: [], width: PADDING * 2, height: PADDING * 2 };
+    return {
+      nodes: [],
+      edges: [],
+      generations: [],
+      width: tuning.marginLeft + tuning.marginRight,
+      height: tuning.marginTop + tuning.marginBottom,
+    };
   }
 
   for (const node of nodes) {
@@ -141,17 +152,17 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     return {
       generation,
       count: nodes.filter((n) => n.generation === generation).length,
-      y: rowTop.get(generation) ?? PADDING,
+      y: rowTop.get(generation) ?? tuning.marginTop,
     };
   });
-  const width = Math.max(...nodes.map((n) => n.x + n.width)) + PADDING;
-  const height = Math.max(...nodes.map((n) => n.y + n.height)) + PADDING;
+  const width = Math.max(...nodes.map((n) => n.x + n.width)) + tuning.marginRight;
+  const height = Math.max(...nodes.map((n) => n.y + n.height)) + tuning.marginBottom;
   return {
     nodes,
     edges,
     generations: genRows,
-    width: Math.max(width, PADDING * 2),
-    height: Math.max(height, PADDING * 2),
+    width: Math.max(width, tuning.marginLeft + tuning.marginRight),
+    height: Math.max(height, tuning.marginTop + tuning.marginBottom),
   };
 }
 
@@ -176,6 +187,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
         y1: a.y + a.height / 2,
         x2: b.x,
         y2: b.y + b.height / 2,
+        generation: a.generation,
       });
     }
   }
@@ -223,11 +235,47 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
         const midY = startY + Math.max(18, (endY - startY) / 2);
         const groupId = `ch-${parentId}-${node.id}`;
         if (Math.abs(startX - endX) < 1) {
-          edges.push({ id: `${groupId}-v`, type: "child", x1: startX, y1: startY, x2: endX, y2: endY });
+          edges.push({
+            id: `${groupId}-v`,
+            type: "child",
+            x1: startX,
+            y1: startY,
+            x2: endX,
+            y2: endY,
+            generation: node.generation,
+            subjectId: node.id,
+          });
         } else {
-          edges.push({ id: `${groupId}-a`, type: "child", x1: startX, y1: startY, x2: startX, y2: midY });
-          edges.push({ id: `${groupId}-b`, type: "child", x1: startX, y1: midY, x2: endX, y2: midY });
-          edges.push({ id: `${groupId}-c`, type: "child", x1: endX, y1: midY, x2: endX, y2: endY });
+          edges.push({
+            id: `${groupId}-a`,
+            type: "child",
+            x1: startX,
+            y1: startY,
+            x2: startX,
+            y2: midY,
+            generation: node.generation,
+            subjectId: node.id,
+          });
+          edges.push({
+            id: `${groupId}-b`,
+            type: "child",
+            x1: startX,
+            y1: midY,
+            x2: endX,
+            y2: midY,
+            generation: node.generation,
+            subjectId: node.id,
+          });
+          edges.push({
+            id: `${groupId}-c`,
+            type: "child",
+            x1: endX,
+            y1: midY,
+            x2: endX,
+            y2: endY,
+            generation: node.generation,
+            subjectId: node.id,
+          });
         }
         continue;
       }
@@ -235,7 +283,16 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
       const minTop = Math.min(...sorted.map((n) => n.y));
       const midY = startY + Math.max(18, (minTop - startY) / 2);
       const centers = sorted.map((n) => n.x + n.width / 2);
-      edges.push({ id: `ch-${parentId}-${key}-trunk`, type: "child", x1: startX, y1: startY, x2: startX, y2: midY });
+      const siblingGeneration = sorted[0].generation;
+      edges.push({
+        id: `ch-${parentId}-${key}-trunk`,
+        type: "child",
+        x1: startX,
+        y1: startY,
+        x2: startX,
+        y2: midY,
+        generation: siblingGeneration,
+      });
       edges.push({
         id: `ch-${parentId}-${sorted[0].id}-bar`,
         type: "child",
@@ -243,10 +300,20 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
         y1: midY,
         x2: centers[centers.length - 1],
         y2: midY,
+        generation: siblingGeneration,
       });
       for (const node of sorted) {
         const endX = node.x + node.width / 2;
-        edges.push({ id: `ch-${parentId}-${node.id}-d`, type: "child", x1: endX, y1: midY, x2: endX, y2: node.y });
+        edges.push({
+          id: `ch-${parentId}-${node.id}-d`,
+          type: "child",
+          x1: endX,
+          y1: midY,
+          x2: endX,
+          y2: node.y,
+          generation: node.generation,
+          subjectId: node.id,
+        });
       }
     }
   }

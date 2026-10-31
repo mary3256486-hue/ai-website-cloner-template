@@ -1,5 +1,5 @@
 import type { FamilyTree } from "./types";
-import { PAPER_MM } from "./types";
+import { normalizeCustomPaper, PAPER_MM } from "./types";
 import type { TreeLayout } from "./types";
 import { computeLayout } from "./layout";
 import { byId, computeGenerations, lifeSpan } from "./utils";
@@ -139,10 +139,17 @@ export function resolveOrientation(tree: FamilyTree, layout?: TreeLayout) {
 }
 
 export function paperDimensions(tree: FamilyTree, layout?: TreeLayout): { widthMm: number; heightMm: number } {
+  const custom = normalizeCustomPaper(tree.design.customPaper);
+  if (custom) return { widthMm: custom.widthMm, heightMm: custom.heightMm };
   const [w, h] = PAPER_MM[tree.design.paper];
   return resolveOrientation(tree, layout) === "portrait"
     ? { widthMm: w, heightMm: h }
     : { widthMm: h, heightMm: w };
+}
+
+export function paperAspectFor(tree: FamilyTree, layout?: TreeLayout) {
+  const { widthMm, heightMm } = paperDimensions(tree, layout);
+  return widthMm / heightMm;
 }
 
 export function printDiagram(tree: FamilyTree) {
