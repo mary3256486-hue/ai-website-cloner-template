@@ -16,7 +16,6 @@ import {
 import { useGenealogy } from "./store";
 import type {
   BackgroundPattern,
-  CardOrientation,
   DiagramTheme,
   FamilyTree,
   PaletteName,
@@ -35,7 +34,8 @@ import {
   safeName,
 } from "./export";
 import { TreeShell } from "./app-shell";
-import { Field, SectionTitle, Segmented } from "./ui";
+import { CardOrientationPicker } from "./card-orientation-picker";
+import { Field, SectionTitle, Segmented, ZoomBar } from "./ui";
 
 const PAPER_OPTIONS: PaperSize[] = ["A4", "A3", "A2", "A1", "A0"];
 
@@ -66,15 +66,17 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
   const layout = useMemo(() => computeLayout(tree), [tree]);
   const dims = useMemo(() => diagramDimensions(layout, design), [layout, design]);
   const previewRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.4);
+  const [fitScale, setFitScale] = useState(0.4);
+  const [zoom, setZoom] = useState(1);
   const [toast, setToast] = useState("");
+  const scale = Math.min(3, Math.max(0.12, fitScale * zoom));
 
   useEffect(() => {
     const el = previewRef.current;
     if (!el) return;
     const update = () => {
       const available = el.clientWidth - 24;
-      setScale(Math.min(0.85, Math.max(0.18, Math.min(available / dims.width, 540 / dims.height))));
+      setFitScale(Math.min(0.85, Math.max(0.18, Math.min(available / dims.width, 540 / dims.height))));
     };
     update();
     const observer = new ResizeObserver(update);
@@ -144,10 +146,10 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
               {autoRotate && isLargeTree(tree) ? " · tự xoay" : ""}
             </span>
           </div>
-          <div ref={previewRef} className="flex justify-center overflow-hidden bg-[#eadfc8] px-3 py-4">
+          <div ref={previewRef} className="flex max-h-[72vh] overflow-auto bg-[#eadfc8] px-3 py-4">
             <div
-              style={{ width: dims.width * scale, height: dims.height * scale }}
-              className="overflow-hidden rounded-sm shadow-[0_18px_40px_-18px_rgba(74,31,16,0.6)]"
+              style={{ width: dims.width * scale, height: dims.height * scale, margin: "auto" }}
+              className="shrink-0 overflow-hidden rounded-sm shadow-[0_18px_40px_-18px_rgba(74,31,16,0.6)]"
             >
               <div
                 style={{ width: dims.width, height: dims.height, transform: `scale(${scale})`, transformOrigin: "top left" }}
@@ -188,9 +190,17 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             >
               <ImageIcon size={14} /> Tải PNG
             </button>
-            <span className="ml-auto text-[0.65rem] text-[var(--pat-muted)]">
-              Thay đổi được lưu tự động
-            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <ZoomBar
+                percent={Math.round(scale * 100)}
+                onZoomOut={() => setZoom((value) => Math.max(0.4, value / 1.25))}
+                onZoomIn={() => setZoom((value) => Math.min(8, value * 1.25))}
+                onReset={() => setZoom(1)}
+              />
+              <span className="hidden text-[0.65rem] text-[var(--pat-muted)] sm:inline">
+                Thay đổi được lưu tự động
+              </span>
+            </div>
           </div>
         </section>
 
@@ -335,26 +345,15 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
 
         <section className="pat-card px-4 py-4">
           <SectionTitle icon={<LayoutTemplate size={13} />} title="Thẻ thành viên" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Kiểu khung">
-              <Segmented<CardOrientation>
-                value={design.cardOrientation === "vertical" ? "vertical" : "horizontal"}
-                onChange={(cardOrientation) => {
-                  setDesign(tree.id, { cardOrientation });
-                  flash(`Đã chọn khung thẻ ${cardOrientation === "vertical" ? "dọc" : "ngang"}`);
-                }}
-                options={[
-                  { value: "horizontal", label: "Ngang" },
-                  { value: "vertical", label: "Dọc" },
-                ]}
-              />
-            </Field>
-            <div className="flex items-end">
-              <p className="w-full rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
-                Khung dọc hợp với phả đồ nhiều đời; chữ tự xuống dòng trong khung thẻ.
-              </p>
-            </div>
-          </div>
+          <CardOrientationPicker
+            design={design}
+            generations={layout.generations}
+            onChange={(patch) => setDesign(tree.id, patch)}
+          />
+          <p className="mt-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+            Khung dọc hợp với phả đồ nhiều đời; chữ tự xuống dòng trong khung thẻ. Có thể chọn riêng khung ngang hoặc
+            dọc cho từng đời.
+          </p>
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Toggle
               label="Danh xưng"

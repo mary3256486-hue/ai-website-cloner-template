@@ -2,6 +2,7 @@
 
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type { Decoration, DesignSettings, FamilyTree, TreeEdge, TreeLayout, TreeNode } from "./types";
+import { cardOrientationFor } from "./types";
 import { computeGenerations, lifeSpan, sortPersons } from "./utils";
 
 const PALETTES: Record<DesignSettings["palette"], { accent: string; deep: string; gold: string; soft: string }> = {
@@ -80,6 +81,7 @@ interface DiagramCanvasProps {
   interactive?: boolean;
   onNodePointerDown?: (event: ReactPointerEvent<SVGGElement>, node: TreeNode) => void;
   onDecorationPointerDown?: (event: ReactPointerEvent<SVGGElement>, decoration: Decoration) => void;
+  onDecorationResizeStart?: (event: ReactPointerEvent<SVGGElement>, decoration: Decoration) => void;
   onDeleteDecoration?: (id: string) => void;
   className?: string;
   style?: CSSProperties;
@@ -99,6 +101,7 @@ export function DiagramCanvas({
   interactive = false,
   onNodePointerDown,
   onDecorationPointerDown,
+  onDecorationResizeStart,
   onDeleteDecoration,
   className,
   style,
@@ -303,7 +306,7 @@ export function DiagramCanvas({
               const color = (person.branchId && branchColor.get(person.branchId)) || (person.gender === "male" ? palette.accent : "#9a4a6b");
               const focused = focusId === person.id;
               const clip = `${idPrefix}-clip-${node.id}`;
-              const vertical = settings.cardOrientation === "vertical";
+              const vertical = cardOrientationFor(settings, node.generation) === "vertical";
               const showTitle = settings.showTitle !== false;
               const showName = settings.showName !== false;
               const showDates = settings.showDates !== false;
@@ -315,22 +318,29 @@ export function DiagramCanvas({
               if (showAnniversary) meta.push(`Giỗ: ${anniversary}`);
 
               const avatar = vertical
-                ? { cx: node.width / 2, cy: 25, r: 13, initialsY: 29, initialsSize: 9 }
+                ? { cx: node.width / 2, cy: 27, r: 13, initialsY: 31, initialsSize: 9 }
                 : { cx: 22, cy: 26, r: 11, initialsY: 30, initialsSize: 8.5 };
               const textX = vertical ? node.width / 2 : 40;
               const anchor = vertical ? "middle" : "start";
               const nameSize = 10.5;
-              const nameWidth = vertical ? node.width - 16 : node.width - 50;
+              const nameWidth = vertical ? node.width - 14 : node.width - 50;
               const nameLines = showName
-                ? wrapText(person.name, Math.floor(nameWidth / (nameSize * 0.56)), 2)
+                ? wrapText(person.name, Math.floor(nameWidth / (nameSize * 0.56)), vertical ? 3 : 2)
                 : [];
-              const nameStart = vertical ? (showTitle ? 63 : 54) : showTitle ? 31 : 27;
+              const nameStart = vertical ? (showTitle ? 69 : 59) : showTitle ? 31 : 27;
               const nameLastY = nameStart + Math.max(0, nameLines.length - 1) * 12.5;
               const metaStart = nameLines.length
-                ? nameLastY + 13
-                : showTitle && vertical
-                  ? 50
+                ? nameLastY + 12.5
+                : vertical
+                  ? showTitle
+                    ? 70
+                    : 59
                   : nameStart;
+              const metaLines = meta.flatMap((line) =>
+                vertical
+                  ? wrapText(line, Math.floor((node.width - 12) / (7.8 * 0.52)), 2)
+                  : [truncate(line, 26)],
+              );
               const cardFill = node.isSpouse ? "#fffdf7" : settings.theme === "generations" ? palette.soft : "#fff9e4";
 
               return (
@@ -394,7 +404,7 @@ export function DiagramCanvas({
                   {showTitle ? (
                     <text
                       x={textX}
-                      y={vertical ? 50 : 16}
+                      y={vertical ? 54 : 16}
                       textAnchor={anchor}
                       fontSize="7.4"
                       fontWeight="600"
@@ -403,7 +413,7 @@ export function DiagramCanvas({
                       opacity="0.65"
                       fontFamily="'Be Vietnam Pro', sans-serif"
                     >
-                      {truncate(title, vertical ? 24 : 22)}
+                      {truncate(title, vertical ? 18 : 22)}
                     </text>
                   ) : null}
                   {nameLines.length ? (
@@ -432,9 +442,9 @@ export function DiagramCanvas({
                       fill="#8a6a52"
                       fontFamily="'Be Vietnam Pro', sans-serif"
                     >
-                      {meta.map((line, index) => (
+                      {metaLines.map((line, index) => (
                         <tspan key={`${person.id}-meta-${index}`} x={textX} dy={index === 0 ? 0 : 10.5}>
-                          {truncate(line, vertical ? 24 : 26)}
+                          {line}
                         </tspan>
                       ))}
                     </text>
@@ -493,6 +503,15 @@ export function DiagramCanvas({
               />
               {selectedDecorationId === decoration.id ? (
                 <rect width={w} height={h} rx="6" fill="none" stroke={palette.accent} strokeDasharray="4 3" />
+              ) : null}
+              {selectedDecorationId === decoration.id && interactive && onDecorationResizeStart ? (
+                <g
+                  transform={`translate(${w}, ${h})`}
+                  onPointerDown={(event) => onDecorationResizeStart(event, decoration)}
+                  style={{ cursor: "nwse-resize", touchAction: "none" }}
+                >
+                  <rect x="-8" y="-8" width="16" height="16" rx="3" fill={palette.accent} stroke="#fff4df" strokeWidth="1.5" />
+                </g>
               ) : null}
             </g>
           );

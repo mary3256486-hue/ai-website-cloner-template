@@ -37,7 +37,6 @@ export function TreeShell({
   actions,
   children,
   wide,
-  backHref,
 }: {
   tree: FamilyTree;
   section: string;
@@ -46,7 +45,6 @@ export function TreeShell({
   actions?: ReactNode;
   children: ReactNode;
   wide?: boolean;
-  backHref?: string;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const pathname = usePathname();
@@ -58,9 +56,9 @@ export function TreeShell({
       <header className="pat-header sticky top-0 z-30 no-print">
         <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 pb-3 pt-3">
           <Link
-            href={backHref ?? home}
+            href="/"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
-            aria-label="Quay lại"
+            aria-label="Về trang chủ"
           >
             <ArrowLeft size={18} />
           </Link>
@@ -68,7 +66,16 @@ export function TreeShell({
             <p className="truncate pat-serif text-lg font-semibold leading-tight text-[#fff7e8]">{title}</p>
             {subtitle ? <p className="truncate text-[0.68rem] text-[#f0d9bd]/85">{subtitle}</p> : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {actions}
+            <Link
+              href="/"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
+              aria-label="Trang chủ"
+            >
+              <Home size={17} />
+            </Link>
+          </div>
         </div>
         <nav className="mx-auto hidden w-full max-w-6xl gap-1 overflow-x-auto px-4 pb-1 md:flex">
           {sections.map((item) => {

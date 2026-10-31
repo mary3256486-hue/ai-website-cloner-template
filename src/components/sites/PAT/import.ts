@@ -157,7 +157,7 @@ const TEMPLATE_EXAMPLE: string[][] = [
     "",
     "Trịnh Phu Nhân 1",
     "Chi trưởng",
-    "Thổ Khối, Gia Lâm, Bắc Ninh",
+    "Hà Nội",
     "Nông dân",
     "Đã có gia đình",
     "10/01 âm lịch",
@@ -168,7 +168,7 @@ const TEMPLATE_EXAMPLE: string[][] = [
     "",
     "",
     "",
-    "Khai cơ lập nghiệp tại Thổ Khối.",
+    "Khai cơ lập nghiệp tại Hà Nội.",
   ],
   [
     "Trịnh Phu Nhân 1",

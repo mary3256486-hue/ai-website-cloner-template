@@ -81,6 +81,7 @@ export interface DesignSettings {
   showCouplets: boolean;
   showGenerationLabels: boolean;
   cardOrientation: CardOrientation;
+  cardOrientations?: Record<string, CardOrientation>;
   showTitle: boolean;
   showName: boolean;
   showDates: boolean;
@@ -137,15 +138,24 @@ export interface TreeLayout {
 
 export const CARD_W = 168;
 export const CARD_H = 74;
-export const CARD_VERTICAL_W = 136;
-export const CARD_VERTICAL_H = 118;
+export const CARD_VERTICAL_W = 75;
+export const CARD_VERTICAL_H = 150;
 export const SPOUSE_GAP = 12;
 export const UNIT_GAP = 26;
 export const ROW_GAP = 58;
 export const PADDING = 48;
 
-export function cardDims(design?: Partial<DesignSettings> | null) {
-  return design?.cardOrientation === "vertical"
+export function cardOrientationFor(
+  design: Partial<DesignSettings> | null | undefined,
+  generation: number,
+): CardOrientation {
+  const override = design?.cardOrientations?.[String(generation)];
+  if (override) return override;
+  return design?.cardOrientation === "vertical" ? "vertical" : "horizontal";
+}
+
+export function cardDimsFor(design: Partial<DesignSettings> | null | undefined, generation: number) {
+  return cardOrientationFor(design, generation) === "vertical"
     ? { width: CARD_VERTICAL_W, height: CARD_VERTICAL_H }
     : { width: CARD_W, height: CARD_H };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BookOpen, Check, Feather, GitBranch, Printer, Sparkles, Users } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
@@ -18,12 +18,7 @@ import { TreeShell } from "./app-shell";
 import { Badge } from "./ui";
 
 function printBook() {
-  const style = document.createElement("style");
-  style.id = "pat-chronicle-print";
-  style.textContent = "@page { size: A4 portrait; margin: 12mm; }";
-  document.head.appendChild(style);
   window.print();
-  window.setTimeout(() => style.remove(), 2000);
 }
 
 function draftHistory(tree: FamilyTree) {
@@ -58,10 +53,10 @@ function draftHistory(tree: FamilyTree) {
 
 function Page({ children }: { children: ReactNode }) {
   return (
-    <article className="chronicle-page pat-paper relative mx-auto w-full max-w-3xl overflow-hidden rounded-sm border border-[#d9c39a] px-5 py-7 shadow-[0_18px_50px_-32px_rgba(90,15,10,0.55)] sm:px-10 sm:py-11">
+    <article className="chronicle-page pat-paper relative mx-auto overflow-hidden rounded-sm border border-[#d9c39a] shadow-[0_18px_50px_-32px_rgba(90,15,10,0.55)]">
       <div aria-hidden className="pointer-events-none absolute inset-2.5 rounded-sm border border-[#c9a227]/35" />
       <div aria-hidden className="pointer-events-none absolute inset-3.5 rounded-sm border border-[#8a1c15]/10" />
-      <div className="relative">{children}</div>
+      <div className="chronicle-body pat-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
     </article>
   );
 }
@@ -80,9 +75,20 @@ function PageHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
-function MemberLine({ person, generation }: { person: Person; generation: number }) {
+function MemberLine({
+  person,
+  generation,
+  measure,
+}: {
+  person: Person;
+  generation: number;
+  measure?: boolean;
+}) {
   return (
-    <li className="flex items-baseline justify-between gap-3 border-b border-dashed border-[#c9a227]/25 py-1.5 text-sm">
+    <li
+      data-measure-item={measure ? "" : undefined}
+      className="flex items-baseline justify-between gap-3 border-b border-dashed border-[#c9a227]/25 py-1.5 text-sm"
+    >
       <span className="min-w-0">
         <span className="font-semibold text-[var(--pat-ink)]">{person.name}</span>
         {person.title ? <span className="ml-1.5 text-[0.68rem] text-[#8a6a52]">({person.title})</span> : null}
@@ -94,6 +100,121 @@ function MemberLine({ person, generation }: { person: Person; generation: number
         Đời {generation} · {lifeSpan(person)}
       </span>
     </li>
+  );
+}
+
+function GenerationPages({ generation, members }: { generation: number; members: Person[] }) {
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [pages, setPages] = useState<Person[][]>([members]);
+
+  useEffect(() => {
+    const node = measureRef.current;
+    if (!node) return;
+
+    const measure = () => {
+      const body = node.querySelector<HTMLElement>(".chronicle-body");
+      const heading = node.querySelector<HTMLElement>("[data-measure-heading]");
+      const list = node.querySelector<HTMLElement>("[data-measure-list]");
+      if (!body || !heading || !list) return;
+      const items = Array.from(list.querySelectorAll<HTMLElement>("[data-measure-item]"));
+      if (!items.length) return;
+      const columns = getComputedStyle(list).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
+      const available = body.clientHeight - heading.offsetHeight - 16;
+      if (available < 120) return;
+
+      const rows: Person[][] = [];
+      const rowHeights: number[] = [];
+      for (let start = 0; start < members.length; start += columns) {
+        const row = members.slice(start, start + columns);
+        rows.push(row);
+        let rowHeight = 0;
+        for (let offset = 0; offset < row.length; offset += 1) {
+          rowHeight = Math.max(rowHeight, items[start + offset]?.offsetHeight ?? 0);
+        }
+        rowHeights.push(rowHeight);
+      }
+
+      let pageCount = 1;
+      let used = 0;
+      for (const rowHeight of rowHeights) {
+        if (used && used + rowHeight > available) {
+          pageCount += 1;
+          used = 0;
+        }
+        used += rowHeight;
+      }
+      // Spread rows evenly across the same number of pages so the last page never ends up nearly empty.
+      const rowLimit = Math.ceil(rows.length / pageCount);
+
+      const next: Person[][] = [];
+      let current: Person[] = [];
+      let currentRows = 0;
+      used = 0;
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        const rowHeight = rowHeights[index];
+        if (current.length && (currentRows >= rowLimit || used + rowHeight > available)) {
+          next.push(current);
+          current = [];
+          currentRows = 0;
+          used = 0;
+        }
+        current.push(...row);
+        currentRows += 1;
+        used += rowHeight;
+      }
+      if (current.length) next.push(current);
+
+      setPages((previous) => {
+        const unchanged =
+          next.length === previous.length &&
+          next.every(
+            (page, index) =>
+              page.length === previous[index]?.length &&
+              page.every((person, position) => person.id === previous[index]?.[position]?.id),
+          );
+        return unchanged ? previous : next;
+      });
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    void document.fonts?.ready.then(measure);
+    return () => observer.disconnect();
+  }, [members]);
+
+  return (
+    <div className="relative">
+      <div ref={measureRef} aria-hidden className="no-print invisible pointer-events-none absolute inset-x-0 top-0">
+        <Page>
+          <div data-measure-heading>
+            <PageHeading eyebrow="Thế thứ" title={`Đời thứ ${generation}`} />
+          </div>
+          <ul data-measure-list className="grid gap-x-8 sm:grid-cols-2">
+            {members.map((person) => (
+              <MemberLine key={person.id} person={person} generation={generation} measure />
+            ))}
+          </ul>
+        </Page>
+      </div>
+
+      {pages.map((page, index) => (
+        <Page key={index}>
+          <PageHeading
+            eyebrow={`Thế thứ · ${members.length} người${
+              pages.length > 1 ? ` · ${index + 1}/${pages.length}` : ""
+            }`}
+            title={`Đời thứ ${generation}`}
+          />
+          <ul className="grid gap-x-8 sm:grid-cols-2">
+            {page.map((person) => (
+              <MemberLine key={person.id} person={person} generation={generation} />
+            ))}
+          </ul>
+        </Page>
+      ))}
+    </div>
   );
 }
 
@@ -182,7 +303,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                 <p className="text-sm font-semibold">Sách phả ký dòng họ</p>
                 <p className="text-[0.68rem] text-[var(--pat-muted)]">
                   {paragraphs.length ? `${paragraphs.length} đoạn lời tựa` : "Chưa có lời tựa"} ·{" "}
-                  {generationMembers.length} trang thế thứ
+                  {generationMembers.length} đời thế thứ
                 </p>
               </div>
             </div>
@@ -334,7 +455,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
           <Page>
             <PageHeading eyebrow="Cội nguồn" title="Thủy tổ và các đời" />
             {founder ? (
-              <div className="mb-6 rounded-lg border border-[#c9a227]/40 bg-[#fffaf0]/70 px-4 py-4">
+              <div className="mb-4 rounded-lg border border-[#c9a227]/40 bg-[#fffaf0]/70 px-4 py-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="pat-serif text-lg font-bold text-[var(--pat-red)]">{founder.name}</p>
                   {founder.title ? <Badge tone="gold">{founder.title}</Badge> : null}
@@ -384,14 +505,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
           </Page>
 
           {generationMembers.map(([generation, members]) => (
-            <Page key={`gen-${generation}`}>
-              <PageHeading eyebrow={`Thế thứ · ${members.length} người`} title={`Đời thứ ${generation}`} />
-              <ul className="grid gap-x-8 sm:grid-cols-2">
-                {members.map((person) => (
-                  <MemberLine key={person.id} person={person} generation={generation} />
-                ))}
-              </ul>
-            </Page>
+            <GenerationPages key={`gen-${generation}`} generation={generation} members={members} />
           ))}
 
           {tree.branches.length ? (

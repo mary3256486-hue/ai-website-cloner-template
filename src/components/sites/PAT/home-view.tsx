@@ -283,7 +283,7 @@ export function HomeView() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden">
+      <section className="relative">
         <span
           aria-hidden
           className="pat-han pat-vertical absolute left-4 top-10 hidden text-lg tracking-[0.32em] text-[#b7791f]/30 sm:block"
@@ -296,46 +296,48 @@ export function HomeView() {
         >
           宗功永續
         </span>
-        <div className="relative mx-auto w-full max-w-3xl px-4 pb-3 pt-6 text-center">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 bottom-3 top-6 flex items-center justify-center"
-          >
-            <Image
-              src="/sites/PAT/images/han-pham.png"
-              alt=""
-              width={585}
-              height={728}
-              className="h-full w-auto max-w-none object-contain opacity-20 blur-[2.5px]"
-            />
-          </div>
+        <div className="relative mx-auto w-full max-w-3xl px-4 pb-4 pt-12 text-center">
           <div className="relative">
-            <div className="relative mx-auto h-[6.75rem] w-[12rem] sm:h-[7.75rem] sm:w-[13.75rem]">
-              <span
-                aria-hidden
-                className="absolute inset-x-4 inset-y-3 rounded-full bg-[radial-gradient(ellipse,rgba(201,162,39,0.22),transparent_70%)]"
-              />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 flex items-center justify-center"
+            >
               <Image
-                src="/sites/PAT/images/han-gia-pha.png"
+                src="/sites/PAT/images/han-watermark.png"
                 alt=""
-                width={1200}
-                height={676}
-                priority
-                className="pat-hero-art relative h-full w-full object-contain"
+                width={1141}
+                height={1311}
+                className="h-auto w-[220px] max-w-none object-contain opacity-20 blur-[2px]"
               />
             </div>
-            <h1 className="pat-serif mt-2 text-[2.3rem] font-bold leading-none tracking-[0.16em] text-[var(--pat-red)] sm:text-[2.6rem]">
-              GIA PHẢ
-            </h1>
-            <div className="pat-ornament mx-auto mt-3 w-28" />
-            <p className="mt-2 text-xs font-medium tracking-[0.04em] text-[var(--pat-muted)]">
-              Ghi chép cội nguồn · Nối dài thế hệ
-            </p>
+            <div className="relative">
+              <div className="relative mx-auto h-[6.75rem] w-[12rem] sm:h-[7.75rem] sm:w-[13.75rem]">
+                <span
+                  aria-hidden
+                  className="absolute inset-x-4 inset-y-3 rounded-full bg-[radial-gradient(ellipse,rgba(201,162,39,0.22),transparent_70%)]"
+                />
+                <Image
+                  src="/sites/PAT/images/han-gia-pha.png"
+                  alt=""
+                  width={1200}
+                  height={676}
+                  priority
+                  className="pat-hero-art relative h-full w-full object-contain"
+                />
+              </div>
+              <h1 className="pat-serif mt-2 text-[2.3rem] font-bold leading-none tracking-[0.16em] text-[var(--pat-red)] sm:text-[2.6rem]">
+                GIA PHẢ
+              </h1>
+              <div className="pat-ornament mx-auto mt-3 w-28" />
+              <p className="mt-2 text-xs font-medium tracking-[0.04em] text-[var(--pat-muted)]">
+                Ghi chép cội nguồn · Nối dài thế hệ
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-3xl px-3 pt-7">
+      <main className="mx-auto w-full max-w-3xl px-3 pt-5">
         <div role="tablist" aria-label="Trang chủ gia phả" className="pat-card grid grid-cols-3 gap-1 p-1.5">
           {TABS.map((item) => {
             const active = tab === item.key;
@@ -681,7 +683,7 @@ export function HomeView() {
           <SheetRow
             icon={<BookOpen size={18} />}
             title="Gia phả mẫu"
-            subtitle="Xem bản dựng sẵn 6 đời để học cách trình bày"
+            subtitle="Xem bản dựng sẵn 4 đời để học cách trình bày"
             onClick={() => {
               setHelpOpen(false);
               selectTab("mau");
@@ -931,7 +933,7 @@ function SampleTab({
         <div className="relative">
           <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">Chưa có gia phả mẫu</p>
           <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[var(--pat-muted)]">
-            Khôi phục bản mẫu 6 đời để xem cách ghi chép thành viên, nhánh họ và trình bày phả đồ.
+            Khôi phục bản mẫu 4 đời để xem cách ghi chép thành viên, nhánh họ và trình bày phả đồ.
           </p>
           <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={onRestoreSample}>
             <Sparkles size={15} /> Khôi phục gia phả mẫu
@@ -961,9 +963,6 @@ function SampleTab({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(231,206,139,0.5)] bg-black/15 px-2 py-0.5 text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-[#f6e0a8]">
               <Sparkles size={11} /> Gia phả mẫu
-            </span>
-            <span className="rounded-full border border-white/20 px-2 py-0.5 text-[0.6rem] text-[#f0d9bd]">
-              Miễn phí · không cần đăng nhập
             </span>
           </div>
           <h2 className="pat-serif mt-2 text-2xl font-bold leading-tight text-[#fff7e8]">{sample.name}</h2>

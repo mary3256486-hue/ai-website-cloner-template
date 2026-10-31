@@ -16,6 +16,9 @@ import { createDemoTree } from "./seed";
 
 const STORAGE_KEY = "phatue.familyTrees.v1";
 const TRASH_KEY = "phatue.familyTrees.trash.v1";
+const SEED_VERSION_KEY = "phatue.seedVersion.v1";
+// Bump it whenever the demo tree changes so browsers stop showing the cached older sample.
+const SEED_VERSION = "2026-10-31b";
 
 export interface ArchivedTree {
   tree: FamilyTree;
@@ -88,6 +91,27 @@ function persist(trees: FamilyTree[]) {
   }
 }
 
+function readSeedVersion() {
+  try {
+    return localStorage.getItem(SEED_VERSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function refreshSample(trees: FamilyTree[]): FamilyTree[] {
+  if (readSeedVersion() === SEED_VERSION) return trees;
+  const refreshed = trees.map((tree) =>
+    tree.sample ? { ...createDemoTree(), id: tree.id } : tree,
+  );
+  try {
+    localStorage.setItem(SEED_VERSION_KEY, SEED_VERSION);
+  } catch {
+    // ignore storage failures; the sample still refreshes for this session
+  }
+  return refreshed;
+}
+
 function loadArchived(): ArchivedTree[] {
   try {
     const raw = localStorage.getItem(TRASH_KEY);
@@ -120,7 +144,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const loaded = loadTrees();
+    const loaded = refreshSample(loadTrees());
     const loadedArchived = loadArchived();
     // Persisted trees only exist in the browser, so hydration happens after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect

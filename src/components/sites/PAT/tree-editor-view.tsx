@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
+import { cardOrientationFor } from "./types";
 import { computeGenerations, lifeSpan, sortPersons } from "./utils";
 import { computeLayout } from "./layout";
 import { TreeShell } from "./app-shell";
@@ -277,7 +278,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                 const person = node.person;
                 const color = (person.branchId && branchColor.get(person.branchId)) || (person.gender === "male" ? "#8a1c15" : "#9a4a6b");
                 const active = selectedId === person.id;
-                const vertical = tree.design.cardOrientation === "vertical";
+                const vertical = cardOrientationFor(tree.design, node.generation) === "vertical";
                 return (
                   <button
                     key={person.id}

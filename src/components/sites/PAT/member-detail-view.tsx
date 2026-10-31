@@ -136,7 +136,6 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
       section="thanh-vien"
       title={member.name}
       subtitle={`Đời ${generation}${branch ? ` · ${branch.name}` : ""}`}
-      backHref={`/gia-pha/${tree.id}/danh-sach-thanh-vien`}
       actions={
         <>
           <button

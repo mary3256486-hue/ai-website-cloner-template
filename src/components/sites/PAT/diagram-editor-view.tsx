@@ -7,9 +7,11 @@ import {
   Download,
   FileJson,
   FileSpreadsheet,
+  FlipHorizontal2,
   Grid3x3,
   ImagePlus,
   Info,
+  Minus,
   Palette,
   PencilLine,
   Plus,
@@ -24,11 +26,12 @@ import {
   Wand2,
 } from "lucide-react";
 import { useGenealogy } from "./store";
-import type { CardOrientation, Decoration, DesignSettings, FamilyTree, Person, TreeNode } from "./types";
+import type { Decoration, DesignSettings, FamilyTree, Person, TreeNode } from "./types";
 import { computeGenerations, lifeSpan, sortPersons, uid } from "./utils";
 import { computeLayout } from "./layout";
 import { DiagramCanvas, contentTop, diagramDimensions } from "./diagram-canvas";
 import { DECOR_CATEGORIES, DECOR_ITEMS, type DecorSlot } from "./decor-library";
+import { customToDecorItem, useCustomDecor } from "./decor-library-store";
 import {
   exportBackup,
   exportDiagramPng,
@@ -38,7 +41,8 @@ import {
   safeName,
 } from "./export";
 import { TreeShell } from "./app-shell";
-import { Avatar, Badge, Field, Segmented, Sheet, SheetRow } from "./ui";
+import { CardOrientationPicker } from "./card-orientation-picker";
+import { Avatar, Badge, Field, Segmented, Sheet, SheetRow, ZoomBar } from "./ui";
 import { MemberFormSheet } from "./member-form-sheet";
 
 type Positions = Record<string, { x: number; y: number }>;
@@ -53,12 +57,15 @@ const CARD_FIELDS: { key: CardFieldKey; label: string; hint: string }[] = [
 ];
 
 interface DragState {
-  kind: "node" | "decoration";
+  kind: "node" | "decoration" | "resize";
   id: string;
   startX: number;
   startY: number;
   origX: number;
   origY: number;
+  origW?: number;
+  origH?: number;
+  aspect?: number;
   snapshot: Positions;
 }
 
@@ -78,7 +85,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [toast, setToast] = useState("");
   const [drag, setDrag] = useState<DragState | null>(null);
   const movedRef = useRef(false);
-  const [scale, setScale] = useState(0.5);
+  const [fitScale, setFitScale] = useState(0.5);
+  const [zoom, setZoom] = useState(1);
+  const scale = Math.min(3, Math.max(0.12, fitScale * zoom));
   const [genFilter, setGenFilter] = useState<Set<number>>(() => {
     const gens = computeGenerations(tree.members);
     return new Set(Array.from(gens.values()));
@@ -111,7 +120,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
-    const update = () => setScale(Math.min(1, Math.max(0.22, (el.clientWidth - 20) / autoDims.width)));
+    const update = () => setFitScale(Math.min(1, Math.max(0.22, (el.clientWidth - 20) / autoDims.width)));
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
@@ -193,6 +202,28 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     });
   };
 
+  const decorationResizeDown = (event: ReactPointerEvent<SVGGElement>, decoration: Decoration) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    movedRef.current = false;
+    const width = decoration.width ?? 120;
+    const height = decoration.height ?? 90;
+    setSelectedDecoration(decoration.id);
+    setDrag({
+      kind: "resize",
+      id: decoration.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      origX: decoration.x,
+      origY: decoration.y,
+      origW: width,
+      origH: height,
+      aspect: height > 0 ? width / height : 1,
+      snapshot: overrides,
+    });
+  };
+
   useEffect(() => {
     if (!drag) return;
     const onMove = (event: PointerEvent) => {
@@ -203,13 +234,20 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         const x = Math.max(6, Math.round(drag.origX + dx));
         const y = Math.max(6, Math.round(drag.origY + dy));
         setOverrides((prev) => ({ ...prev, [drag.id]: { x, y } }));
+      } else if (drag.kind === "resize") {
+        const width = Math.max(24, Math.min(640, Math.round((drag.origW ?? 120) + dx)));
+        const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
+        const height = Math.max(12, Math.round(width / aspect));
+        setDecorations((prev) =>
+          prev.map((item) => (item.id === drag.id ? { ...item, width, height } : item)),
+        );
       } else {
         const x = Math.max(6, Math.round(drag.origX + dx));
         const y = Math.max(6, Math.round(drag.origY + dy));
         setDecorations((prev) => prev.map((item) => (item.id === drag.id ? { ...item, x, y } : item)));
       }
     };
-    const onUp = () => {
+    const onUp = (event: PointerEvent) => {
       if (drag.kind === "node") {
         if (movedRef.current) {
           pushHistory(drag.snapshot);
@@ -217,6 +255,17 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         } else {
           const person = tree.members.find((member) => member.id === drag.id);
           if (person) setSelectedMember(person);
+        }
+      } else if (drag.kind === "resize") {
+        const dx = (event.clientX - drag.startX) / scale;
+        const width = Math.max(24, Math.min(640, Math.round((drag.origW ?? 120) + dx)));
+        const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
+        const height = Math.max(12, Math.round(width / aspect));
+        const current = decorationsRef.current.find((item) => item.id === drag.id);
+        if (current) {
+          const decoration = { ...current, width, height };
+          setDecorations((prev) => prev.map((item) => (item.id === drag.id ? decoration : item)));
+          setDecoration(tree.id, decoration);
         }
       } else {
         const decoration = decorationsRef.current.find((item) => item.id === drag.id);
@@ -312,6 +361,38 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     setSelectedDecoration(decoration.id);
     setDecorOpen(false);
     showToast(input.type === "text" ? "Đã thêm chữ trang trí" : "Đã thêm ảnh trang trí");
+  };
+
+  const selectedDecor = useMemo(
+    () => decorations.find((item) => item.id === selectedDecoration) ?? null,
+    [decorations, selectedDecoration],
+  );
+
+  const updateDecoration = (decoration: Decoration) => {
+    setDecorations((prev) => prev.map((item) => (item.id === decoration.id ? decoration : item)));
+    setDecoration(tree.id, decoration);
+  };
+
+  const scaleSelected = (factor: number) => {
+    if (!selectedDecor) return;
+    if (selectedDecor.type === "text") {
+      const fontSize = Math.max(8, Math.min(96, Math.round((selectedDecor.fontSize ?? 16) * factor)));
+      updateDecoration({ ...selectedDecor, fontSize });
+      return;
+    }
+    const currentW = selectedDecor.width ?? 120;
+    const currentH = selectedDecor.height ?? 90;
+    const width = Math.max(24, Math.min(640, Math.round(currentW * factor)));
+    const height = Math.max(12, Math.round(currentH * (width / currentW)));
+    updateDecoration({ ...selectedDecor, width, height });
+  };
+
+  const deleteSelected = () => {
+    if (!selectedDecor) return;
+    const id = selectedDecor.id;
+    removeDecoration(tree.id, id);
+    setDecorations((prev) => prev.filter((item) => item.id !== id));
+    setSelectedDecoration(null);
   };
 
   const toggleGen = (generation: number) => {
@@ -410,7 +491,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
 
       <div className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
         <Info size={12} className="mr-1 inline text-[var(--pat-gold)]" />
-        Kéo ô thành viên để đổi vị trí, chạm để sửa. Nút <strong>Lưu</strong> ghi lại bố cục lên thiết bị.
+        Kéo ô thành viên để đổi vị trí, chạm để sửa. Chọn hình trang trí để đổi kích thước hoặc xoá. Nút{" "}
+        <strong>Lưu</strong> ghi lại bố cục lên thiết bị.
       </div>
     </div>
   );
@@ -538,6 +620,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                     interactive
                     onNodePointerDown={nodeDown}
                     onDecorationPointerDown={decorationDown}
+                    onDecorationResizeStart={decorationResizeDown}
                     onDeleteDecoration={(id) => {
                       removeDecoration(tree.id, id);
                       setDecorations((prev) => prev.filter((item) => item.id !== id));
@@ -550,19 +633,61 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             </div>
             {selectedDecoration ? (
               <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-white/85 px-3 py-1 text-[0.62rem] text-[var(--pat-muted)]">
-                Kéo để di chuyển trang trí · bấm × để xoá
+                Kéo để di chuyển · kéo ô vuông ở góc để đổi kích thước · bấm × để xoá
               </p>
             ) : null}
           </div>
 
+          {selectedDecor ? (
+            <div className="pat-card flex flex-wrap items-center gap-1.5 px-2 py-1.5 no-print">
+              <span className="rounded-full bg-[#f6e9c8] px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-[#7a5a10]">
+                Trang trí
+              </span>
+              <span className="min-w-0 flex-1 text-[0.68rem] text-[var(--pat-muted)]">
+                {selectedDecor.type === "image"
+                  ? `Ảnh ${Math.round(selectedDecor.width ?? 120)} × ${Math.round(selectedDecor.height ?? 90)} px`
+                  : `Chữ cỡ ${Math.round(selectedDecor.fontSize ?? 16)}`}
+              </span>
+              <ToolButton label="Thu nhỏ" onClick={() => scaleSelected(0.85)}>
+                <Minus size={15} />
+              </ToolButton>
+              <ToolButton label="Phóng to" onClick={() => scaleSelected(1.18)}>
+                <Plus size={15} />
+              </ToolButton>
+              {selectedDecor.type === "image" ? (
+                <ToolButton
+                  label="Lật ngang"
+                  active={selectedDecor.flip === true}
+                  onClick={() => updateDecoration({ ...selectedDecor, flip: !selectedDecor.flip })}
+                >
+                  <FlipHorizontal2 size={15} />
+                </ToolButton>
+              ) : null}
+              <button
+                type="button"
+                onClick={deleteSelected}
+                className="ml-1 inline-flex h-8 items-center gap-1 rounded-lg border border-[#e6b7ad] bg-[#f9e3df] px-2.5 text-[0.68rem] font-semibold text-[#8a1c15] transition hover:bg-[#f4d3cc]"
+              >
+                <Trash2 size={13} /> Xoá
+              </button>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[0.66rem] text-[var(--pat-muted)] no-print">
             <span>
-              {visibleIds ? `${visibleIds.size} / ${tree.members.length} thành viên hiển thị` : `${tree.members.length} thành viên`} ·{" "}
-              {Math.round(scale * 100)}%
+              {visibleIds ? `${visibleIds.size} / ${tree.members.length} thành viên hiển thị` : `${tree.members.length} thành viên`}
             </span>
-            <span className="inline-flex items-center gap-1">
-              <Info size={12} /> In đúng khổ giấy đã chọn trong Thiết kế
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="hidden items-center gap-1 sm:inline-flex">
+                <Info size={12} /> In đúng khổ giấy đã chọn trong Thiết kế
+              </span>
+              <ZoomBar
+                percent={Math.round(scale * 100)}
+                onZoomOut={() => setZoom((value) => Math.max(0.4, value / 1.25))}
+                onZoomIn={() => setZoom((value) => Math.min(8, value * 1.25))}
+                onReset={() => setZoom(1)}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -629,16 +754,11 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         subtitle="Kiểu khung và thông tin trên phả đồ"
       >
         <div className="space-y-4">
-          <Field label="Kiểu khung thẻ">
-            <Segmented<CardOrientation>
-              value={tree.design.cardOrientation === "vertical" ? "vertical" : "horizontal"}
-              onChange={(value) => setDesign(tree.id, { cardOrientation: value })}
-              options={[
-                { value: "horizontal", label: "Ngang" },
-                { value: "vertical", label: "Dọc" },
-              ]}
-            />
-          </Field>
+          <CardOrientationPicker
+            design={tree.design}
+            generations={layout.generations}
+            onChange={(patch) => setDesign(tree.id, patch)}
+          />
 
           <div>
             <p className="pat-form-section">Thông tin hiển thị</p>
@@ -823,11 +943,22 @@ function DecorationSheet({
   const [width, setWidth] = useState("120");
   const [height, setHeight] = useState("90");
   const [error, setError] = useState("");
+  const { customItems, add: addCustom, remove: removeCustom } = useCustomDecor();
 
-  const item = DECOR_ITEMS.find((entry) => entry.id === itemId) ?? DECOR_ITEMS[0];
+  const isCustom = category === "custom";
+  const customItem = customItems.find((entry) => entry.id === itemId);
+  const item = isCustom
+    ? customItem
+      ? customToDecorItem(customItem)
+      : null
+    : DECOR_ITEMS.find((entry) => entry.id === itemId) ?? DECOR_ITEMS[0];
   const categoryItems = DECOR_ITEMS.filter((entry) => entry.category === category);
 
   const submitLibrary = () => {
+    if (!item) {
+      setError("Chọn một hình trong thư viện của bạn.");
+      return;
+    }
     onSubmit({
       type: "image",
       content: item.src,
@@ -837,6 +968,20 @@ function DecorationSheet({
       flip: item.flip,
     });
     setError("");
+  };
+
+  const uploadCustom = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    try {
+      const added = await addCustom(file);
+      setCategory("custom");
+      setItemId(added.id);
+      setError("");
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Không thêm được ảnh.");
+    }
   };
 
   const submit = () => {
@@ -902,64 +1047,135 @@ function DecorationSheet({
                   {entry.label}
                 </button>
               ))}
+              <button
+                type="button"
+                className="pat-chip"
+                data-active={isCustom}
+                onClick={() => {
+                  setCategory("custom");
+                  setItemId(customItems[0]?.id ?? "");
+                }}
+              >
+                Của tôi
+                {customItems.length ? (
+                  <span className="ml-1 rounded-full bg-[#7a5a10] px-1.5 text-[0.55rem] font-bold text-[#fff4df]">
+                    {customItems.length}
+                  </span>
+                ) : null}
+              </button>
             </div>
 
-            <div className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 p-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={item.src}
-                alt={item.label}
-                className="mx-auto h-36 w-auto object-contain"
-                style={item.flip ? { transform: "scaleX(-1)" } : undefined}
-              />
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">{item.label}</p>
-                  <p className="text-[0.68rem] text-[var(--pat-muted)]">
-                    Kích thước gốc {item.nativeWidth} × {item.nativeHeight}
-                  </p>
-                  {item.credit ? (
-                    <p className="text-[0.62rem] text-[var(--pat-muted)]/80">{item.credit}</p>
-                  ) : null}
+            {item ? (
+              <div className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.src}
+                  alt={item.label}
+                  className="mx-auto h-36 w-auto object-contain"
+                  style={item.flip ? { transform: "scaleX(-1)" } : undefined}
+                />
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold">{item.label}</p>
+                    <p className="text-[0.68rem] text-[var(--pat-muted)]">
+                      Kích thước gốc {item.nativeWidth} × {item.nativeHeight}
+                    </p>
+                    {item.credit ? (
+                      <p className="text-[0.62rem] text-[var(--pat-muted)]/80">{item.credit}</p>
+                    ) : null}
+                  </div>
+                  <span className="rounded-full border border-[var(--pat-line)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--pat-muted)]">
+                    {item.slot === "left" ? "Đặt bên trái" : "Đặt bên phải"}
+                  </span>
                 </div>
-                <span className="rounded-full border border-[var(--pat-line)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--pat-muted)]">
-                  {item.slot === "left" ? "Đặt bên trái" : "Đặt bên phải"}
-                </span>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-[var(--pat-line)] bg-[#fffaf0]/70 px-4 py-8 text-center">
+                <p className="text-sm font-semibold text-[var(--pat-red)]">Thư viện của bạn đang trống</p>
+                <p className="mt-1 text-[0.7rem] text-[var(--pat-muted)]">
+                  Tải ảnh trang trí (PNG, SVG, JPG) để dùng lại cho phả đồ này và các phả đồ khác.
+                </p>
+              </div>
+            )}
 
             <div>
               <p className="mb-2 text-[0.7rem] font-bold uppercase tracking-[0.14em] text-[var(--pat-red)]">
-                Thư viện ảnh
+                {isCustom ? "Hình của bạn" : "Thư viện ảnh"}
               </p>
-              <div className="grid grid-cols-3 gap-2">
-                {categoryItems.map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => setItemId(entry.id)}
-                    className={`rounded-xl border p-1.5 text-center transition ${
-                      itemId === entry.id
-                        ? "border-[var(--pat-red)] bg-[#f9e3df]/50"
-                        : "border-[var(--pat-line)] bg-white/60"
-                    }`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={entry.src}
-                      alt={entry.label}
-                      className="mx-auto h-16 w-full object-contain"
-                      style={entry.flip ? { transform: "scaleX(-1)" } : undefined}
-                    />
-                    <span className="mt-1 block truncate text-[0.62rem] font-semibold">{entry.label}</span>
-                  </button>
-                ))}
-              </div>
+              {isCustom ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {customItems.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={`relative rounded-xl border p-1.5 text-center transition ${
+                        itemId === entry.id
+                          ? "border-[var(--pat-red)] bg-[#f9e3df]/50"
+                          : "border-[var(--pat-line)] bg-white/60"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setItemId(entry.id)}
+                        className="block w-full"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={entry.src}
+                          alt={entry.label}
+                          className="mx-auto h-16 w-full object-contain"
+                        />
+                        <span className="mt-1 block truncate text-[0.62rem] font-semibold">{entry.label}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeCustom(entry.id);
+                          if (itemId === entry.id) setItemId("");
+                        }}
+                        aria-label={`Xoá ${entry.label} khỏi thư viện`}
+                        style={{ top: -6, right: -6 }}
+                        className="absolute z-10 flex h-5 w-5 items-center justify-center rounded-full border border-[#e6b7ad] bg-[#f9e3df] text-[#8a1c15] shadow-sm"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
+                  ))}
+                  <label className="flex h-full min-h-[92px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[var(--pat-line)] bg-white/50 px-1 text-center text-[0.62rem] font-semibold text-[var(--pat-muted)] transition hover:border-[var(--pat-red)] hover:text-[var(--pat-red)]">
+                    <ImagePlus size={18} />
+                    Tải ảnh lên
+                    <input type="file" accept="image/*" className="hidden" onChange={uploadCustom} />
+                  </label>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {categoryItems.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setItemId(entry.id)}
+                      className={`rounded-xl border p-1.5 text-center transition ${
+                        itemId === entry.id
+                          ? "border-[var(--pat-red)] bg-[#f9e3df]/50"
+                          : "border-[var(--pat-line)] bg-white/60"
+                      }`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={entry.src}
+                        alt={entry.label}
+                        className="mx-auto h-16 w-full object-contain"
+                        style={entry.flip ? { transform: "scaleX(-1)" } : undefined}
+                      />
+                      <span className="mt-1 block truncate text-[0.62rem] font-semibold">{entry.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--pat-muted)]">
-              Hình trong suốt, không viền trắng khi in. Sau khi thêm, kéo trên phả đồ để căn vị trí rồi bấm{" "}
-              <strong>Lưu</strong>.
+              Hình trong suốt, không viền trắng khi in. Ảnh tải lên được lưu trên thiết bị và có thể xoá khỏi thư
+              viện. Sau khi thêm, kéo trên phả đồ để căn vị trí rồi bấm <strong>Lưu</strong>.
             </p>
           </>
         ) : mode === "text" ? (

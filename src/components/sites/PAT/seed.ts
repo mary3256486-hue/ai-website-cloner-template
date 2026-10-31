@@ -1,7 +1,7 @@
 import type { Branch, FamilyTree, Gender, Person } from "./types";
 import { DEFAULT_DESIGN } from "./types";
 
-export const SAMPLE_HOMETOWN = "Thổ Khối, Gia Lâm, Bắc Ninh";
+export const SAMPLE_HOMETOWN = "Hà Nội";
 
 interface SeedPerson {
   id: string;
@@ -26,7 +26,7 @@ const seedPeople: SeedPerson[] = [
     death: "1920",
     order: 1,
     title: "Thủy tổ",
-    generationNote: "Đích tôn, khai cơ lập nghiệp tại Thổ Khối",
+    generationNote: "Đích tôn, khai cơ lập nghiệp",
     spouses: ["p02", "p03"],
   },
   { id: "p02", gender: "female", birth: "1855", death: "1930", order: 1, spouses: ["p01"] },
@@ -92,36 +92,6 @@ const seedPeople: SeedPerson[] = [
   { id: "p60", gender: "male", birth: "1952", alive: true, order: 1, father: "p31", mother: "p30", spouses: ["p61"], occupation: "Thợ điện" },
   { id: "p61", gender: "female", birth: "1955", alive: true, order: 1, spouses: ["p60"] },
   { id: "p62", gender: "female", birth: "1958", alive: true, order: 2, father: "p31", mother: "p30" },
-
-  { id: "p63", gender: "male", birth: "1978", alive: true, order: 1, father: "p32", mother: "p33", spouses: ["p64"], occupation: "Kỹ sư phần mềm" },
-  { id: "p64", gender: "female", birth: "1980", alive: true, order: 1, spouses: ["p63"] },
-  { id: "p65", gender: "female", birth: "1983", alive: true, order: 2, father: "p32", mother: "p33", occupation: "Kế toán" },
-  { id: "p66", gender: "female", birth: "1980", alive: true, order: 1, father: "p35", mother: "p34" },
-  { id: "p67", gender: "male", birth: "1985", alive: true, order: 2, father: "p35", mother: "p34" },
-  { id: "p68", gender: "female", birth: "1988", alive: true, order: 1, father: "p36", mother: "p37" },
-  { id: "p69", gender: "male", birth: "1992", alive: true, order: 2, father: "p36", mother: "p37" },
-  { id: "p70", gender: "female", birth: "1985", alive: true, order: 1, father: "p39", mother: "p38", spouses: ["p71"] },
-  { id: "p71", gender: "male", birth: "1983", alive: true, order: 1, spouses: ["p70"] },
-  { id: "p72", gender: "male", birth: "1990", alive: true, order: 2, father: "p39", mother: "p38" },
-  { id: "p73", gender: "male", birth: "1985", alive: true, order: 1, father: "p42", mother: "p43", spouses: ["p74"], occupation: "Kiến trúc sư" },
-  { id: "p74", gender: "female", birth: "1987", alive: true, order: 1, spouses: ["p73"] },
-  { id: "p75", gender: "female", birth: "1992", alive: true, order: 2, father: "p42", mother: "p43" },
-  { id: "p76", gender: "male", birth: "1988", alive: true, order: 1, father: "p45", mother: "p46", spouses: ["p77"], occupation: "Kỹ sư" },
-  { id: "p77", gender: "female", birth: "1990", alive: true, order: 1, spouses: ["p76"] },
-  { id: "p78", gender: "female", birth: "1993", alive: true, order: 2, father: "p45", mother: "p46" },
-  { id: "p79", gender: "female", birth: "1990", alive: true, order: 1, father: "p48", mother: "p47" },
-  { id: "p80", gender: "male", birth: "1990", alive: true, order: 1, father: "p49", mother: "p50" },
-  { id: "p81", gender: "male", birth: "1995", alive: true, order: 1, father: "p51", mother: "p52" },
-  { id: "p82", gender: "female", birth: "1996", alive: true, order: 1, father: "p53", mother: "p54" },
-  { id: "p83", gender: "male", birth: "1998", alive: true, order: 1, father: "p56", mother: "p57" },
-  { id: "p84", gender: "female", birth: "1994", alive: true, order: 1, father: "p58", mother: "p59" },
-  { id: "p85", gender: "male", birth: "1992", alive: true, order: 1, father: "p60", mother: "p61" },
-
-  { id: "p86", gender: "male", birth: "2010", alive: true, order: 1, father: "p63", mother: "p64" },
-  { id: "p87", gender: "female", birth: "2014", alive: true, order: 2, father: "p63", mother: "p64" },
-  { id: "p88", gender: "male", birth: "2012", alive: true, order: 1, father: "p76", mother: "p77" },
-  { id: "p89", gender: "female", birth: "2016", alive: true, order: 1, father: "p73", mother: "p74" },
-  { id: "p90", gender: "male", birth: "2015", alive: true, order: 1, father: "p71", mother: "p70" },
 ];
 
 // Họ của các bà Phu Nhân — luôn khác họ Phạm, phân bố xen kẽ cho tự nhiên.
@@ -170,7 +140,7 @@ function buildPeople(): Person[] {
       graveAddress: founder ? `Nghĩa trang dòng họ, ${SAMPLE_HOMETOWN}` : undefined,
       address: SAMPLE_HOMETOWN,
       biography: founder
-        ? `Theo truyền thuyết dòng họ, cụ ${name} là người khai cơ lập nghiệp tại thôn Thổ Khối, huyện Gia Lâm, tỉnh Bắc Ninh. Cụ là người hiếu học, mở lớp dạy chữ cho trẻ trong vùng và được dân làng kính trọng, tôn làm Thủy tổ của dòng họ.`
+        ? `Theo truyền thuyết dòng họ, cụ ${name} là người khai cơ lập nghiệp, vốn tính hiếu học, mở lớp dạy chữ cho trẻ trong vùng và được dân làng kính trọng, tôn làm Thủy tổ của dòng họ.`
         : undefined,
       photos: [],
     });
@@ -244,15 +214,15 @@ export function createDemoTree(): FamilyTree {
     name: "MẪU GIA PHẢ",
     address: SAMPLE_HOMETOWN,
     description:
-      "Gia phả mẫu gồm 6 đời tại Thổ Khối, Gia Lâm, Bắc Ninh, minh hoạ đầy đủ cách ghi chép thành viên, quan hệ vợ chồng, con cái và các nhánh trong dòng họ.",
+      "Gia phả mẫu gồm 4 đời, minh hoạ đầy đủ cách ghi chép thành viên, quan hệ vợ chồng, con cái và các nhánh trong dòng họ.",
     ownerName: "Quản trị viên",
     createdAt: now,
     updatedAt: now,
     members,
     branches,
     history:
-      `Dòng họ Phạm vốn gốc ở thôn Thổ Khối, huyện Gia Lâm, tỉnh Bắc Ninh. Tương truyền cụ Thủy tổ ${founderName} vốn là người hiếu học, mở lớp dạy chữ cho trẻ trong vùng, được dân làng kính trọng. Cụ cùng hai bà vợ khai khẩn đất hoang, lập nên xóm nhỏ ven sông Đuống.\n\n` +
-      "Qua sáu đời, con cháu dòng họ giữ nếp gia phong hiếu học, cần kiệm. Nhiều người thành đạt trong các lĩnh vực giáo dục, y tế, kỹ thuật và kinh doanh. Gia phả này được số hoá để con cháu muôn đời ghi nhớ cội nguồn.",
+      `Dòng họ Phạm vốn gốc ở Hà Nội. Tương truyền cụ Thủy tổ ${founderName} là người hiếu học, mở lớp dạy chữ cho trẻ trong vùng, được dân làng kính trọng. Cụ cùng hai bà vợ khai khẩn đất hoang, lập nên xóm nhỏ ven sông.\n\n` +
+      "Qua bốn đời, con cháu dòng họ giữ nếp gia phong hiếu học, cần kiệm. Nhiều người thành đạt trong các lĩnh vực giáo dục, y tế, kỹ thuật và kinh doanh. Gia phả này được số hoá để con cháu muôn đời ghi nhớ cội nguồn.",
     design: { ...DEFAULT_DESIGN },
     positions: {},
     decorations: [],

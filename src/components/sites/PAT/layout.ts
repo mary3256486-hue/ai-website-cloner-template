@@ -1,5 +1,5 @@
 import type { FamilyTree, Person, TreeEdge, TreeLayout, TreeNode } from "./types";
-import { cardDims, PADDING, ROW_GAP, SPOUSE_GAP, UNIT_GAP } from "./types";
+import { cardDimsFor, PADDING, ROW_GAP, SPOUSE_GAP, UNIT_GAP } from "./types";
 import { buildFamilyIndex, computeGenerations, sortPersons } from "./utils";
 
 interface Measure {
@@ -11,7 +11,6 @@ interface Measure {
 }
 
 export function computeLayout(tree: FamilyTree): TreeLayout {
-  const { width: cardW, height: cardH } = cardDims(tree.design);
   const byId = new Map(tree.members.map((m) => [m.id, m]));
   const generations = computeGenerations(tree.members);
   const index = buildFamilyIndex(tree.members);
@@ -20,6 +19,8 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     .sort(sortPersons);
 
   const measure = (person: Person): Measure => {
+    const generation = generations.get(person.id) ?? 1;
+    const { width: cardW } = cardDimsFor(tree.design, generation);
     const spouses = person.spouseIds
       .map((id) => byId.get(id))
       .filter((p): p is Person => p !== undefined && !index.bloodline.has(p.id))
@@ -34,10 +35,19 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const measured = roots.map(measure);
   const nodes: TreeNode[] = [];
 
+  const maxGeneration = Math.max(1, ...Array.from(generations.values()));
+  const rowTop = new Map<number, number>();
+  let rowCursor = PADDING;
+  for (let generation = 1; generation <= maxGeneration; generation += 1) {
+    rowTop.set(generation, rowCursor);
+    rowCursor += cardDimsFor(tree.design, generation).height + ROW_GAP;
+  }
+
   const place = (m: Measure, left: number) => {
     const unitLeft = left + (m.width - m.unitWidth) / 2;
     const generation = generations.get(m.person.id) ?? 1;
-    const y = PADDING + (generation - 1) * (cardH + ROW_GAP);
+    const { width: cardW, height: cardH } = cardDimsFor(tree.design, generation);
+    const y = rowTop.get(generation) ?? PADDING;
     const add = (person: Person, x: number, isSpouse: boolean) => {
       nodes.push({
         id: person.id,
@@ -131,7 +141,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     return {
       generation,
       count: nodes.filter((n) => n.generation === generation).length,
-      y: PADDING + i * (cardH + ROW_GAP),
+      y: rowTop.get(generation) ?? PADDING,
     };
   });
   const width = Math.max(...nodes.map((n) => n.x + n.width)) + PADDING;

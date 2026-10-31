@@ -16,7 +16,6 @@ export interface DecorItem {
 
 export const DECOR_CATEGORIES = [
   { id: "rong", label: "Rồng chầu" },
-  { id: "may", label: "Mây lành" },
   { id: "sen", label: "Hoa sen" },
   { id: "hac", label: "Hạc" },
   { id: "phuong", label: "Phượng" },
@@ -49,10 +48,6 @@ const uri = (markup: string) => `data:image/svg+xml;charset=utf-8,${encodeURICom
 const ink = (d: string, stroke = C.gold, width = 1.6, opacity = 1) =>
   `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round" opacity="${opacity}"/>`;
 
-const band = (d: string, outer: number, inner: number, outerColor = C.goldDeep, innerColor = C.cream) =>
-  `<path d="${d}" fill="none" stroke="${outerColor}" stroke-width="${outer}" stroke-linecap="round" stroke-linejoin="round"/>` +
-  `<path d="${d}" fill="none" stroke="${innerColor}" stroke-width="${inner}" stroke-linecap="round" stroke-linejoin="round"/>`;
-
 const ruyi = (cx: number, cy: number, s: number, flip = false, plain = false) => `
 <g transform="translate(${cx} ${cy}) scale(${flip ? -s : s} ${s})">
   <path d="M-36 12c-6-7-4-18 4-23-2-10 7-19 18-17 3-9 14-13 22-8 6-8 18-6 23 2 10 0 19 8 18 18 9 5 11 16 4 23-4 4-11 5-16 2-5 8-16 9-23 3-5 7-16 7-22 1-8 6-19 3-24-3-2 1-3 1-4 2Z"
@@ -65,59 +60,6 @@ const ruyi = (cx: number, cy: number, s: number, flip = false, plain = false) =>
   }
   ${ink("M-26 12c-4 0-7-3-7-7", C.goldLight, 1.5)}
   ${ink("M30 10c4-1 6-4 6-8", C.goldLight, 1.5)}
-</g>`;
-
-const DRAGON_SPINE =
-  "M52 76C60 52 96 44 112 62C126 80 114 98 94 108C72 120 62 138 76 154C90 170 118 170 132 154";
-
-const DRAGON = `
-<g stroke-linecap="round" stroke-linejoin="round">
-  <path d="M133 156c10 4 17 11 20 20-8-1-14-5-18-11" fill="${C.red}" stroke="${C.goldDeep}" stroke-width="1.4"/>
-  ${ink("M137 164c6 2 11 7 13 12", C.goldLight, 1.3)}
-  ${band(DRAGON_SPINE, 16, 11)}
-  ${ink(DRAGON_SPINE, C.creamShade, 7, 0.7)}
-  ${ink("M52 76C60 52 96 44 112 62", C.red, 2.8, 0.8)}
-  ${ink("M94 108C72 120 62 138 76 154C90 170 118 170 132 154", C.red, 2, 0.45)}
-  <g fill="none" stroke="${C.goldDeep}" stroke-width="9">
-    <path d="M90 70c-5 12-6 23-1 32"/>
-    <path d="M87 150c-2 12-6 20-13 27"/>
-  </g>
-  <g fill="none" stroke="${C.cream}" stroke-width="5.6">
-    <path d="M90 70c-5 12-6 23-1 32"/>
-    <path d="M87 150c-2 12-6 20-13 27"/>
-  </g>
-  <g stroke="${C.goldDeep}" stroke-width="1.7" fill="none">
-    <path d="M84 104l-8 2M86 108l-7 4M89 112l-6 5"/>
-    <path d="M70 180l-1 7M74 182l2 7M78 181l5 6"/>
-  </g>
-  <g stroke="${C.gold}" stroke-width="2.2" fill="none">
-    <path d="M57 52c-3-9-1-17 4-23"/>
-    <path d="M66 50c1-9 6-16 13-20"/>
-  </g>
-  <g fill="${C.red}" stroke="${C.goldDeep}" stroke-width="1.2">
-    <path d="M60 58c3-7 9-12 16-15-2 7-6 12-11 15Z"/>
-    <path d="M68 51c5-6 12-9 20-9-3 7-8 11-15 13Z"/>
-  </g>
-  <path d="M16 72c8-7 19-10 30-9 7 1 12 4 15 10 3 5 2 10-2 14 5 4 8 9 8 15-7 1-14-1-19-6-3-3-5-7-4-12-7 2-15 1-22-2-8-3-15-8-20-14Z" fill="${C.cream}" stroke="${C.gold}" stroke-width="2"/>
-  ${ink("M16 75c9 4 17 5 25 3", C.redDeep, 1.6)}
-  ${ink("M47 60c5-3 11-2 14 1", C.goldDeep, 1.8)}
-  <circle cx="44" cy="70" r="2" fill="${C.ink}"/>
-  <circle cx="23" cy="74" r="1.1" fill="${C.goldDeep}"/>
-  ${ink("M22 82c-8 2-15 1-21-3 6-1 11-2 16-4", C.gold, 1.3)}
-  ${ink("M24 68c-8-4-13-11-13-20 5 4 9 9 11 15", C.gold, 1.3)}
-</g>`;
-
-const CLOUD = `
-<g stroke-linecap="round" stroke-linejoin="round">
-  ${ruyi(84, 58, 1.08)}
-  ${ruyi(50, 124, 0.78, false, true)}
-  ${ruyi(128, 140, 0.7, false, true)}
-  ${ink("M64 100c-10 3-17 10-19 20", C.gold, 1.9)}
-  ${ink("M110 96c10 6 16 16 16 28", C.gold, 1.9)}
-  ${ink("M42 162c-8 5-12 14-11 24", C.gold, 1.6)}
-  ${ink("M118 174c6 4 10 10 11 17", C.gold, 1.6)}
-  ${ink("M86 94c-4 10-3 18 3 25", C.goldLight, 1.5)}
-  ${ink("M54 146c5 1 9 4 11 8", C.goldLight, 1.4)}
 </g>`;
 
 const LOTUS_DEFS = `<defs>
@@ -416,10 +358,8 @@ const webPair = (
 ];
 
 export const DECOR_ITEMS: DecorItem[] = [
-  ...pair("rong", "Rồng 01", "rong", DRAGON, 1800, 2200),
   ...webPair("rong-viet", "Rồng vàng Việt", "rong", "rong-viet.svg", 805, 370, 170, 78, "Goran_tek-en · CC BY-SA 4.0 · Wikimedia Commons"),
   ...webPair("rong-do", "Rồng đỏ", "rong", "rong-do.svg", 472, 660, 86, 120, "Tsange · CC0 · Wikimedia Commons"),
-  ...pair("may", "Mây 01", "may", CLOUD, 1200, 1500),
   ...pair("sen-no", "Sen nở", "sen", LOTUS, 1400, 1700),
   ...pair("sen-ngam", "Sen ngậm", "sen", LOTUS_BUD, 1400, 1700),
   ...webPair("sen-hong", "Sen hồng", "sen", "sen-hong.svg", 889, 728, 108, 88, "Openclipart · CC0"),

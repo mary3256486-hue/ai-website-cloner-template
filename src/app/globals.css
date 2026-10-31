@@ -416,6 +416,24 @@
   display: none;
 }
 
+.chronicle-pages {
+  width: min(100%, 210mm);
+  margin-inline: auto;
+}
+
+.chronicle-page {
+  display: flex;
+  width: min(100%, 210mm);
+  aspect-ratio: 210 / 297;
+  flex-direction: column;
+  padding: 11.9% 9.52% 11.9% 11.9%; /* lề 2,5cm, riêng lề phải 2,0cm khi khổ giấy rộng 210mm */
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
 @media print {
   .no-print {
     display: none !important;
@@ -427,6 +445,16 @@
   body {
     background: #fff !important;
     overflow: visible !important;
+  }
+  .pat-shell {
+    display: block !important;
+    min-height: 0 !important;
+  }
+  main {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   .print-area {
     position: static !important;
@@ -440,24 +468,42 @@
     overflow: visible !important;
     display: block !important;
   }
+  .chronicle-pages {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .chronicle-pages > * {
+    margin: 0 !important;
+  }
   .print-area svg {
     width: 100% !important;
     height: auto !important;
     display: block;
   }
   .chronicle-page {
-    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 210mm !important;
+    height: 296.5mm !important;
+    min-height: 0 !important;
+    padding: 25mm 20mm 25mm 25mm !important;
     max-width: none !important;
+    aspect-ratio: auto !important;
     margin: 0 !important;
     border: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
+    overflow: hidden !important;
     break-after: page;
     page-break-after: always;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .chronicle-page:last-child {
+  .chronicle-body {
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  .chronicle-pages > .chronicle-page:last-child {
     break-after: auto;
     page-break-after: auto;
   }

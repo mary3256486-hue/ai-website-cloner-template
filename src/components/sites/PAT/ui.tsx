@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Maximize2, Minus, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Person } from "./types";
 
@@ -243,6 +243,56 @@ export function Segmented<T extends string>({
         </button>
       ))}
     </div>
+  );
+}
+
+export function ZoomBar({
+  percent,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+  className,
+}: {
+  percent: number;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onReset: () => void;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-0.5 rounded-full border border-[var(--pat-line)] bg-white/70 p-0.5",
+        className,
+      )}
+    >
+      <button
+        type="button"
+        onClick={onZoomOut}
+        aria-label="Thu nhỏ"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--pat-muted)] transition hover:bg-[#f3e7d2]"
+      >
+        <Minus size={14} />
+      </button>
+      <span className="min-w-[2.6rem] text-center text-[0.65rem] font-semibold tabular-nums">{percent}%</span>
+      <button
+        type="button"
+        onClick={onZoomIn}
+        aria-label="Phóng to"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--pat-muted)] transition hover:bg-[#f3e7d2]"
+      >
+        <Plus size={14} />
+      </button>
+      <span className="mx-0.5 h-4 w-px bg-[var(--pat-line)]" />
+      <button
+        type="button"
+        onClick={onReset}
+        aria-label="Vừa khung"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--pat-muted)] transition hover:bg-[#f3e7d2]"
+      >
+        <Maximize2 size={13} />
+      </button>
+    </span>
   );
 }
 
