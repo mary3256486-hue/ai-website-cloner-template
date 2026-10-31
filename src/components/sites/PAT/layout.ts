@@ -15,13 +15,22 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const byId = new Map(tree.members.map((m) => [m.id, m]));
   const generations = computeGenerations(tree.members);
   const index = buildFamilyIndex(tree.members);
+  const counts = new Map<number, number>();
+  for (const generation of generations.values()) {
+    counts.set(generation, (counts.get(generation) ?? 0) + 1);
+  }
+  const inset = tuning.frameStyle === "meander" ? Math.round(88 * tuning.frameScale) : 0;
+  const marginTop = tuning.marginTop + inset;
+  const marginBottom = tuning.marginBottom + inset;
+  const marginLeft = tuning.marginLeft + inset;
+  const marginRight = tuning.marginRight + inset;
   const roots = tree.members
     .filter((p) => index.bloodline.has(p.id) && !index.lineParent(p))
     .sort(sortPersons);
 
   const measure = (person: Person): Measure => {
     const generation = generations.get(person.id) ?? 1;
-    const { width: cardW } = cardDimsFor(tree.design, generation);
+    const { width: cardW } = cardDimsFor(tree.design, generation, counts.get(generation));
     const spouses = person.spouseIds
       .map((id) => byId.get(id))
       .filter((p): p is Person => p !== undefined && !index.bloodline.has(p.id))
@@ -39,17 +48,21 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
 
   const maxGeneration = Math.max(1, ...Array.from(generations.values()));
   const rowTop = new Map<number, number>();
-  let rowCursor = tuning.marginTop;
+  let rowCursor = marginTop;
   for (let generation = 1; generation <= maxGeneration; generation += 1) {
     rowTop.set(generation, rowCursor);
-    rowCursor += cardDimsFor(tree.design, generation).height + tuning.generationGap;
+    rowCursor += cardDimsFor(tree.design, generation, counts.get(generation)).height + tuning.generationGap;
   }
 
   const place = (m: Measure, left: number) => {
     const unitLeft = left + (m.width - m.unitWidth) / 2;
     const generation = generations.get(m.person.id) ?? 1;
-    const { width: cardW, height: cardH } = cardDimsFor(tree.design, generation);
-    const y = rowTop.get(generation) ?? tuning.marginTop;
+    const { width: cardW, height: cardH } = cardDimsFor(
+      tree.design,
+      generation,
+      counts.get(generation),
+    );
+    const y = rowTop.get(generation) ?? marginTop;
     const add = (person: Person, x: number, isSpouse: boolean) => {
       nodes.push({
         id: person.id,
@@ -121,7 +134,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     });
   };
 
-  let cursor = tuning.marginLeft;
+  let cursor = marginLeft;
   for (const m of measured) {
     place(m, cursor);
     cursor += m.width + tuning.branchGap;
@@ -132,8 +145,8 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
       nodes: [],
       edges: [],
       generations: [],
-      width: tuning.marginLeft + tuning.marginRight,
-      height: tuning.marginTop + tuning.marginBottom,
+      width: marginLeft + marginRight,
+      height: marginTop + marginBottom,
     };
   }
 
@@ -152,17 +165,17 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     return {
       generation,
       count: nodes.filter((n) => n.generation === generation).length,
-      y: rowTop.get(generation) ?? tuning.marginTop,
+      y: rowTop.get(generation) ?? marginTop,
     };
   });
-  const width = Math.max(...nodes.map((n) => n.x + n.width)) + tuning.marginRight;
-  const height = Math.max(...nodes.map((n) => n.y + n.height)) + tuning.marginBottom;
+  const width = Math.max(...nodes.map((n) => n.x + n.width)) + marginRight;
+  const height = Math.max(...nodes.map((n) => n.y + n.height)) + marginBottom;
   return {
     nodes,
     edges,
     generations: genRows,
-    width: Math.max(width, tuning.marginLeft + tuning.marginRight),
-    height: Math.max(height, tuning.marginTop + tuning.marginBottom),
+    width: Math.max(width, marginLeft + marginRight),
+    height: Math.max(height, marginTop + marginBottom),
   };
 }
 

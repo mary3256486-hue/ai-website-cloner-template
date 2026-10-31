@@ -14,24 +14,25 @@ export function CardOrientationPicker({
   generations: { generation: number; count: number }[];
   onChange: (patch: Partial<DesignSettings>) => void;
 }) {
-  const fallback: CardOrientation = design.cardOrientation === "vertical" ? "vertical" : "horizontal";
   const overrides = design.cardOrientations ?? {};
   const hasOverrides = Object.keys(overrides).length > 0;
+  const choice = design.cardOrientation ?? "auto";
 
-  const setGeneration = (generation: number, value: CardOrientation) => {
+  const setGeneration = (generation: number, value: CardOrientation, count: number) => {
     const next = { ...overrides };
-    if (value === fallback) delete next[String(generation)];
+    if (value === cardOrientationFor(design, generation, count)) delete next[String(generation)];
     else next[String(generation)] = value;
     onChange({ cardOrientations: next });
   };
 
   return (
     <div className="space-y-3">
-      <Field label="Khung mặc định" hint="Áp dụng cho các đời chưa đặt riêng">
-        <Segmented<CardOrientation>
-          value={fallback}
+      <Field label="Khung mặc định" hint="Tự động dùng thẻ dọc cho đời đông người để bớt bề ngang">
+        <Segmented<CardOrientation | "auto">
+          value={choice}
           onChange={(cardOrientation) => onChange({ cardOrientation })}
           options={[
+            { value: "auto", label: "Tự động" },
             { value: "horizontal", label: "Ngang" },
             { value: "vertical", label: "Dọc" },
           ]}
@@ -55,7 +56,7 @@ export function CardOrientationPicker({
         </div>
         <div className="divide-y divide-[var(--pat-line)] overflow-hidden rounded-xl border border-[var(--pat-line)] bg-white/50">
           {generations.map((row) => {
-            const value = cardOrientationFor(design, row.generation);
+            const value = cardOrientationFor(design, row.generation, row.count);
             const isOverride = overrides[String(row.generation)] !== undefined;
             return (
               <div key={row.generation} className="flex items-center gap-2 px-3 py-2">
@@ -73,7 +74,7 @@ export function CardOrientationPicker({
                     <button
                       key={option}
                       type="button"
-                      onClick={() => setGeneration(row.generation, option)}
+                      onClick={() => setGeneration(row.generation, option, row.count)}
                       aria-pressed={value === option}
                       className={`px-2.5 py-1 text-[0.65rem] font-semibold transition ${
                         value === option

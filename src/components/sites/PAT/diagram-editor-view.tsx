@@ -149,6 +149,13 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   );
   const dims = diagramDimensions(layout, tree.design, paperAspect);
   const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
+  const genCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const generation of gens.values()) {
+      counts.set(generation, (counts.get(generation) ?? 0) + 1);
+    }
+    return counts;
+  }, [gens]);
   const top = contentTop(tree.design);
 
   useEffect(() => {
@@ -269,7 +276,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const resolveGeneration = (generation: number) => {
     const style = tuning.generationStyles?.[String(generation)] ?? {};
     return {
-      orientation: cardOrientationFor(tree.design, generation),
+      orientation: cardOrientationFor(tree.design, generation, genCounts.get(generation)),
       showAvatar: style.showAvatar ?? tree.design.showAvatar,
       showTitle: style.showTitle ?? tree.design.showTitle !== false,
       showName: style.showName ?? tree.design.showName !== false,

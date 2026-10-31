@@ -14,6 +14,8 @@ import type {
 import {
   bandLabelFor,
   cardOrientationFor,
+  normalizeBackgroundImage,
+  normalizeBanner,
   normalizeTuning,
   type ExtraFieldKey,
 } from "./types";
@@ -26,10 +28,27 @@ const PALETTES: Record<DesignSettings["palette"], { accent: string; deep: string
   jade: { accent: "#1f5e4a", deep: "#143f32", gold: "#b08d3c", soft: "#e3efe8" },
 };
 
-export const BANNER_HEIGHT = 58;
+export const CONTENT_TOP = 10;
+const BANNER_ASPECT = 1467 / 751;
+const DRAGON_SRC_LEFT = "/sites/PAT/decor/user/dragon-phai.png";
+const DRAGON_SRC_RIGHT = "/sites/PAT/decor/user/dragon-trai.png";
+const FRAME_CORNER_SRC = "/sites/PAT/decor/user/khung-goc.png";
+const FRAME_HOR_SRC = "/sites/PAT/decor/user/khung-ngang.png";
+const FRAME_VER_SRC = "/sites/PAT/decor/user/khung-doc.png";
 
-export function contentTop(design: DesignSettings) {
-  return (design.showBanner ? BANNER_HEIGHT : 0) + 10;
+export function bannerHeight(design?: DesignSettings | null) {
+  const banner = normalizeBanner(design?.banner);
+  return banner.enabled ? banner.width / BANNER_ASPECT : 0;
+}
+
+export function contentTop(design?: DesignSettings | null) {
+  const height = bannerHeight(design);
+  return CONTENT_TOP + (height > 0 ? height + 18 : 0);
+}
+
+export function frameInset(design?: DesignSettings | null) {
+  const tuning = normalizeTuning(design?.tuning);
+  return tuning.frameStyle === "meander" ? Math.round(88 * tuning.frameScale) : 0;
 }
 
 export interface DiagramDimensions {
@@ -184,11 +203,32 @@ export function DiagramCanvas({
     paperAspect,
   );
   const top = contentTop(settings);
+  const banner = normalizeBanner(settings.banner);
+  const bannerH = banner.enabled ? banner.width / BANNER_ASPECT : 0;
+  const bgArt = normalizeBackgroundImage(settings.backgroundImage);
+  const generationCounts = new Map<number, number>();
+  for (const gen of generations.values()) {
+    generationCounts.set(gen, (generationCounts.get(gen) ?? 0) + 1);
+  }
   const patternId = `pat-bg-${idPrefix}`;
   const gridId = `pat-grid-${idPrefix}`;
+  const tintId = `pat-tint-${idPrefix}`;
   const bandColor = tuning.generationBandColor || palette.gold;
   const connectorColor = tuning.connectorColor || "";
   const tintColors = [palette.accent, palette.gold, "#3f6b52", "#3f5f86", "#9a4a6b", "#7a5a10"];
+  const frameS = Math.round(88 * tuning.frameScale);
+  const frameTW = (frameS * 182) / 94;
+  const frameTV = (frameS * 188) / 92;
+  const horTiles: number[] = [];
+  for (let x = frameS; x < width - frameS; x += frameTW) horTiles.push(x);
+  const verTiles: number[] = [];
+  for (let y = frameS; y < height - frameS; y += frameTV) verTiles.push(y);
+  const bannerLines = banner.text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const dragonH = bannerH * 1.02 * banner.dragonScale;
+  const dragonW = (dragonH * 1000) / 1232;
 
   const nodeVisible = (id: string) => !visibleIds || visibleIds.has(id);
   const edgeVisible = (edge: TreeEdge) => {
@@ -252,10 +292,27 @@ export function DiagramCanvas({
           <stop offset="82%" stopColor="#9a6238" />
           <stop offset="100%" stopColor="#5e351b" />
         </linearGradient>
+        <filter id={tintId} x="0" y="0" width="100%" height="100%">
+          <feFlood floodColor={bgArt.color} result="flood" />
+          <feComposite in="flood" in2="SourceGraphic" operator="in" />
+        </filter>
       </defs>
 
       <rect width={width} height={height} fill={`url(#${idPrefix}-paper)`} />
-      {settings.background !== "none" ? <rect width={width} height={height} fill={`url(#${patternId})`} /> : null}
+      {settings.background === "ornament" ? (
+        <image
+          href={bgArt.src}
+          x={(width - width * bgArt.scale) / 2}
+          y={(height - width * bgArt.scale * 0.62) / 2}
+          width={width * bgArt.scale}
+          height={width * bgArt.scale * 0.62}
+          preserveAspectRatio="xMidYMid meet"
+          opacity={bgArt.opacity}
+          filter={`url(#${tintId})`}
+        />
+      ) : settings.background !== "none" ? (
+        <rect width={width} height={height} fill={`url(#${patternId})`} />
+      ) : null}
       {showGrid ? <rect width={width} height={height} fill={`url(#${gridId})`} /> : null}
 
       {tuning.frameStyle === "wood" ? (
@@ -266,7 +323,96 @@ export function DiagramCanvas({
         </g>
       ) : null}
 
-      {settings.borderStyle !== "none" && tuning.frameStyle !== "wood" ? (
+      {tuning.frameStyle === "meander" ? (
+        <g>
+          {horTiles.map((x) => (
+            <image
+              key={`frame-top-${x}`}
+              href={FRAME_HOR_SRC}
+              x={x}
+              y={0}
+              width={frameTW + 0.5}
+              height={frameS}
+              preserveAspectRatio="none"
+            />
+          ))}
+          {horTiles.map((x) => (
+            <image
+              key={`frame-bottom-${x}`}
+              href={FRAME_HOR_SRC}
+              x={x}
+              y={0}
+              width={frameTW + 0.5}
+              height={frameS}
+              preserveAspectRatio="none"
+              transform={`translate(0 ${height}) scale(1 -1)`}
+            />
+          ))}
+          {verTiles.map((y) => (
+            <image
+              key={`frame-left-${y}`}
+              href={FRAME_VER_SRC}
+              x={0}
+              y={y}
+              width={frameS}
+              height={frameTV + 0.5}
+              preserveAspectRatio="none"
+            />
+          ))}
+          {verTiles.map((y) => (
+            <image
+              key={`frame-right-${y}`}
+              href={FRAME_VER_SRC}
+              x={0}
+              y={y}
+              width={frameS}
+              height={frameTV + 0.5}
+              preserveAspectRatio="none"
+              transform={`translate(${width} 0) scale(-1 1)`}
+            />
+          ))}
+          <image href={FRAME_CORNER_SRC} x={0} y={0} width={frameS} height={frameS} preserveAspectRatio="none" />
+          <image
+            href={FRAME_CORNER_SRC}
+            x={0}
+            y={0}
+            width={frameS}
+            height={frameS}
+            preserveAspectRatio="none"
+            transform={`translate(${width} 0) scale(-1 1)`}
+          />
+          <image
+            href={FRAME_CORNER_SRC}
+            x={0}
+            y={0}
+            width={frameS}
+            height={frameS}
+            preserveAspectRatio="none"
+            transform={`translate(0 ${height}) scale(1 -1)`}
+          />
+          <image
+            href={FRAME_CORNER_SRC}
+            x={0}
+            y={0}
+            width={frameS}
+            height={frameS}
+            preserveAspectRatio="none"
+            transform={`translate(${width} ${height}) scale(-1 -1)`}
+          />
+          <rect
+            x="1.5"
+            y="1.5"
+            width={width - 3}
+            height={height - 3}
+            fill="none"
+            stroke="#b3261e"
+            strokeWidth="2.4"
+            strokeOpacity="0.85"
+          />
+        </g>
+      ) : null}
+
+      {settings.borderStyle !== "none" && tuning.frameStyle === "none" ? (
         <g fill="none" stroke={palette.gold}>
           <rect x="10" y="10" width={width - 20} height={height - 20} strokeWidth={settings.borderStyle === "ornate" ? 2 : 1} />
           {settings.borderStyle === "ornate" ? (
@@ -288,58 +434,54 @@ export function DiagramCanvas({
         </g>
       ) : null}
 
-      {settings.showBanner ? (
-        <g transform={`translate(${width / 2}, 30)`}>
-          <rect x="-190" y="-21" width="380" height="42" rx="7" fill={palette.accent} />
-          <rect x="-184" y="-16" width="368" height="32" rx="5" fill="none" stroke={palette.gold} strokeWidth="0.8" />
-          <text
-            textAnchor="middle"
-            y="-2"
-            fontSize="12"
-            fontWeight="700"
-            letterSpacing="2.4"
-            fill="#ffe9bd"
-            fontFamily="'Be Vietnam Pro', sans-serif"
-          >
-            {truncate(settings.bannerText || "GIA PHẢ", 30)}
-          </text>
-          <text
-            textAnchor="middle"
-            y="13"
-            fontSize="9"
-            fill="#f4dcb6"
-            fontFamily="'Be Vietnam Pro', sans-serif"
-          >
-            {truncate(tree.name, 48)}
-          </text>
+      {banner.enabled ? (
+        <g transform={`translate(${width / 2}, ${CONTENT_TOP + offsetY})`}>
+          {banner.showDragons ? (
+            <>
+              <image
+                href={DRAGON_SRC_LEFT}
+                x={-banner.width / 2 - dragonW - banner.width * 0.015}
+                y={bannerH - dragonH + bannerH * 0.06}
+                width={dragonW}
+                height={dragonH}
+                preserveAspectRatio="xMidYMid meet"
+              />
+              <image
+                href={DRAGON_SRC_RIGHT}
+                x={banner.width / 2 + banner.width * 0.015}
+                y={bannerH - dragonH + bannerH * 0.06}
+                width={dragonW}
+                height={dragonH}
+                preserveAspectRatio="xMidYMid meet"
+              />
+            </>
+          ) : null}
+          <image
+            href={banner.src}
+            x={-banner.width / 2}
+            y={0}
+            width={banner.width}
+            height={bannerH}
+            preserveAspectRatio="xMidYMid meet"
+          />
+          {bannerLines.length ? (
+            <text textAnchor="middle" fontFamily="'Be Vietnam Pro', sans-serif">
+              {bannerLines.map((line, index) => (
+                <tspan
+                  key={`banner-${index}`}
+                  x={0}
+                  y={bannerH * 0.455 + banner.textOffsetY + index * banner.textSize * 1.18}
+                  fontSize={banner.textSize}
+                  fontWeight="700"
+                  letterSpacing="1.6"
+                  fill={banner.textColor}
+                >
+                  {line}
+                </tspan>
+              ))}
+            </text>
+          ) : null}
         </g>
-      ) : null}
-
-      {settings.showCouplets ? (
-        <>
-          <text
-            transform={`translate(24, ${height / 2}) rotate(-90)`}
-            textAnchor="middle"
-            fontSize="11"
-            letterSpacing="1.5"
-            fill={palette.accent}
-            opacity="0.7"
-            fontFamily="'Be Vietnam Pro', sans-serif"
-          >
-            Tổ đức lưu phương
-          </text>
-          <text
-            transform={`translate(${width - 24}, ${height / 2}) rotate(90)`}
-            textAnchor="middle"
-            fontSize="11"
-            letterSpacing="1.5"
-            fill={palette.accent}
-            opacity="0.7"
-            fontFamily="'Be Vietnam Pro', sans-serif"
-          >
-            Gia phong kế thế
-          </text>
-        </>
       ) : null}
 
       <g transform={`translate(${offsetX}, ${top + offsetY})`}>
@@ -431,7 +573,10 @@ export function DiagramCanvas({
               const focused = focusId === person.id;
               const clip = `${idPrefix}-clip-${node.id}`;
               const clipText = `${idPrefix}-clip-text-${node.id}`;
-              const vertical = (genStyle?.orientation ?? cardOrientationFor(settings, node.generation)) === "vertical";
+              const vertical =
+                (genStyle?.orientation ??
+                  cardOrientationFor(settings, node.generation, generationCounts.get(node.generation))) ===
+                "vertical";
               const showTitle = genStyle?.showTitle ?? settings.showTitle !== false;
               const showName = genStyle?.showName ?? settings.showName !== false;
               const showDates = (genStyle?.showDates ?? settings.showDates !== false) && !personStyle?.hideDates;

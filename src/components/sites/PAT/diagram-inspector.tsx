@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useRef } from "react";
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 import { Avatar, Badge, Field, Segmented } from "./ui";
 import type {
+  BackgroundImageSettings,
+  BannerSettings,
   CardOrientation,
   Decoration,
   DesignSettings,
@@ -33,8 +36,11 @@ import type {
 import {
   BAND_LABELS,
   EXTRA_FIELD_LABELS,
+  normalizeBackgroundImage,
+  normalizeBanner,
   normalizeCustomPaper,
   PAPER_MM,
+  type BackgroundPattern,
   type GenerationBandLabel,
 } from "./types";
 
@@ -214,6 +220,227 @@ function ColorField({
   );
 }
 
+function ImagePicker({
+  label,
+  src,
+  options,
+  onPick,
+  onUpload,
+}: {
+  label: string;
+  src: string;
+  options: { src: string; label: string }[];
+  onPick: (src: string) => void;
+  onUpload: (file: File) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <Field label={label}>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {options.map((option) => (
+          <button
+            key={option.src}
+            type="button"
+            title={option.label}
+            onClick={() => onPick(option.src)}
+            className={`h-10 w-14 overflow-hidden rounded-md border bg-[#fffaf0] p-0.5 ${
+              src === option.src ? "border-[var(--pat-red)]" : "border-[var(--pat-line)]"
+            }`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={option.src} alt={option.label} className="h-full w-full object-contain" />
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex h-10 items-center gap-1 rounded-md border border-dashed border-[var(--pat-line)] px-2 text-[0.62rem] font-semibold text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
+        >
+          <ImagePlus size={12} /> Tải lên
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onUpload(file);
+            event.target.value = "";
+          }}
+        />
+      </div>
+    </Field>
+  );
+}
+
+function readImageFile(file: File, onLoad: (src: string) => void) {
+  if (!file.type.startsWith("image/")) return;
+  if (file.size > 1_600_000) return;
+  const reader = new FileReader();
+  reader.onload = () => onLoad(String(reader.result));
+  reader.readAsDataURL(file);
+}
+
+function BannerSection({
+  banner,
+  onChange,
+}: {
+  banner: BannerSettings;
+  onChange: (patch: Partial<BannerSettings>) => void;
+}) {
+  return (
+    <Section
+      title="Hoành phi"
+      icon={<Frame size={13} />}
+      hint="Ảnh cuốn thư đặt giữa đầu phả đồ, có thể thay bằng ảnh khác và thêm chữ."
+    >
+      <ToggleRow
+        label="Hiện hoành phi"
+        checked={banner.enabled}
+        onChange={(enabled) => onChange({ enabled })}
+      />
+      <ImagePicker
+        label="Ảnh hoành phi"
+        src={banner.src}
+        options={[
+          { src: "/sites/PAT/decor/user/hoanh-phi.png", label: "Hoành phi rồng" },
+        ]}
+        onPick={(src) => onChange({ src })}
+        onUpload={(file) => readImageFile(file, (src) => onChange({ src }))}
+      />
+      <Field label="Chữ trên hoành phi" hint="Xuống dòng để thêm dòng thứ hai.">
+        <textarea
+          rows={2}
+          value={banner.text}
+          onChange={(event) => onChange({ text: event.target.value })}
+          className="pat-input min-h-[52px] resize-y px-2 py-1.5 text-xs"
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <SliderField
+          label="Cỡ chữ"
+          value={banner.textSize}
+          min={12}
+          max={90}
+          onChange={(textSize) => onChange({ textSize })}
+        />
+        <SliderField
+          label="Dịch chữ dọc"
+          value={banner.textOffsetY}
+          min={-120}
+          max={120}
+          onChange={(textOffsetY) => onChange({ textOffsetY })}
+        />
+      </div>
+      <ColorField
+        label="Màu chữ"
+        value={banner.textColor}
+        fallback="#f7e3b5"
+        onChange={(textColor) => onChange({ textColor: textColor || "#f7e3b5" })}
+      />
+      <SliderField
+        label="Rộng hoành phi"
+        value={banner.width}
+        min={400}
+        max={1600}
+        step={10}
+        onChange={(width) => onChange({ width })}
+      />
+      <ToggleRow
+        label="Rồng chầu hai bên"
+        checked={banner.showDragons}
+        onChange={(showDragons) => onChange({ showDragons })}
+      />
+      {banner.showDragons ? (
+        <SliderField
+          label="Cỡ rồng"
+          value={banner.dragonScale}
+          min={0.6}
+          max={1.8}
+          step={0.05}
+          suffix="×"
+          onChange={(dragonScale) => onChange({ dragonScale })}
+        />
+      ) : null}
+    </Section>
+  );
+}
+
+const BACKGROUND_OPTIONS: { value: BackgroundPattern; label: string }[] = [
+  { value: "none", label: "Trơn" },
+  { value: "clouds", label: "Mây" },
+  { value: "dragon", label: "Rồng" },
+  { value: "lotus", label: "Sen" },
+  { value: "scroll", label: "Thủy ba" },
+  { value: "ornament", label: "Hoa văn" },
+];
+
+function BackgroundSection({
+  pattern,
+  art,
+  onChange,
+}: {
+  pattern: BackgroundPattern;
+  art: BackgroundImageSettings;
+  onChange: (patch: Partial<DesignSettings>, imagePatch?: Partial<BackgroundImageSettings>) => void;
+}) {
+  return (
+    <Section
+      title="Hoa văn nền"
+      icon={<Palette size={13} />}
+      hint="Hoa văn phủ mờ phía sau phả đồ, giữ chữ và đường nối rõ ràng."
+    >
+      <div className="flex flex-wrap gap-1.5">
+        {BACKGROUND_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className="pat-chip text-[0.65rem]"
+            data-active={pattern === option.value}
+            onClick={() => onChange({ background: option.value })}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      {pattern === "ornament" ? (
+        <>
+          <ImagePicker
+            label="Mẫu hoa văn"
+            src={art.src}
+            options={[
+              { src: "/sites/PAT/decor/user/hoa-van-01.png", label: "Hoa văn 01" },
+              { src: "/sites/PAT/decor/user/hoa-van-02.png", label: "Hoa văn 02" },
+            ]}
+            onPick={(src) => onChange({}, { src })}
+            onUpload={(file) => readImageFile(file, (src) => onChange({}, { src }))}
+          />
+          <ColorField label="Màu hoa văn" value={art.color} onChange={(color) => onChange({}, { color })} />
+          <SliderField
+            label="Độ đậm"
+            value={art.opacity}
+            min={0.03}
+            max={0.6}
+            step={0.01}
+            suffix="×"
+            onChange={(opacity) => onChange({}, { opacity })}
+          />
+          <SliderField
+            label="Cỡ hoa văn"
+            value={art.scale}
+            min={0.2}
+            max={1.2}
+            step={0.02}
+            suffix="%"
+            onChange={(scale) => onChange({}, { scale })}
+          />
+        </>
+      ) : null}
+    </Section>
+  );
+}
+
 function mm(value: number) {
   return Math.round(value);
 }
@@ -236,6 +463,16 @@ export function WholeDiagramInspector({
   const custom = normalizeCustomPaper(tree.design.customPaper);
   const preset = custom ? null : tree.design.paper;
   const ratio = custom?.ratio;
+  const banner = normalizeBanner(tree.design.banner);
+  const bgArt = normalizeBackgroundImage(tree.design.backgroundImage);
+  const updateBanner = (patch: Partial<BannerSettings>) => onDesign({ banner: { ...banner, ...patch } });
+  const updateBackground = (
+    patch: Partial<DesignSettings>,
+    imagePatch?: Partial<BackgroundImageSettings>,
+  ) =>
+    onDesign(
+      imagePatch ? { ...patch, backgroundImage: { ...bgArt, ...imagePatch } } : patch,
+    );
 
   const applyRatio = (next: "1:1" | "3:2" | "custom") => {
     if (next === "custom") {
@@ -339,6 +576,10 @@ export function WholeDiagramInspector({
           </Field>
         </div>
       </Section>
+
+      <BannerSection banner={banner} onChange={updateBanner} />
+
+      <BackgroundSection pattern={tree.design.background} art={bgArt} onChange={updateBackground} />
 
       <Section
         title="Khoảng cách & lề"
@@ -490,12 +731,25 @@ export function WholeDiagramInspector({
           value={tuning.frameStyle}
           onChange={(frameStyle) => onTuning({ frameStyle })}
           options={[
-            { value: "none", label: "Giấy sơn mài" },
-            { value: "wood", label: "Khung gỗ" },
+            { value: "none", label: "Sơn mài" },
+            { value: "wood", label: "Gỗ" },
+            { value: "meander", label: "Mê cung" },
           ]}
         />
+        {tuning.frameStyle === "meander" ? (
+          <SliderField
+            label="Cỡ viền"
+            value={tuning.frameScale}
+            min={0.5}
+            max={2}
+            step={0.05}
+            suffix="×"
+            onChange={(frameScale) => onTuning({ frameScale })}
+            hint="Viền dày hơn sẽ tự thu lề để nội dung không đè lên hoa văn."
+          />
+        ) : null}
         <p className="text-[0.64rem] leading-relaxed text-[var(--pat-muted)]">
-          Khung gỗ chỉ đổi cách trình bày, nội dung và dữ liệu thành viên giữ nguyên.
+          Khung chỉ đổi cách trình bày, nội dung và dữ liệu thành viên giữ nguyên.
         </p>
       </Section>
 

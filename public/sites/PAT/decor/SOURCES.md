@@ -27,3 +27,19 @@ Ghi chú:
   cho đúng kiểu cuốn thư ngang Việt Nam; hai mẫu tải từ web là cuốn thư dọc và băng trục.
 - `cuon-thu-bang.svg` được đổi màu silhouette gốc (đen) sang đỏ son `#a3271d` cho hợp bảng màu
   phả đồ; nội dung hình giữ nguyên.
+
+## Thư mục `user/`
+
+Bộ ảnh do chủ dự án cung cấp riêng cho gia phả Tiểu Phạm (không lấy từ app.phatue.vn):
+
+| Tệp | Dùng cho |
+| --- | --- |
+| `hoanh-phi.png` | Ảnh cuốn thư/hoành phi mặc định ở đầu phả đồ |
+| `dragon-trai.png`, `dragon-phai.png` | Cặp rồng chầu hai bên hoành phi |
+| `hoa-van-01.png`, `hoa-van-02.png` | Hoa văn nền phả đồ |
+| `khung-goc.png`, `khung-ngang.png`, `khung-doc.png` | Bộ ghép khung viền mê cung |
+| `o-to.png` | Khung ô thành viên |
+| `may.png`, `goc-o-01…04.png` | Trang trí thư viện |
+
+Các tệp này chỉ dùng trong dự án này; không phát hành lại như artwork mở.
+

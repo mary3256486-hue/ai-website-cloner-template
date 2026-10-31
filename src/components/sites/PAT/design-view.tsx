@@ -51,6 +51,7 @@ const BACKGROUNDS: { value: BackgroundPattern; label: string }[] = [
   { value: "dragon", label: "Rồng chầu" },
   { value: "lotus", label: "Hoa sen" },
   { value: "scroll", label: "Thủy ba" },
+  { value: "ornament", label: "Hoa văn" },
 ];
 
 const PALETTES: { value: PaletteName; label: string; swatch: string }[] = [
@@ -379,26 +380,8 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
         </section>
 
         <section className="pat-card px-4 py-4">
-          <SectionTitle icon={<FileText size={13} />} title="Hoành phi & câu đối" />
-          <Field label="Chữ trên hoành phi">
-            <input
-              className="pat-input"
-              value={design.bannerText}
-              onChange={(event) => setDesign(tree.id, { bannerText: event.target.value })}
-              placeholder="GIA PHẢ"
-            />
-          </Field>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <Toggle
-              label="Hoành phi"
-              active={design.showBanner}
-              onClick={() => setDesign(tree.id, { showBanner: !design.showBanner })}
-            />
-            <Toggle
-              label="Câu đối hai bên"
-              active={design.showCouplets}
-              onClick={() => setDesign(tree.id, { showCouplets: !design.showCouplets })}
-            />
+          <SectionTitle icon={<FileText size={13} />} title="Nhãn đời & hiển thị" />
+          <div className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Toggle
               label="Nhãn đời"
               active={design.showGenerationLabels}
@@ -416,8 +399,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             />
           </div>
           <p className="mt-2 text-[0.68rem] text-[var(--pat-muted)]">
-            Câu đối mặc định: “Tổ đức lưu phương” — “Gia phong kế thế”. Sửa nội dung chi tiết trong phần trang trí của
-            Tạo phả đồ.
+            Hoành phi, hoa văn nền và khung viền chỉnh chi tiết trong trang Tạo phả đồ.
           </p>
         </section>
 
