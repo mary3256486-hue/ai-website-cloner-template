@@ -36,6 +36,7 @@ import type {
 import {
   BAND_LABELS,
   EXTRA_FIELD_LABELS,
+  generationTag,
   normalizeBackgroundImage,
   normalizeBanner,
   normalizeCustomPaper,
@@ -658,6 +659,12 @@ export function WholeDiagramInspector({
           checked={tuning.tintByLevel}
           onChange={(tintByLevel) => onTuning({ tintByLevel })}
         />
+        <ToggleRow
+          label="Ghi chú nét đứt"
+          hint="Hiện nhãn “cách n đời” hoặc quan hệ trên đường nối không trực hệ."
+          checked={tuning.showLinkGap}
+          onChange={(showLinkGap) => onTuning({ showLinkGap })}
+        />
       </Section>
 
       <Section title="Dải đời" icon={<Frame size={13} />}>
@@ -805,8 +812,8 @@ export function GenerationInspector({
     <div>
       <InspectorHeader
         eyebrow="Phạm vi"
-        title={`Đời ${generation}`}
-        subtitle={`${count} thành viên · thay đổi áp dụng cho cả đời`}
+        title={generationTag(generation)}
+        subtitle={`${count} thành viên · thay đổi áp dụng cho cả ${generation < 0 ? "bậc" : "đời"}`}
         onClose={onClose}
       />
 
@@ -953,7 +960,7 @@ export function PersonInspector({
       <InspectorHeader
         eyebrow="Phạm vi"
         title={member.name}
-        subtitle={`Đời ${generation} · ${member.gender === "male" ? "Nam" : "Nữ"}`}
+        subtitle={`${generationTag(generation)} · ${member.gender === "male" ? "Nam" : "Nữ"}`}
         onClose={onClose}
       />
 
@@ -965,7 +972,7 @@ export function PersonInspector({
             {member.birthDate || "?"} — {member.alive ? "nay" : member.deathDate || "?"}
           </p>
         </div>
-        <Badge tone="gold">Đời {generation}</Badge>
+        <Badge tone="gold">{generationTag(generation)}</Badge>
       </div>
 
       <Section title="Hồ sơ" icon={<PencilLine size={13} />}>

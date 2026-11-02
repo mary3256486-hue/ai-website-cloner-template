@@ -1,6 +1,6 @@
 import type { FamilyTree, Person, TreeEdge, TreeLayout, TreeNode } from "./types";
-import { cardDimsFor, normalizeTuning, SPOUSE_GAP } from "./types";
-import { buildFamilyIndex, computeGenerations, sortPersons } from "./utils";
+import { ancestorLabelFor, bandLabelFor, cardDimsFor, normalizeTuning, SPOUSE_GAP } from "./types";
+import { buildFamilyIndex, computeGenerations, isIndirectLink, linkLabel, sortGenerations, sortPersons } from "./utils";
 
 interface Measure {
   person: Person;
@@ -46,10 +46,10 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const measured = roots.map(measure);
   const nodes: TreeNode[] = [];
 
-  const maxGeneration = Math.max(1, ...Array.from(generations.values()));
+  const generationKeys = Array.from(new Set(Array.from(generations.values()))).sort(sortGenerations);
   const rowTop = new Map<number, number>();
   let rowCursor = marginTop;
-  for (let generation = 1; generation <= maxGeneration; generation += 1) {
+  for (const generation of generationKeys) {
     rowTop.set(generation, rowCursor);
     rowCursor += cardDimsFor(tree.design, generation, counts.get(generation)).height + tuning.generationGap;
   }
@@ -159,13 +159,30 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   }
 
   const edges = buildEdges(nodes, index.lineParent);
-  const maxGen = Math.max(...nodes.map((n) => n.generation));
-  const genRows = Array.from({ length: maxGen }, (_, i) => {
-    const generation = i + 1;
+  const ancestorTitles = new Map<number, string[]>();
+  for (const member of tree.members) {
+    const generation = generations.get(member.id);
+    if (generation === undefined || generation >= 0) continue;
+    const title = member.title?.trim();
+    if (!title) continue;
+    const list = ancestorTitles.get(generation) ?? [];
+    if (!list.includes(title)) list.push(title);
+    ancestorTitles.set(generation, list);
+  }
+  const genRows = generationKeys.map((generation) => {
+    const titles = ancestorTitles.get(generation) ?? [];
+    const label =
+      generation < 0
+        ? titles.length
+          ? titles.slice(0, 2).join(" · ").toLocaleUpperCase("vi")
+          : ancestorLabelFor(tuning.generationBandLabel, -generation)
+        : bandLabelFor(tuning.generationBandLabel, generation);
     return {
       generation,
       count: nodes.filter((n) => n.generation === generation).length,
       y: rowTop.get(generation) ?? marginTop,
+      label,
+      isAncestor: generation < 0,
     };
   });
   const width = Math.max(...nodes.map((n) => n.x + n.width)) + marginRight;
@@ -212,6 +229,60 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
     if (!parent) continue;
     const parentNode = nodeById.get(parent);
     if (!parentNode) continue;
+    if (isIndirectLink(node.person) && node.person.linkToId === parent) {
+      const startX = parentNode.x + parentNode.width / 2;
+      const startY = parentNode.y + parentNode.height;
+      const endX = node.x + node.width / 2;
+      const endY = node.y;
+      const midY = startY + Math.max(16, (endY - startY) / 2);
+      const label = linkLabel(node.person);
+      const base = {
+        type: "child" as const,
+        generation: node.generation,
+        subjectId: node.id,
+        fromId: parentNode.id,
+        toId: node.id,
+        indirect: true,
+      };
+      if (Math.abs(startX - endX) < 1) {
+        edges.push({
+          ...base,
+          id: `ind-${parent}-${node.id}-v`,
+          x1: startX,
+          y1: startY,
+          x2: endX,
+          y2: endY,
+          label,
+        });
+      } else {
+        edges.push({
+          ...base,
+          id: `ind-${parent}-${node.id}-a`,
+          x1: startX,
+          y1: startY,
+          x2: startX,
+          y2: midY,
+        });
+        edges.push({
+          ...base,
+          id: `ind-${parent}-${node.id}-b`,
+          x1: startX,
+          y1: midY,
+          x2: endX,
+          y2: midY,
+          label,
+        });
+        edges.push({
+          ...base,
+          id: `ind-${parent}-${node.id}-c`,
+          x1: endX,
+          y1: midY,
+          x2: endX,
+          y2: endY,
+        });
+      }
+      continue;
+    }
     const list = childGroups.get(parentNode.id) ?? [];
     list.push(node);
     childGroups.set(parentNode.id, list);

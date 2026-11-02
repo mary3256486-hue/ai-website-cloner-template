@@ -3,9 +3,9 @@
 import { useMemo, useRef, useState } from "react";
 import { ImagePlus, Save, Trash2, Users } from "lucide-react";
 import { useGenealogy } from "./store";
-import type { FamilyTree, Gender, Person } from "./types";
-import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
-import { descendants, sortPersons } from "./utils";
+import type { FamilyTree, Gender, LinkConfidence, Person } from "./types";
+import { ANCESTOR_TITLES, generationTag, HONORS, LINK_CONFIDENCE_LABELS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
+import { computeGenerations, descendants, sortGenerations, sortPersons } from "./utils";
 import { Avatar, Field, Sheet } from "./ui";
 
 interface FormDefaults {
@@ -69,6 +69,14 @@ export function MemberFormSheet({
     notes: member?.notes ?? "",
     avatar: member?.avatar ?? "",
     photosText: (member?.photos ?? []).join("\n"),
+    generation: member?.generation !== undefined ? String(member.generation) : "",
+    ancestorOrder: member?.ancestorOrder ? String(member.ancestorOrder) : "",
+    linkToId: member?.linkToId ?? "",
+    linkRelation: member?.linkRelation ?? "",
+    linkGap: String(member?.linkGap ?? 2),
+    linkConfidence: (member?.linkConfidence ?? "oral") as LinkConfidence,
+    linkNote: member?.linkNote ?? "",
+    nameIsConventional: member?.nameIsConventional ?? false,
   }));
   const [error, setError] = useState("");
 
@@ -93,6 +101,17 @@ export function MemberFormSheet({
   const spouseOptions = useMemo(
     () => tree.members.filter((p) => p.id !== member?.id).sort(sortPersons),
     [tree.members, member?.id],
+  );
+  const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
+  const linkOptions = useMemo(
+    () =>
+      tree.members
+        .filter((p) => !blocked.has(p.id))
+        .sort(
+          (a, b) =>
+            sortGenerations(gens.get(a.id) ?? 1, gens.get(b.id) ?? 1) || sortPersons(a, b),
+        ),
+    [tree.members, blocked, gens],
   );
 
   const upload = (file: File | undefined) => {
@@ -140,6 +159,14 @@ export function MemberFormSheet({
       biography: values.biography,
       notes: values.notes,
       avatar: values.avatar || undefined,
+      generation: values.generation.trim() === "" ? undefined : Number(values.generation),
+      ancestorOrder: values.ancestorOrder.trim() === "" ? undefined : Number(values.ancestorOrder),
+      linkToId: values.linkToId || undefined,
+      linkRelation: values.linkRelation.trim() || undefined,
+      linkGap: values.linkToId ? Math.max(1, Number(values.linkGap) || 1) : undefined,
+      linkConfidence: values.linkToId ? values.linkConfidence : undefined,
+      linkNote: values.linkNote.trim() || undefined,
+      nameIsConventional: values.nameIsConventional,
       photos: values.photosText
         .split("\n")
         .map((line) => line.trim())
@@ -414,6 +441,106 @@ export function MemberFormSheet({
         </section>
 
         <section className="space-y-3">
+          <p className="pat-form-section">Vị trí & liên kết phả hệ</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Đời nội bộ"
+              hint="0 = Khởi Tổ, 1.. là các đời sau. Bậc trước Khởi Tổ dùng ô Bậc tiền tổ bên cạnh."
+            >
+              <input
+                className="pat-input"
+                type="number"
+                min={0}
+                value={values.generation}
+                onChange={(event) => set("generation", event.target.value)}
+                placeholder="Tự động"
+              />
+            </Field>
+            <Field label="Bậc tiền tổ" hint="1 = xa nhất, tăng dần về phía Khởi Tổ. Ưu tiên hơn ô Đời.">
+              <input
+                className="pat-input"
+                type="number"
+                min={1}
+                value={values.ancestorOrder}
+                onChange={(event) => set("ancestorOrder", event.target.value)}
+                placeholder="Chỉ dùng cho bậc trên Khởi Tổ"
+              />
+            </Field>
+          </div>
+          <Field
+            label="Nối không trực hệ tới"
+            hint="Khi biết người này thuộc dòng dõi một cụ ở đời trên nhưng thiếu các đời nối tiếp."
+          >
+            <select
+              className="pat-input"
+              value={values.linkToId}
+              onChange={(event) => set("linkToId", event.target.value)}
+            >
+              <option value="">— Không có —</option>
+              {linkOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {generationTag(gens.get(p.id) ?? 1)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {values.linkToId ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Quan hệ / căn cứ" hint="Hậu duệ, cháu đời thứ 2, truyền miệng…">
+                <input
+                  className="pat-input"
+                  value={values.linkRelation}
+                  onChange={(event) => set("linkRelation", event.target.value)}
+                  placeholder="Hậu duệ của cụ…"
+                />
+              </Field>
+              <Field label="Cách mấy đời" hint="2 = thiếu một đời ở giữa.">
+                <input
+                  className="pat-input"
+                  type="number"
+                  min={1}
+                  value={values.linkGap}
+                  onChange={(event) => set("linkGap", event.target.value)}
+                />
+              </Field>
+              <Field label="Độ tin cậy">
+                <select
+                  className="pat-input"
+                  value={values.linkConfidence}
+                  onChange={(event) => set("linkConfidence", event.target.value as LinkConfidence)}
+                >
+                  {(Object.keys(LINK_CONFIDENCE_LABELS) as LinkConfidence[]).map((key) => (
+                    <option key={key} value={key}>
+                      {LINK_CONFIDENCE_LABELS[key]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Ghi chú liên kết">
+                <input
+                  className="pat-input"
+                  value={values.linkNote}
+                  onChange={(event) => set("linkNote", event.target.value)}
+                  placeholder="Tư liệu, người kể, mức độ chắc chắn…"
+                />
+              </Field>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="pat-chip"
+            data-active={values.nameIsConventional}
+            onClick={() => set("nameIsConventional", !values.nameIsConventional)}
+          >
+            Tên đang dùng là tên quy ước
+          </button>
+          <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
+            Bậc tiền tổ dành cho các cụ ở trên Khởi Tổ; mỗi bậc có thể đặt danh xưng riêng như Đại Tổ, Thượng Tổ, Thủy Tổ.
+            Liên kết không trực hệ chỉ nối xuống đời sau và được vẽ bằng nét đứt trên phả đồ.
+          </p>
+        </section>
+
+        <section className="space-y-3">
           <p className="pat-form-section">Thân thế & công danh</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Chức tước" hint="Tước vị, chức quan thời trước.">
@@ -572,7 +699,8 @@ export function MemberFormSheet({
 
         <p className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] text-[var(--pat-muted)]">
           <Users size={14} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
-          Chọn cha/mẹ và vợ/chồng để phả đồ tự sắp xếp đời và nhánh. Không cần nhập thủ công đời.
+          Chọn cha/mẹ và vợ/chồng để phả đồ tự sắp xếp đời và nhánh. Chỉ khai báo “Bậc tiền tổ” hoặc “Nối không trực
+          hệ” khi gia phả thiếu thông tin các đời trước.
         </p>
       </div>
     </Sheet>

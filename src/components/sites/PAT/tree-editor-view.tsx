@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
-import { cardOrientationFor } from "./types";
-import { computeGenerations, lifeSpan, sortPersons } from "./utils";
+import { cardOrientationFor, generationTag } from "./types";
+import { computeGenerations, lifeSpan, sortGenerations, sortPersons } from "./utils";
 import { computeLayout } from "./layout";
 import { TreeShell } from "./app-shell";
 import { Avatar, Badge, Field, Sheet, SheetRow } from "./ui";
@@ -67,7 +67,9 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
             member.title?.toLowerCase().includes(needle),
         )
       : tree.members;
-    return [...list].sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || sortPersons(a, b)).slice(0, 30);
+    return [...list]
+      .sort((a, b) => sortGenerations(gens.get(a.id) ?? 1, gens.get(b.id) ?? 1) || sortPersons(a, b))
+      .slice(0, 30);
   }, [tree.members, gens, query]);
 
   const fit = useCallback(() => {
@@ -168,7 +170,11 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="chinh-sua-voi-cay-gia-pha"
       title="Cây phả hệ"
-      subtitle={`${tree.members.length} thành viên · ${layout.generations.length} đời`}
+      subtitle={`${tree.members.length} thành viên · ${layout.generations.filter((row) => !row.isAncestor).length} đời${
+        layout.generations.some((row) => row.isAncestor)
+          ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tiền tổ`
+          : ""
+      }`}
       actions={
         <>
           <button
@@ -254,7 +260,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                       strokeDasharray="4 6"
                     />
                     <text x="18" y={row.y + 4} fontSize="10" fontWeight="700" fill="#b08d5c" opacity="0.75">
-                      ĐỜI {row.generation}
+                      {row.label}
                     </text>
                   </g>
                 ))}
@@ -308,7 +314,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                     <Avatar person={person} size={30} className={vertical ? "mt-0.5 shrink-0" : "ml-1 shrink-0"} />
                     <span className={vertical ? "mt-1 w-full min-w-0" : "min-w-0 flex-1 pr-1"}>
                       <span className="block truncate text-[0.58rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
-                        {person.title ?? `Đời ${gens.get(person.id) ?? node.generation}`}
+                        {person.title ?? generationTag(gens.get(person.id) ?? node.generation)}
                       </span>
                       <span
                         className={`block text-[0.7rem] font-bold leading-tight text-[var(--pat-ink)] ${
@@ -367,7 +373,12 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
         <div className="flex flex-wrap items-center gap-2 text-[0.68rem] text-[var(--pat-muted)]">
           <Badge tone="gold">{tree.members.length} thành viên</Badge>
           <Badge tone="muted">{tree.branches.length} nhánh</Badge>
-          <Badge tone="muted">{layout.generations.length} đời</Badge>
+          <Badge tone="muted">
+            {layout.generations.filter((row) => !row.isAncestor).length} đời
+            {layout.generations.some((row) => row.isAncestor)
+              ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tổ`
+              : ""}
+          </Badge>
           <span className="ml-auto inline-flex items-center gap-1">
             <Network size={12} /> Chạm vào ô để xem thao tác
           </span>
@@ -378,7 +389,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
         open={Boolean(selected)}
         onClose={() => setSelectedId(null)}
         title={selected?.name ?? ""}
-        subtitle={selected ? `Đời ${gens.get(selected.id) ?? 1} · ${selected.gender === "male" ? "Nam" : "Nữ"} · ${lifeSpan(selected)}` : ""}
+        subtitle={selected ? `${generationTag(gens.get(selected.id) ?? 1)} · ${selected.gender === "male" ? "Nam" : "Nữ"} · ${lifeSpan(selected)}` : ""}
       >
         {selected ? (
           <div className="space-y-1">
@@ -458,7 +469,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{person.name}</span>
                   <span className="block text-[0.68rem] text-[var(--pat-muted)]">
-                    Đời {gens.get(person.id) ?? 1} · {person.gender === "male" ? "Nam" : "Nữ"}
+                    {generationTag(gens.get(person.id) ?? 1)} · {person.gender === "male" ? "Nam" : "Nữ"}
                   </span>
                 </span>
                 <ChevronRight size={14} className="text-[var(--pat-muted)]" />
@@ -496,7 +507,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold">{person.name}</span>
                 <span className="block text-[0.68rem] text-[var(--pat-muted)]">
-                  Đời {gens.get(person.id) ?? 1} · {lifeSpan(person)}
+                  {generationTag(gens.get(person.id) ?? 1)} · {lifeSpan(person)}
                 </span>
               </span>
               <ChevronRight size={14} className="text-[var(--pat-muted)]" />

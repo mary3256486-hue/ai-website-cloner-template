@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
+import { generationTag, LINK_CONFIDENCE_LABELS } from "./types";
 import {
   ageText,
   buildFamilyIndex,
@@ -92,6 +93,8 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
   const branch = tree.branches.find((b) => b.id === member.branchId);
   const father = tree.members.find((m) => m.id === member.fatherId);
   const mother = tree.members.find((m) => m.id === member.motherId);
+  const linkTarget = member.linkToId ? tree.members.find((m) => m.id === member.linkToId) : undefined;
+  const hasLinkInfo = Boolean(member.ancestorOrder || member.linkToId || member.nameIsConventional);
   const spouses = spouseNames(tree, member);
   const children = index.childrenAny.get(member.id) ?? [];
   const grandchildren = grandchildrenCount(tree, member);
@@ -135,7 +138,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
       tree={tree}
       section="thanh-vien"
       title={member.name}
-      subtitle={`Đời ${generation}${branch ? ` · ${branch.name}` : ""}`}
+      subtitle={`${generationTag(generation)}${branch ? ` · ${branch.name}` : ""}`}
       actions={
         <>
           <button
@@ -165,7 +168,8 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               <div className="flex flex-wrap items-center gap-1.5">
                 {member.title ? <Badge tone="gold">{member.title}</Badge> : null}
                 <Badge tone={member.alive ? "green" : "muted"}>{member.alive ? "Còn sống" : "Đã mất"}</Badge>
-                <Badge tone="red">Đời {generation}</Badge>
+                <Badge tone="red">{generationTag(generation)}</Badge>
+                {member.nameIsConventional ? <Badge tone="muted">Tên quy ước</Badge> : null}
               </div>
               <h1 className="pat-serif mt-1 text-xl font-bold leading-tight text-[var(--pat-red)]">
                 {member.name}
@@ -238,6 +242,49 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             </p>
           ) : null}
         </section>
+
+        {hasLinkInfo ? (
+          <section className="pat-card px-4 py-4">
+            <SectionTitle icon={<Network size={13} />} title="Vị trí & liên kết phả hệ" />
+            <div className="grid gap-x-4 sm:grid-cols-2">
+              <div>
+                <InfoRow label="Đời / bậc tổ" value={generationTag(generation)} />
+                <InfoRow
+                  label="Bậc tiền tổ"
+                  value={member.ancestorOrder ? `Bậc ${member.ancestorOrder} (1 = xa nhất)` : undefined}
+                />
+                <InfoRow label="Tên quy ước" value={member.nameIsConventional ? "Có" : undefined} />
+              </div>
+              <div>
+                <InfoRow
+                  label="Nối không trực hệ"
+                  value={
+                    linkTarget ? (
+                      <button
+                        type="button"
+                        className="font-semibold text-[var(--pat-red)] underline underline-offset-2"
+                        onClick={() => goMember(linkTarget.id)}
+                      >
+                        {linkTarget.name}
+                      </button>
+                    ) : undefined
+                  }
+                />
+                <InfoRow label="Quan hệ" value={member.linkRelation} />
+                <InfoRow label="Cách mấy đời" value={member.linkGap ? `${member.linkGap} đời` : undefined} />
+                <InfoRow
+                  label="Độ tin cậy"
+                  value={member.linkConfidence ? LINK_CONFIDENCE_LABELS[member.linkConfidence] : undefined}
+                />
+                <InfoRow label="Ghi chú" value={member.linkNote} />
+              </div>
+            </div>
+            <p className="mt-2 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
+              Liên kết không trực hệ chỉ nối xuống đời sau, không thay thế quan hệ cha/mẹ. Trên phả đồ, đường nối này được vẽ
+              bằng nét đứt.
+            </p>
+          </section>
+        ) : null}
 
         <div className="grid gap-3 md:grid-cols-2">
           <section className="pat-card px-4 py-4">

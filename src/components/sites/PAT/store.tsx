@@ -18,7 +18,7 @@ const STORAGE_KEY = "phatue.familyTrees.v1";
 const TRASH_KEY = "phatue.familyTrees.trash.v1";
 const SEED_VERSION_KEY = "phatue.seedVersion.v1";
 // Bump it whenever the demo tree changes so browsers stop showing the cached older sample.
-const SEED_VERSION = "2026-10-31b";
+const SEED_VERSION = "2026-11-02a";
 
 export interface ArchivedTree {
   tree: FamilyTree;
@@ -184,6 +184,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
         birthDate: input.founderBirth?.trim() || undefined,
         alive: true,
         title: input.founderDetails?.title?.trim() || "Thủy tổ",
+        generation: 0,
         birthOrder: 1,
         spouseIds: [],
         photos: [],
@@ -268,6 +269,14 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
           deathDate: input.deathDate?.trim() || undefined,
           alive: input.alive ?? !input.deathDate,
           title: input.title?.trim() || undefined,
+          generation: input.generation,
+          ancestorOrder: input.ancestorOrder,
+          linkToId: input.linkToId || undefined,
+          linkRelation: input.linkRelation?.trim() || undefined,
+          linkGap: input.linkGap,
+          linkConfidence: input.linkConfidence,
+          linkNote: input.linkNote?.trim() || undefined,
+          nameIsConventional: input.nameIsConventional,
           birthOrder: input.birthOrder ?? tree.members.length + 1,
           fatherId: input.fatherId || undefined,
           motherId: input.motherId || undefined,

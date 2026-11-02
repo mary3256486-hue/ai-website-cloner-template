@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { Branch, FamilyTree, Gender, Person } from "./types";
+import type { Branch, FamilyTree, Gender, LinkConfidence, Person } from "./types";
 import { DEFAULT_DESIGN } from "./types";
 import { uid } from "./utils";
 
@@ -15,6 +15,10 @@ const COLUMN_MAP: Record<string, keyof ImportRow> = {
   "tên": "name",
   "họ tên thành viên": "name",
   "giới tính": "gender",
+  "đời": "generation",
+  "đời nội bộ": "generation",
+  "bậc tiền tổ": "ancestorOrder",
+  "bậc tổ": "ancestorOrder",
   "danh xưng": "title",
   "thế thứ": "generationNote",
   "tên húy": "tabooName",
@@ -47,6 +51,14 @@ const COLUMN_MAP: Record<string, keyof ImportRow> = {
   "phối ngẫu": "spouses",
   "nhánh": "branch",
   "chi": "branch",
+  "liên kết tới": "linkTo",
+  "nối tới": "linkTo",
+  "nối không trực hệ": "linkTo",
+  "quan hệ liên kết": "linkRelation",
+  "cách mấy đời": "linkGap",
+  "độ tin cậy": "linkConfidence",
+  "ghi chú liên kết": "linkNote",
+  "tên quy ước": "nameIsConventional",
   "nguyên quán": "hometown",
   "quê quán": "hometown",
   "nghề nghiệp": "occupation",
@@ -67,6 +79,8 @@ const COLUMN_MAP: Record<string, keyof ImportRow> = {
 interface ImportRow {
   name: string;
   gender: string;
+  generation: string;
+  ancestorOrder: string;
   title: string;
   generationNote: string;
   tabooName: string;
@@ -83,6 +97,12 @@ interface ImportRow {
   mother: string;
   spouses: string;
   branch: string;
+  linkTo: string;
+  linkRelation: string;
+  linkGap: string;
+  linkConfidence: string;
+  linkNote: string;
+  nameIsConventional: string;
   hometown: string;
   occupation: string;
   maritalStatus: string;
@@ -99,6 +119,8 @@ interface ImportRow {
 export const TEMPLATE_HEADERS = [
   "Họ tên",
   "Giới tính",
+  "Đời",
+  "Bậc tiền tổ",
   "Danh xưng",
   "Thế thứ",
   "Tên húy",
@@ -115,6 +137,12 @@ export const TEMPLATE_HEADERS = [
   "Mẹ",
   "Vợ/chồng",
   "Nhánh",
+  "Liên kết tới",
+  "Quan hệ liên kết",
+  "Cách mấy đời",
+  "Độ tin cậy",
+  "Ghi chú liên kết",
+  "Tên quy ước",
   "Nguyên quán",
   "Nghề nghiệp",
   "Hôn nhân",
@@ -132,15 +160,20 @@ const TEMPLATE_GUIDE = [
   ["Cách dùng", ""],
   ["1.", "Mỗi dòng là một thành viên; cột “Họ tên” bắt buộc, điền đúng như trong gia phả."],
   ["2.", "Cột Cha, Mẹ, Vợ/chồng ghi đúng họ tên đã có trong cột “Họ tên” của một dòng khác."],
-  ["3.", "Nhiều vợ/chồng cách nhau bằng dấu chấm phẩy ;"],
-  ["4.", "Không xoá dòng tiêu đề. Có thể xoá các dòng ví dụ ở dưới."],
-  ["5.", "Lưu file rồi quay lại ứng dụng, chọn “Nhập file Excel đã điền”."],
+  ["3.", "Cột “Đời”: 0 là Khởi Tổ; các đời sau là 1, 2, 3… Để trống để tự tính từ cha/mẹ."],
+  ["4.", "Cột “Bậc tiền tổ” chỉ dùng cho các cụ ở trên Khởi Tổ: 1 = xa nhất, tăng dần về phía Khởi Tổ."],
+  ["5.", "Cột “Liên kết tới”, “Quan hệ liên kết”, “Cách mấy đời”, “Độ tin cậy” dùng khi thiếu thông tin nối các đời; để trống nếu không cần."],
+  ["6.", "Nhiều vợ/chồng cách nhau bằng dấu chấm phẩy ;"],
+  ["7.", "Không xoá dòng tiêu đề. Có thể xoá các dòng ví dụ ở dưới."],
+  ["8.", "Lưu file rồi quay lại ứng dụng, chọn “Nhập file Excel đã điền”."],
 ];
 
 const TEMPLATE_EXAMPLE: string[][] = [
   [
     "Phạm Quý Công 1",
     "Nam",
+    "0",
+    "",
     "Thủy tổ",
     "Đích tôn chi trưởng",
     "Phạm Quý Công 1",
@@ -157,6 +190,12 @@ const TEMPLATE_EXAMPLE: string[][] = [
     "",
     "Trịnh Phu Nhân 1",
     "Chi trưởng",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Không",
     "Hà Nội",
     "Nông dân",
     "Đã có gia đình",
@@ -167,12 +206,13 @@ const TEMPLATE_EXAMPLE: string[][] = [
     "",
     "",
     "",
-    "",
     "Khai cơ lập nghiệp tại Hà Nội.",
   ],
   [
     "Trịnh Phu Nhân 1",
     "Nữ",
+    "0",
+    "",
     "",
     "",
     "",
@@ -191,8 +231,13 @@ const TEMPLATE_EXAMPLE: string[][] = [
     "",
     "",
     "",
-    "Đã có gia đình",
     "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Đã có gia đình",
     "",
     "",
     "",
@@ -205,6 +250,8 @@ const TEMPLATE_EXAMPLE: string[][] = [
   [
     "Phạm Quý Công 2",
     "Nam",
+    "1",
+    "",
     "",
     "Trưởng chi",
     "",
@@ -221,6 +268,11 @@ const TEMPLATE_EXAMPLE: string[][] = [
     "Trịnh Phu Nhân 1",
     "",
     "Chi trưởng",
+    "",
+    "",
+    "",
+    "",
+    "",
     "",
     "",
     "",
@@ -265,6 +317,26 @@ function parseAlive(raw: string, deathDate: string): boolean {
   if (["không", "khong", "no", "n", "0", "đã mất"].includes(value)) return false;
   if (["có", "co", "yes", "y", "1", "còn sống"].includes(value)) return true;
   return !deathDate;
+}
+
+function parseNumber(raw: string): number | undefined {
+  const value = raw.trim();
+  if (!value) return undefined;
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+}
+
+function parseConfidence(raw: string): LinkConfidence | undefined {
+  const value = normHeader(raw);
+  if (!value) return undefined;
+  if (["chắc chắn", "chac chan", "certain"].includes(value)) return "certain";
+  if (["có thể", "co the", "probable"].includes(value)) return "probable";
+  if (["truyền miệng", "truyen mieng", "oral"].includes(value)) return "oral";
+  return "unknown";
+}
+
+function parseConventional(raw: string): boolean {
+  return ["có", "co", "yes", "y", "1", "true", "x"].includes(normHeader(raw));
 }
 
 function splitNames(raw: string): string[] {
@@ -326,6 +398,9 @@ export function buildTreeFromRows(rows: Record<string, unknown>[], treeName: str
       birthDate: row.birthDate || undefined,
       deathDate: row.deathDate || undefined,
       alive: parseAlive(row.alive, row.deathDate),
+      generation: parseNumber(row.generation),
+      ancestorOrder: Math.max(0, parseNumber(row.ancestorOrder) ?? 0) || undefined,
+      nameIsConventional: parseConventional(row.nameIsConventional) || undefined,
       title: row.title || undefined,
       generationNote: row.generationNote || undefined,
       tabooName: row.tabooName || undefined,
@@ -379,6 +454,7 @@ export function buildTreeFromRows(rows: Record<string, unknown>[], treeName: str
 
   const missingParents: string[] = [];
   const missingSpouses: string[] = [];
+  const missingLinks: string[] = [];
   const branchIds = new Map<string, string>();
   const branches: Branch[] = [];
 
@@ -411,10 +487,22 @@ export function buildTreeFromRows(rows: Record<string, unknown>[], treeName: str
       }
       person.branchId = branchId;
     }
+    if (row.linkTo) {
+      const target = findByName(row.linkTo);
+      if (!target) missingLinks.push(`${person.name} → liên kết “${row.linkTo}”`);
+      else if (target.id !== person.id) {
+        person.linkToId = target.id;
+        person.linkGap = Math.max(1, parseNumber(row.linkGap) ?? 1);
+        person.linkRelation = row.linkRelation || undefined;
+        person.linkConfidence = parseConfidence(row.linkConfidence);
+        person.linkNote = row.linkNote || undefined;
+      }
+    }
   });
 
   if (missingParents.length) warnings.push(`Không tìm thấy cha/mẹ: ${missingParents.join("; ")}.`);
   if (missingSpouses.length) warnings.push(`Không tìm thấy vợ/chồng: ${missingSpouses.join("; ")}.`);
+  if (missingLinks.length) warnings.push(`Không tìm thấy người để nối không trực hệ: ${missingLinks.join("; ")}.`);
 
   const now = new Date().toISOString();
   const tree: FamilyTree = {

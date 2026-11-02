@@ -22,6 +22,15 @@ export type ExtraFieldKey =
 
 export type GenerationBandLabel = "ordinal" | "ordinalName" | "generation";
 
+export type LinkConfidence = "certain" | "probable" | "oral" | "unknown";
+
+export const LINK_CONFIDENCE_LABELS: Record<LinkConfidence, string> = {
+  certain: "Chắc chắn",
+  probable: "Có thể",
+  oral: "Truyền miệng",
+  unknown: "Chưa rõ",
+};
+
 export interface GenerationStyle {
   orientation?: CardOrientation;
   showAvatar?: boolean;
@@ -54,6 +63,7 @@ export interface DiagramTuning {
   connectorColor?: string;
   connectorDash: boolean;
   tintByLevel: boolean;
+  showLinkGap: boolean;
   generationBandLabel: GenerationBandLabel;
   generationBandColor?: string;
   frameStyle: "none" | "wood" | "meander";
@@ -108,6 +118,18 @@ export interface Person {
   mandarinRank?: string;
   honors?: string;
   birthOrder: number;
+  /** Đời nội bộ: 0 = Khởi Tổ, 1.. = các đời sau, -1.. = bậc tiền tổ (gần nhất = -1). */
+  generation?: number;
+  /** Thứ tự bậc tiền tổ: 1 = xa nhất, tăng dần về phía Khởi Tổ. */
+  ancestorOrder?: number;
+  /** Nối không trực hệ tới một thành viên ở đời trên. */
+  linkToId?: string;
+  linkRelation?: string;
+  linkGap?: number;
+  linkConfidence?: LinkConfidence;
+  linkNote?: string;
+  /** Tên đang dùng là tên quy ước/tạm, chưa phải tên thật. */
+  nameIsConventional?: boolean;
   fatherId?: string;
   motherId?: string;
   spouseIds: string[];
@@ -210,12 +232,16 @@ export interface TreeEdge {
   y2: number;
   generation?: number;
   subjectId?: string;
+  fromId?: string;
+  toId?: string;
+  indirect?: boolean;
+  label?: string;
 }
 
 export interface TreeLayout {
   nodes: TreeNode[];
   edges: TreeEdge[];
-  generations: { generation: number; count: number; y: number }[];
+  generations: { generation: number; count: number; y: number; label?: string; isAncestor?: boolean }[];
   width: number;
   height: number;
 }
@@ -256,6 +282,8 @@ export function cardDimsFor(
 }
 
 export const ANCESTOR_TITLES = [
+  "Đại tổ",
+  "Thượng tổ",
   "Thủy tổ",
   "Khởi tổ",
   "Viễn tổ",
@@ -413,6 +441,7 @@ export const DEFAULT_TUNING: DiagramTuning = {
   connectorColor: "",
   connectorDash: false,
   tintByLevel: false,
+  showLinkGap: true,
   generationBandLabel: "ordinal",
   generationBandColor: "",
   frameStyle: "none",
@@ -442,6 +471,7 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
     marginLeft: clampNumber(tuning?.marginLeft, DEFAULT_TUNING.marginLeft, 20, 240),
     marginRight: clampNumber(tuning?.marginRight, DEFAULT_TUNING.marginRight, 20, 240),
     connectorWidth: clampNumber(tuning?.connectorWidth, DEFAULT_TUNING.connectorWidth, 1, 20),
+    showLinkGap: tuning?.showLinkGap ?? DEFAULT_TUNING.showLinkGap,
     frameScale: clampNumber(tuning?.frameScale, DEFAULT_TUNING.frameScale, 0.5, 2),
     fontSize: clampNumber(tuning?.fontSize, DEFAULT_TUNING.fontSize, 7, 24),
     lineCount: Math.round(clampNumber(tuning?.lineCount, DEFAULT_TUNING.lineCount, 1, 5)),
@@ -486,5 +516,21 @@ export function bandLabelFor(style: GenerationBandLabel, generation: number) {
     default:
       return `ĐỜI ${generation}`;
   }
+}
+
+export function ancestorLabelFor(style: GenerationBandLabel, tier: number) {
+  switch (style) {
+    case "ordinalName":
+      return `TIỀN TỔ THỨ ${tier}`;
+    case "generation":
+      return `BẬC TIỀN TỔ ${tier}`;
+    default:
+      return `TIỀN TỔ ${tier}`;
+  }
+}
+
+/** Nhãn ngắn dùng trong danh sách, huy hiệu và biểu mẫu. */
+export function generationTag(generation: number): string {
+  return generation < 0 ? `Tiền tổ ${-generation}` : `Đời ${generation}`;
 }
 

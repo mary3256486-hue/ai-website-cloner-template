@@ -1,5 +1,5 @@
 import type { FamilyTree } from "./types";
-import { normalizeCustomPaper, PAPER_MM } from "./types";
+import { LINK_CONFIDENCE_LABELS, normalizeCustomPaper, PAPER_MM } from "./types";
 import type { TreeLayout } from "./types";
 import { computeLayout } from "./layout";
 import { byId, computeGenerations, lifeSpan } from "./utils";
@@ -37,6 +37,7 @@ export function exportMembersCsv(tree: FamilyTree) {
     "Họ tên",
     "Giới tính",
     "Đời",
+    "Bậc tiền tổ",
     "Danh xưng",
     "Thế thứ",
     "Tên húy",
@@ -53,6 +54,12 @@ export function exportMembersCsv(tree: FamilyTree) {
     "Mẹ",
     "Vợ/chồng",
     "Nhánh",
+    "Liên kết tới",
+    "Quan hệ liên kết",
+    "Cách mấy đời",
+    "Độ tin cậy",
+    "Ghi chú liên kết",
+    "Tên quy ước",
     "Nguyên quán",
     "Nghề nghiệp",
     "Hôn nhân",
@@ -67,10 +74,12 @@ export function exportMembersCsv(tree: FamilyTree) {
   ];
   const lines = tree.members.map((m) => {
     const branch = tree.branches.find((b) => b.id === m.branchId)?.name;
+    const generation = gens.get(m.id) ?? 1;
     return [
       m.name,
       m.gender === "male" ? "Nam" : "Nữ",
-      gens.get(m.id) ?? 1,
+      generation >= 0 ? generation : "",
+      m.ancestorOrder,
       m.title,
       m.generationNote,
       m.tabooName,
@@ -87,6 +96,12 @@ export function exportMembersCsv(tree: FamilyTree) {
       m.motherId ? map.get(m.motherId)?.name : "",
       m.spouseIds.map((id) => map.get(id)?.name).filter(Boolean).join("; "),
       branch,
+      m.linkToId ? map.get(m.linkToId)?.name : "",
+      m.linkRelation,
+      m.linkGap,
+      m.linkConfidence ? LINK_CONFIDENCE_LABELS[m.linkConfidence] : "",
+      m.linkNote,
+      m.nameIsConventional ? "Có" : "Không",
       m.hometown,
       m.occupation,
       m.maritalStatus,

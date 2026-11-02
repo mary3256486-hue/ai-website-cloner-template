@@ -683,7 +683,7 @@ export function HomeView() {
           <SheetRow
             icon={<BookOpen size={18} />}
             title="Gia phả mẫu"
-            subtitle="Xem bản dựng sẵn 4 đời để học cách trình bày"
+            subtitle="Xem bản dựng sẵn đủ bậc tiền tổ và các đời để học cách trình bày"
             onClick={() => {
               setHelpOpen(false);
               selectTab("mau");
@@ -933,7 +933,7 @@ function SampleTab({
         <div className="relative">
           <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">Chưa có gia phả mẫu</p>
           <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[var(--pat-muted)]">
-            Khôi phục bản mẫu 4 đời để xem cách ghi chép thành viên, nhánh họ và trình bày phả đồ.
+            Khôi phục bản mẫu đầy đủ để xem cách ghi chép thành viên, bậc tiền tổ, nhánh họ và trình bày phả đồ.
           </p>
           <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={onRestoreSample}>
             <Sparkles size={15} /> Khôi phục gia phả mẫu
@@ -945,7 +945,11 @@ function SampleTab({
 
   const stats = getStats(sample);
   const highlights = [
-    { icon: Users, label: `${stats.total} thành viên`, hint: `Đủ ${stats.generations} đời, có vợ/chồng và con cái` },
+    {
+      icon: Users,
+      label: `${stats.total} thành viên`,
+      hint: `${stats.generations} đời${stats.ancestorTiers ? ` và ${stats.ancestorTiers} bậc tiền tổ` : ""}, có vợ/chồng và con cái`,
+    },
     { icon: GitBranch, label: `${sample.branches.length} chi, cành`, hint: "Nhánh họ tách rõ, có trưởng nhánh" },
     { icon: PenTool, label: "Phả đồ in sẵn", hint: "Khung ngang/dọc, xuất PDF và PNG" },
   ];
@@ -972,7 +976,7 @@ function SampleTab({
 
           <div className="mt-4 grid grid-cols-3 divide-x divide-white/15 rounded-xl border border-[rgba(231,206,139,0.35)] bg-black/10 py-2.5 text-center">
             {[
-              [stats.generations, "Đời"],
+              [stats.ancestorTiers ? `${stats.generations}+${stats.ancestorTiers}` : stats.generations, stats.ancestorTiers ? "Đời · bậc tổ" : "Đời"],
               [stats.total, "Thành viên"],
               [sample.branches.length, "Nhánh"],
             ].map(([value, label]) => (
@@ -1304,7 +1308,9 @@ function ArchiveCard({
           <span className="inline-flex items-center gap-1">
             <Users size={12} /> {stats.total} người
           </span>
-          <span>{stats.generations} đời</span>
+          <span>
+            {stats.generations} đời{stats.ancestorTiers ? ` · ${stats.ancestorTiers} bậc tổ` : ""}
+          </span>
           <span className="inline-flex items-center gap-1">
             <CalendarDays size={12} /> {formatDate(tree.updatedAt)}
           </span>

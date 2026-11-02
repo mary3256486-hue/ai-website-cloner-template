@@ -86,8 +86,8 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
   const generationStats = getGenerationStats(tree);
   const gens = computeGenerations(tree.members);
   const founder = tree.members
-    .filter((member) => (gens.get(member.id) ?? 1) === 1)
-    .sort((a, b) => a.birthOrder - b.birthOrder)[0];
+    .filter((member) => (gens.get(member.id) ?? 1) >= 0)
+    .sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || a.birthOrder - b.birthOrder)[0];
   const sortedBranches = tree.branches;
 
   const open = (href: string) => router.push(`/gia-pha/${tree.id}/${href}`);
@@ -97,7 +97,9 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="trang-chu"
       title={tree.name}
-      subtitle={`${stats.total} thành viên · ${stats.generations} đời`}
+      subtitle={`${stats.total} thành viên · ${stats.generations} đời${
+        stats.ancestorTiers ? ` · ${stats.ancestorTiers} bậc tiền tổ` : ""
+      }`}
       actions={
         <button
           type="button"
@@ -134,7 +136,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
 
             <div className="mt-4 grid grid-cols-4 divide-x divide-white/15 rounded-xl border border-[rgba(231,206,139,0.35)] bg-black/10 py-2.5 text-center">
               {[
-                [stats.generations, "Đời"],
+                [stats.ancestorTiers ? `${stats.generations}+${stats.ancestorTiers}` : stats.generations, stats.ancestorTiers ? "Đời · bậc tổ" : "Đời"],
                 [stats.total, "Thành viên"],
                 [tree.branches.length, "Nhánh"],
                 [stats.alive, "Còn sống"],
@@ -218,7 +220,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                     className="flex w-full items-center gap-3 text-left"
                   >
                     <span className="w-14 shrink-0 text-[0.65rem] font-bold uppercase tracking-wide text-[var(--pat-muted)]">
-                      Đời {row.generation}
+                      {row.label}
                     </span>
                     <span className="h-2 flex-1 overflow-hidden rounded-full bg-[#f3e6cd]">
                       <span
@@ -291,7 +293,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
 
         {founder ? (
           <section className="pat-card px-4 py-4">
-            <SectionTitle icon={<Crown size={13} />} title="Thủy tổ" />
+            <SectionTitle icon={<Crown size={13} />} title={founder.title || "Khởi tổ"} />
             <div className="flex items-center gap-3">
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--pat-red)] to-[#b7791f] text-lg font-semibold text-[#fff4df]">
                 {initials(founder.name)}
@@ -429,7 +431,11 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               <Stat value={stats.total} label="Thành viên" />
             </div>
             <div className="flex justify-center">
-              <Stat value={stats.generations} label="Đời" tone="red" />
+              <Stat
+                value={stats.ancestorTiers ? `${stats.generations}+${stats.ancestorTiers}` : stats.generations}
+                label={stats.ancestorTiers ? "Đời · bậc tổ" : "Đời"}
+                tone="red"
+              />
             </div>
             <div className="flex justify-center">
               <Stat value={tree.branches.length} label="Nhánh" />

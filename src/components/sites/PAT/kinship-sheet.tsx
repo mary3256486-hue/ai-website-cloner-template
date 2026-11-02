@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { ArrowLeftRight, Info, UserRound } from "lucide-react";
 import type { FamilyTree } from "./types";
-import { computeGenerations, kinship, kinshipText, sortPersons } from "./utils";
+import { generationTag } from "./types";
+import { computeGenerations, kinship, kinshipText, sortGenerations, sortPersons } from "./utils";
 import { Avatar, Badge, Field, Sheet } from "./ui";
 
 export function KinshipSheet({
@@ -21,7 +22,11 @@ export function KinshipSheet({
 }) {
   const generations = useMemo(() => computeGenerations(tree.members), [tree.members]);
   const options = useMemo(
-    () => [...tree.members].sort((a, b) => (generations.get(a.id) ?? 1) - (generations.get(b.id) ?? 1) || sortPersons(a, b)),
+    () =>
+      [...tree.members].sort(
+        (a, b) =>
+          sortGenerations(generations.get(a.id) ?? 1, generations.get(b.id) ?? 1) || sortPersons(a, b),
+      ),
     [tree.members, generations],
   );
   const [aId, setAId] = useState(initialA ?? tree.members[0]?.id ?? "");
@@ -47,7 +52,7 @@ export function KinshipSheet({
                 <option value="">Chọn thành viên</option>
                 {options.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} · đời {generations.get(p.id) ?? 1}
+                    {p.name} · {generationTag(generations.get(p.id) ?? 1)}
                   </option>
                 ))}
               </select>
@@ -58,7 +63,7 @@ export function KinshipSheet({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{a.name}</p>
                   <p className="text-[0.66rem] text-[var(--pat-muted)]">
-                    Đời {generations.get(a.id) ?? 1} · {a.gender === "male" ? "Nam" : "Nữ"}
+                    {generationTag(generations.get(a.id) ?? 1)} · {a.gender === "male" ? "Nam" : "Nữ"}
                   </p>
                 </div>
               </div>
@@ -83,7 +88,7 @@ export function KinshipSheet({
                 <option value="">Chọn thành viên</option>
                 {options.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} · đời {generations.get(p.id) ?? 1}
+                    {p.name} · {generationTag(generations.get(p.id) ?? 1)}
                   </option>
                 ))}
               </select>
@@ -94,7 +99,7 @@ export function KinshipSheet({
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{b.name}</p>
                   <p className="text-[0.66rem] text-[var(--pat-muted)]">
-                    Đời {generations.get(b.id) ?? 1} · {b.gender === "male" ? "Nam" : "Nữ"}
+                    {generationTag(generations.get(b.id) ?? 1)} · {b.gender === "male" ? "Nam" : "Nữ"}
                   </p>
                 </div>
               </div>

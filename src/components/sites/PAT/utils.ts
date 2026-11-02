@@ -1,4 +1,5 @@
 import type { FamilyTree, Person } from "./types";
+import { generationTag } from "./types";
 
 export function uid(prefix = "id"): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`;
@@ -11,29 +12,66 @@ export function byId(tree: FamilyTree): Map<string, Person> {
 export function computeGenerations(members: Person[]): Map<string, number> {
   const ids = new Set(members.map((m) => m.id));
   const gen = new Map<string, number>();
+  const locked = new Set<string>();
+
   for (const p of members) {
-    const hasFather = p.fatherId && ids.has(p.fatherId);
-    const hasMother = p.motherId && ids.has(p.motherId);
-    if (!hasFather && !hasMother) gen.set(p.id, 1);
+    if (p.ancestorOrder && p.ancestorOrder > 0) {
+      // Bậc 1 là xa nhất nên nhận hàng âm nhỏ nhất; các bậc sau lùi dần về Đời 0.
+      gen.set(p.id, -p.ancestorOrder);
+      locked.add(p.id);
+    } else if (typeof p.generation === "number" && Number.isFinite(p.generation)) {
+      gen.set(p.id, Math.trunc(p.generation));
+      locked.add(p.id);
+    }
   }
-  for (let pass = 0; pass < 30; pass++) {
+
+  for (let pass = 0; pass < 60; pass++) {
     let changed = false;
     for (const p of members) {
-      let next = gen.get(p.id) ?? 0;
-      if (p.fatherId && ids.has(p.fatherId)) next = Math.max(next, (gen.get(p.fatherId) ?? 0) + 1);
-      if (p.motherId && ids.has(p.motherId)) next = Math.max(next, (gen.get(p.motherId) ?? 0) + 1);
-      for (const sid of p.spouseIds) {
-        if (ids.has(sid)) next = Math.max(next, gen.get(sid) ?? 0);
+      if (locked.has(p.id)) continue;
+      let next = gen.get(p.id);
+      if (p.fatherId && ids.has(p.fatherId)) {
+        const parentGen = gen.get(p.fatherId);
+        if (parentGen !== undefined) next = next === undefined ? parentGen + 1 : Math.max(next, parentGen + 1);
       }
-      if (next > 0 && next !== gen.get(p.id)) {
+      if (p.motherId && ids.has(p.motherId)) {
+        const parentGen = gen.get(p.motherId);
+        if (parentGen !== undefined) next = next === undefined ? parentGen + 1 : Math.max(next, parentGen + 1);
+      }
+      if (p.linkToId && ids.has(p.linkToId)) {
+        const targetGen = gen.get(p.linkToId);
+        if (targetGen !== undefined) {
+          const linked = targetGen + Math.max(1, Math.trunc(p.linkGap ?? 1));
+          next = next === undefined ? linked : Math.max(next, linked);
+        }
+      }
+      for (const sid of p.spouseIds) {
+        if (!ids.has(sid)) continue;
+        const spouseGen = gen.get(sid);
+        if (spouseGen === undefined) continue;
+        next = next === undefined ? spouseGen : Math.max(next, spouseGen);
+      }
+      if (next !== undefined && next !== gen.get(p.id)) {
         gen.set(p.id, next);
         changed = true;
       }
     }
     if (!changed) break;
   }
-  for (const p of members) if (!gen.get(p.id)) gen.set(p.id, 1);
+  for (const p of members) if (gen.get(p.id) === undefined) gen.set(p.id, 1);
   return gen;
+}
+
+/** Liên kết không trực hệ: người này chỉ nối xuống đời sau, không phải cha/mẹ ruột. */
+export function isIndirectLink(p: Person): boolean {
+  return Boolean(p.linkToId && p.linkToId !== p.fatherId && p.linkToId !== p.motherId);
+}
+
+export function linkLabel(p: Person): string {
+  if (!isIndirectLink(p)) return "";
+  const gap = Math.trunc(p.linkGap ?? 1);
+  if (gap > 1) return `cách ${gap} đời`;
+  return p.linkRelation?.trim() || "nối phả hệ";
 }
 
 export interface FamilyIndex {
@@ -50,11 +88,14 @@ export function buildFamilyIndex(members: Person[]): FamilyIndex {
   const bloodline = new Set<string>();
   for (const p of members) {
     if ((p.fatherId && ids.has(p.fatherId)) || (p.motherId && ids.has(p.motherId))) bloodline.add(p.id);
+    if (p.linkToId && ids.has(p.linkToId)) bloodline.add(p.id);
+    if (p.ancestorOrder && p.ancestorOrder > 0) bloodline.add(p.id);
   }
   const anchor = new Set<string>();
   for (const p of members) {
     if (p.fatherId && ids.has(p.fatherId)) anchor.add(p.fatherId);
     else if (p.motherId && ids.has(p.motherId)) anchor.add(p.motherId);
+    if (p.linkToId && ids.has(p.linkToId)) anchor.add(p.linkToId);
   }
   for (const p of members) {
     if (p.fatherId || p.motherId) continue;
@@ -65,6 +106,7 @@ export function buildFamilyIndex(members: Person[]): FamilyIndex {
   const lineParent = (p: Person): string | undefined => {
     if (p.fatherId && ids.has(p.fatherId) && bloodline.has(p.fatherId)) return p.fatherId;
     if (p.motherId && ids.has(p.motherId) && bloodline.has(p.motherId)) return p.motherId;
+    if (p.linkToId && ids.has(p.linkToId) && bloodline.has(p.linkToId)) return p.linkToId;
     if (p.fatherId && ids.has(p.fatherId)) return p.fatherId;
     if (p.motherId && ids.has(p.motherId)) return p.motherId;
     return undefined;
@@ -122,7 +164,7 @@ export function descendants(members: Person[], id: string): Set<string> {
     if (!current) continue;
     for (const m of members) {
       if (out.has(m.id)) continue;
-      if (m.fatherId === current || m.motherId === current) {
+      if (m.fatherId === current || m.motherId === current || m.linkToId === current) {
         out.add(m.id);
         stack.push(m.id);
       }
@@ -144,6 +186,7 @@ export function ancestorsOf(members: Person[], id: string): Map<string, number> 
     if (!p) continue;
     if (p.fatherId) queue.push({ id: p.fatherId, d: d + 1 });
     if (p.motherId) queue.push({ id: p.motherId, d: d + 1 });
+    if (p.linkToId) queue.push({ id: p.linkToId, d: d + Math.max(1, Math.trunc(p.linkGap ?? 1)) });
   }
   return result;
 }
@@ -167,22 +210,42 @@ export function getStats(tree: FamilyTree) {
   const female = total - male;
   const alive = tree.members.filter((m) => m.alive).length;
   const generations = computeGenerations(tree.members);
-  const maxGen = Math.max(1, ...Array.from(generations.values()));
-  return { total, male, female, alive, deceased: total - alive, generations: maxGen };
+  const values = Array.from(generations.values());
+  const ancestorTiers = new Set(values.filter((value) => value < 0).map((value) => -value)).size;
+  return {
+    total,
+    male,
+    female,
+    alive,
+    deceased: total - alive,
+    generations: new Set(values.filter((value) => value >= 0)).size,
+    ancestorTiers,
+    ancestors: values.filter((value) => value < 0).length,
+  };
 }
 
 export function getGenerationStats(tree: FamilyTree) {
   const gens = computeGenerations(tree.members);
-  const rows = new Map<number, { generation: number; male: number; female: number; total: number }>();
+  const rows = new Map<
+    number,
+    { generation: number; male: number; female: number; total: number; label: string; isAncestor: boolean }
+  >();
   for (const m of tree.members) {
     const g = gens.get(m.id) ?? 1;
-    const row = rows.get(g) ?? { generation: g, male: 0, female: 0, total: 0 };
+    const row =
+      rows.get(g) ??
+      { generation: g, male: 0, female: 0, total: 0, label: generationTag(g), isAncestor: g < 0 };
     row.total += 1;
     if (m.gender === "male") row.male += 1;
     else row.female += 1;
     rows.set(g, row);
   }
-  return Array.from(rows.values()).sort((a, b) => a.generation - b.generation);
+  return Array.from(rows.values()).sort((a, b) => sortGenerations(a.generation, b.generation));
+}
+
+export function sortGenerations(a: number, b: number) {
+  if (a < 0 && b < 0) return b - a;
+  return a - b;
 }
 
 export function lifeSpan(person: Person): string {
@@ -308,6 +371,7 @@ function parentOnPathToLca(members: Person[], childId: string, lcaId: string): P
   const child = byIdMap.get(childId);
   if (!child) return undefined;
   const candidates = [child.fatherId, child.motherId].filter(Boolean) as string[];
+  if (child.linkToId && !candidates.includes(child.linkToId)) candidates.push(child.linkToId);
   for (const pid of candidates) {
     const parent = byIdMap.get(pid);
     if (!parent) continue;

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
+import { generationTag } from "./types";
 import {
   ageText,
   buildFamilyIndex,
@@ -32,6 +33,7 @@ import {
   getGenerationStats,
   getStats,
   lifeSpan,
+  sortGenerations,
   sortPersons,
 } from "./utils";
 import { exportBackup, exportMembersCsv } from "./export";
@@ -120,7 +122,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       }
       const ga = gens.get(a.id) ?? 1;
       const gb = gens.get(b.id) ?? 1;
-      if (ga !== gb) return ga - gb;
+      if (ga !== gb) return sortGenerations(ga, gb);
       return sortPersons(a, b);
     });
   }, [tree.members, query, gen, branch, gender, status, sort, gens, branchName]);
@@ -180,7 +182,10 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             <Stat value={stats.total} label="Thành viên" tone="red" />
             <Stat value={stats.male} label="Nam" />
             <Stat value={stats.female} label="Nữ" />
-            <Stat value={stats.generations} label="Đời" />
+            <Stat
+              value={stats.ancestorTiers ? `${stats.generations}+${stats.ancestorTiers}` : stats.generations}
+              label={stats.ancestorTiers ? "Đời · bậc tổ" : "Đời"}
+            />
           </div>
         </section>
 
@@ -235,7 +240,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
               data-active={gen === row.generation}
               onClick={() => setGen(row.generation)}
             >
-              Đời {row.generation}
+              {row.label}
               <span className="text-[0.68rem] opacity-80">{row.total}</span>
             </button>
           ))}
@@ -312,7 +317,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                         </p>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[0.65rem]">
                           <span className="inline-flex items-center gap-1 rounded-full bg-[#f6e9c8] px-2 py-0.5 font-semibold text-[#7a5a10]">
-                            Đời {gens.get(person.id) ?? 1}
+                            {generationTag(gens.get(person.id) ?? 1)}
                           </span>
                           <span className="inline-flex items-center gap-1 text-[var(--pat-muted)]">
                             <UserRound size={11} /> {person.gender === "male" ? "Nam" : "Nữ"}
@@ -443,7 +448,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
         <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--pat-muted)]">
           <Info size={15} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
           <p>
-            Đời được tính tự động từ liên kết cha/mẹ. Chạm vào thẻ để mở hồ sơ, hoặc dùng bút chì để sửa nhanh.
+            Đời được tính tự động từ liên kết cha/mẹ, nối không trực hệ hoặc bậc tiền tổ. Chạm vào thẻ để mở hồ sơ,
+            hoặc dùng bút chì để sửa nhanh.
           </p>
         </div>
       </div>
@@ -452,6 +458,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
         <h1 className="pat-serif text-2xl font-bold">{tree.name}</h1>
         <p className="mt-1 text-sm">
           Danh sách thành viên · {filtered.length} người · {stats.generations} đời
+          {stats.ancestorTiers ? ` · ${stats.ancestorTiers} bậc tiền tổ` : ""}
         </p>
         <table className="mt-4 w-full border-collapse text-xs">
           <thead>
@@ -459,7 +466,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
               <th className="py-1 pr-2">STT</th>
               <th className="py-1 pr-2">Họ tên</th>
               <th className="py-1 pr-2">Giới tính</th>
-              <th className="py-1 pr-2">Đời</th>
+              <th className="py-1 pr-2">Đời / bậc tổ</th>
               <th className="py-1 pr-2">Sinh</th>
               <th className="py-1 pr-2">Mất</th>
               <th className="py-1 pr-2">Cha</th>
@@ -473,7 +480,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                 <td className="py-1 pr-2">{i + 1}</td>
                 <td className="py-1 pr-2 font-semibold">{person.name}</td>
                 <td className="py-1 pr-2">{person.gender === "male" ? "Nam" : "Nữ"}</td>
-                <td className="py-1 pr-2">{gens.get(person.id) ?? 1}</td>
+                <td className="py-1 pr-2">{generationTag(gens.get(person.id) ?? 1)}</td>
                 <td className="py-1 pr-2">{person.birthDate ?? ""}</td>
                 <td className="py-1 pr-2">{person.deathDate ?? ""}</td>
                 <td className="py-1 pr-2">{tree.members.find((m) => m.id === person.fatherId)?.name ?? ""}</td>
@@ -557,7 +564,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                   data-active={gen === row.generation}
                   onClick={() => setGen(row.generation)}
                 >
-                  Đời {row.generation} ({row.total})
+                  {row.label} ({row.total})
                 </button>
               ))}
             </div>

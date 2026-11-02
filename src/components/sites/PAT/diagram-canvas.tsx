@@ -14,6 +14,7 @@ import type {
 import {
   bandLabelFor,
   cardOrientationFor,
+  generationTag,
   normalizeBackgroundImage,
   normalizeBanner,
   normalizeTuning,
@@ -139,13 +140,14 @@ function extraFieldText(key: ExtraFieldKey, person: Person, generation: number) 
       return `Thọ ${death - birth} tuổi`;
     }
     case "generation":
-      return `Đời ${generation}`;
+      return generationTag(generation);
     default:
       return undefined;
   }
 }
 
 function edgeMembers(edge: TreeEdge): string[] {
+  if (edge.fromId && edge.toId) return [edge.fromId, edge.toId];
   if (edge.type === "spouse") return edge.id.replace(/^sp-/, "").split("-");
   const parts = edge.id.split("-");
   return [parts[1], parts[2]];
@@ -487,13 +489,14 @@ export function DiagramCanvas({
       <g transform={`translate(${offsetX}, ${top + offsetY})`}>
         {settings.showGenerationLabels
           ? layout.generations.map((row) => {
-              const label = bandLabelFor(tuning.generationBandLabel, row.generation);
+              const label = row.label ?? bandLabelFor(tuning.generationBandLabel, row.generation);
+              const bandW = Math.max(86, Math.min(160, label.length * 5.4 + 18));
               return (
                 <g key={`gen-${row.generation}`}>
                   <rect
                     x="34"
                     y={row.y - 28}
-                    width="86"
+                    width={bandW}
                     height="20"
                     rx="10"
                     fill={bandColor}
@@ -503,7 +506,7 @@ export function DiagramCanvas({
                     strokeWidth="0.7"
                   />
                   <text
-                    x="77"
+                    x={34 + bandW / 2}
                     y={row.y - 14}
                     textAnchor="middle"
                     fontSize="7.2"
@@ -515,7 +518,7 @@ export function DiagramCanvas({
                     {label}
                   </text>
                   <line
-                    x1="126"
+                    x1={34 + bandW + 6}
                     x2={contentW - 42}
                     y1={row.y - 18}
                     y2={row.y - 18}
@@ -534,8 +537,10 @@ export function DiagramCanvas({
               ? tuning.personStyles?.[edge.subjectId]?.lineColor
               : undefined;
             const tint =
-              tuning.tintByLevel && edge.generation
-                ? tintColors[(edge.generation - 1) % tintColors.length]
+              tuning.tintByLevel && edge.generation !== undefined
+                ? tintColors[
+                    ((edge.generation % tintColors.length) + tintColors.length) % tintColors.length
+                  ]
                 : undefined;
             const stroke =
               personLineColor ||
@@ -550,14 +555,69 @@ export function DiagramCanvas({
                 x2={edge.x2}
                 y2={edge.y2}
                 stroke={stroke}
-                strokeOpacity={connectorColor || personLineColor || tint ? 0.85 : edge.type === "spouse" ? 0.7 : 0.55}
+                strokeOpacity={
+                  connectorColor || personLineColor || tint
+                    ? 0.85
+                    : edge.type === "spouse"
+                      ? 0.7
+                      : edge.indirect
+                        ? 0.8
+                        : 0.55
+                }
                 strokeWidth={tuning.connectorWidth * (edge.type === "spouse" ? 1.08 : 1)}
-                strokeDasharray={tuning.connectorDash ? "6 4" : edge.type === "spouse" ? "5 3" : undefined}
+                strokeDasharray={
+                  edge.indirect
+                    ? "5 4"
+                    : tuning.connectorDash
+                      ? "6 4"
+                      : edge.type === "spouse"
+                        ? "5 3"
+                        : undefined
+                }
                 strokeLinecap="round"
               />
             );
           })}
         </g>
+
+        {tuning.showLinkGap ? (
+          <g>
+            {layout.edges
+              .filter((edge) => edge.label && edgeVisible(edge))
+              .map((edge) => {
+                const label = edge.label ?? "";
+                const boxW = Math.max(28, label.length * 3.4 + 10);
+                return (
+                  <g
+                    key={`lbl-${edge.id}`}
+                    transform={`translate(${(edge.x1 + edge.x2) / 2}, ${(edge.y1 + edge.y2) / 2 - 1})`}
+                  >
+                    <rect
+                      x={-boxW / 2}
+                      y={-6}
+                      width={boxW}
+                      height={11}
+                      rx={5.5}
+                      fill={palette.soft}
+                      stroke={palette.gold}
+                      strokeOpacity="0.45"
+                      strokeWidth="0.6"
+                    />
+                    <text
+                      y="2.4"
+                      textAnchor="middle"
+                      fontSize="6.2"
+                      fontWeight="600"
+                      fill={palette.accent}
+                      fontFamily="'Be Vietnam Pro', sans-serif"
+                    >
+                      {label}
+                    </text>
+                  </g>
+                );
+              })}
+          </g>
+        ) : null}
 
         <g>
           {layout.nodes
@@ -584,7 +644,8 @@ export function DiagramCanvas({
               const anniversary = person.deathAnniversary?.trim();
               const showAnniversary =
                 (genStyle?.showDeathAnniversary ?? settings.showDeathAnniversary === true) && Boolean(anniversary);
-              const title = person.title || `ĐỜI ${isGen(node)}`;
+              const title =
+                person.title || (isGen(node) < 0 ? `TIỀN TỔ ${-isGen(node)}` : `ĐỜI ${isGen(node)}`);
               const meta: string[] = [];
               if (showDates) meta.push(lifeSpan(person));
               if (showAnniversary && anniversary) meta.push(`Giỗ: ${anniversary}`);
@@ -831,7 +892,11 @@ export function DiagramCanvas({
 
       <g transform={`translate(${width - 74}, ${height - 20})`} opacity="0.45">
         <text fontSize="8" fill={palette.accent} textAnchor="end" fontFamily="'Be Vietnam Pro', sans-serif">
-          {tree.members.length} thành viên · {layout.generations.length} đời
+          {tree.members.length} thành viên ·{" "}
+          {layout.generations.filter((row) => !row.isAncestor).length} đời
+          {layout.generations.some((row) => row.isAncestor)
+            ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tiền tổ`
+            : ""}
         </text>
       </g>
 

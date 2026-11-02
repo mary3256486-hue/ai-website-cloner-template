@@ -2,7 +2,7 @@
 
 import { RotateCcw } from "lucide-react";
 import type { CardOrientation, DesignSettings } from "./types";
-import { cardOrientationFor } from "./types";
+import { cardOrientationFor, generationTag } from "./types";
 import { Field, Segmented } from "./ui";
 
 export function CardOrientationPicker({
@@ -61,7 +61,7 @@ export function CardOrientationPicker({
             return (
               <div key={row.generation} className="flex items-center gap-2 px-3 py-2">
                 <span className="min-w-0 flex-1 text-xs font-semibold">
-                  Đời {row.generation}
+                  {generationTag(row.generation)}
                   <span className="ml-1 font-normal text-[var(--pat-muted)]">· {row.count} người</span>
                 </span>
                 {isOverride ? (

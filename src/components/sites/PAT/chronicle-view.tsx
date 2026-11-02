@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BookOpen, Check, Feather, GitBranch, Printer, Sparkles, Users } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
+import { generationTag } from "./types";
 import {
   buildFamilyIndex,
   careerSummary,
@@ -12,6 +13,7 @@ import {
   getStats,
   lifeSpan,
   nameAliases,
+  sortGenerations,
   sortPersons,
 } from "./utils";
 import { TreeShell } from "./app-shell";
@@ -26,8 +28,8 @@ function draftHistory(tree: FamilyTree) {
   const gens = computeGenerations(tree.members);
   const stats = getStats(tree);
   const founder = tree.members
-    .filter((member) => index.bloodline.has(member.id) && (gens.get(member.id) ?? 1) === 1)
-    .sort(sortPersons)[0];
+    .filter((member) => index.bloodline.has(member.id) && (gens.get(member.id) ?? 1) >= 0)
+    .sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || sortPersons(a, b))[0];
   const branchLines = tree.branches
     .map((branch) => {
       const head = tree.members.find((member) => member.id === branch.headId);
@@ -43,7 +45,9 @@ function draftHistory(tree: FamilyTree) {
       }${founder.officeTitle ? `, từng giữ chức ${founder.officeTitle}` : ""}.`
     : "Cội nguồn dòng họ được con cháu ghi chép lại qua các đời.";
   const firstParagraph = `Dòng họ ${tree.name}${tree.address ? ` hiện cư trú tại ${tree.address}` : ""}. ${origin} Từ thuở khai cơ lập nghiệp, tổ tiên đã dựng nhà, mở đất, truyền lại nếp sống cần kiệm, hiếu học và trọng tình nghĩa để con cháu đời sau noi theo.`;
-  const secondParagraph = `Trải qua ${stats.generations} đời, dòng họ hiện có ${stats.total} thành viên, trong đó ${stats.male} nam và ${stats.female} nữ${
+  const secondParagraph = `Trải qua ${stats.generations} đời${
+    stats.ancestorTiers ? ` cùng ${stats.ancestorTiers} bậc tiền tổ` : ""
+  }, dòng họ hiện có ${stats.total} thành viên, trong đó ${stats.male} nam và ${stats.female} nữ${
     stats.alive ? `, ${stats.alive} người còn sống` : ""
   }. ${branchLines ? `Các chi, cành trong họ gồm: ${branchLines}.` : "Dòng họ chưa tách thành các chi, cành riêng."}`;
   const thirdParagraph =
@@ -97,10 +101,23 @@ function MemberLine({
         ) : null}
       </span>
       <span className="shrink-0 text-[0.7rem] text-[var(--pat-muted)]">
-        Đời {generation} · {lifeSpan(person)}
+        {generationTag(generation)} · {lifeSpan(person)}
       </span>
     </li>
   );
+}
+
+function generationTitle(generation: number, members: Person[]) {
+  if (generation === 0) return "Đời 0";
+  if (generation > 0) return `Đời thứ ${generation}`;
+  const titles = Array.from(
+    new Set(
+      members
+        .map((member) => member.title?.trim())
+        .filter((title): title is string => Boolean(title)),
+    ),
+  );
+  return titles.length ? titles.slice(0, 2).join(" · ").toLocaleUpperCase("vi") : `Bậc tiền tổ ${-generation}`;
 }
 
 function GenerationPages({ generation, members }: { generation: number; members: Person[] }) {
@@ -189,7 +206,7 @@ function GenerationPages({ generation, members }: { generation: number; members:
       <div ref={measureRef} aria-hidden className="no-print invisible pointer-events-none absolute inset-x-0 top-0">
         <Page>
           <div data-measure-heading>
-            <PageHeading eyebrow="Thế thứ" title={`Đời thứ ${generation}`} />
+            <PageHeading eyebrow="Thế thứ" title={generationTitle(generation, members)} />
           </div>
           <ul data-measure-list className="grid gap-x-8 sm:grid-cols-2">
             {members.map((person) => (
@@ -205,7 +222,7 @@ function GenerationPages({ generation, members }: { generation: number; members:
             eyebrow={`Thế thứ · ${members.length} người${
               pages.length > 1 ? ` · ${index + 1}/${pages.length}` : ""
             }`}
-            title={`Đời thứ ${generation}`}
+            title={generationTitle(generation, members)}
           />
           <ul className="grid gap-x-8 sm:grid-cols-2">
             {page.map((person) => (
@@ -232,8 +249,8 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
   const founder = useMemo(
     () =>
       tree.members
-        .filter((member) => index.bloodline.has(member.id) && (gens.get(member.id) ?? 1) === 1)
-        .sort(sortPersons)[0],
+        .filter((member) => index.bloodline.has(member.id) && (gens.get(member.id) ?? 1) >= 0)
+        .sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || sortPersons(a, b))[0],
     [tree.members, index, gens],
   );
 
@@ -246,7 +263,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
       rows.set(generation, list);
     }
     for (const list of rows.values()) list.sort(sortPersons);
-    return Array.from(rows.entries()).sort((a, b) => a[0] - b[0]);
+    return Array.from(rows.entries()).sort((a, b) => sortGenerations(a[0], b[0]));
   }, [tree.members, gens]);
 
   const paragraphs = tree.history
@@ -280,7 +297,9 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="pha-ky"
       title="Phả ký"
-      subtitle={`${tree.name} · ${stats.generations} đời`}
+      subtitle={`${tree.name} · ${stats.generations} đời${
+        stats.ancestorTiers ? ` · ${stats.ancestorTiers} bậc tiền tổ` : ""
+      }`}
       actions={
         <button
           type="button"
@@ -303,7 +322,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                 <p className="text-sm font-semibold">Sách phả ký dòng họ</p>
                 <p className="text-[0.68rem] text-[var(--pat-muted)]">
                   {paragraphs.length ? `${paragraphs.length} đoạn lời tựa` : "Chưa có lời tựa"} ·{" "}
-                  {generationMembers.length} đời thế thứ
+                  {generationMembers.length} bậc thế thứ
                 </p>
               </div>
             </div>
@@ -413,6 +432,11 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                   </div>
                 ))}
               </div>
+              {stats.ancestorTiers ? (
+                <p className="mt-3 text-[0.68rem] text-[#8a6a52]">
+                  {stats.ancestorTiers} bậc tiền tổ · {stats.generations} đời từ Khởi Tổ
+                </p>
+              ) : null}
               <div className="mt-10 space-y-1 text-xs text-[var(--pat-muted)]">
                 <p>
                   Người biên soạn: <strong className="text-[var(--pat-ink)]">{tree.ownerName || "Chủ gia phả"}</strong>
@@ -453,13 +477,13 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
           </Page>
 
           <Page>
-            <PageHeading eyebrow="Cội nguồn" title="Thủy tổ và các đời" />
+            <PageHeading eyebrow="Cội nguồn" title="Khởi tổ và các đời" />
             {founder ? (
               <div className="mb-4 rounded-lg border border-[#c9a227]/40 bg-[#fffaf0]/70 px-4 py-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="pat-serif text-lg font-bold text-[var(--pat-red)]">{founder.name}</p>
                   {founder.title ? <Badge tone="gold">{founder.title}</Badge> : null}
-                  <Badge tone="muted">Đời 1</Badge>
+                  <Badge tone="muted">{generationTag(gens.get(founder.id) ?? 0)}</Badge>
                 </div>
                 {nameAliases(founder) ? (
                   <p className="mt-1 text-xs italic text-[#7a5a10]">{nameAliases(founder)}</p>
@@ -492,7 +516,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                   key={row.generation}
                   className="flex items-center justify-between gap-3 rounded-md border-b border-dashed border-[#c9a227]/30 pb-2 text-sm"
                 >
-                  <p className="font-semibold text-[var(--pat-ink)]">Đời thứ {row.generation}</p>
+                  <p className="font-semibold text-[var(--pat-ink)]">{row.label}</p>
                   <p className="text-xs text-[var(--pat-muted)]">
                     {row.total} người · {row.male} nam · {row.female} nữ
                   </p>

@@ -33,7 +33,7 @@ import type {
   PersonStyle,
   TreeNode,
 } from "./types";
-import { cardOrientationFor, normalizeTuning } from "./types";
+import { cardOrientationFor, generationTag, normalizeTuning } from "./types";
 import { computeGenerations, sortPersons, uid } from "./utils";
 import { computeLayout } from "./layout";
 import { DiagramCanvas, contentTop, diagramDimensions } from "./diagram-canvas";
@@ -604,9 +604,14 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     });
   };
 
+  const rowLabel = (generation: number) =>
+    layout.generations.find((entry) => entry.generation === generation)?.label ?? generationTag(generation);
+  const nonAncestorRows = layout.generations.filter((row) => !row.isAncestor);
+  const ancestorRows = layout.generations.filter((row) => row.isAncestor);
+
   const scopeLabel =
     scope.kind === "generation"
-      ? `Đời ${scope.generation}`
+      ? rowLabel(scope.generation)
       : scope.kind === "person"
         ? tree.members.find((member) => member.id === scope.memberId)?.name ?? "Thành viên"
         : scope.kind === "decoration"
@@ -616,7 +621,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const hintText = (() => {
     if (scope.kind === "generation") {
       const row = layout.generations.find((entry) => entry.generation === scope.generation);
-      return `Đang chỉnh Đời ${scope.generation} · ${row?.count ?? 0} thành viên · bấm ra nền để chọn cả phả đồ`;
+      return `Đang chỉnh ${row?.label ?? rowLabel(scope.generation)} · ${row?.count ?? 0} thành viên · bấm ra nền để chọn cả phả đồ`;
     }
     if (scope.kind === "person") {
       return `${scopeLabel} · kéo ô để đổi vị trí · bấm ra nền để chọn cả phả đồ`;
@@ -626,7 +631,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     }
     return visibleIds
       ? `${visibleIds.size} / ${tree.members.length} thành viên đang hiển thị`
-      : `${tree.members.length} thành viên · ${layout.generations.length} đời`;
+      : `${tree.members.length} thành viên · ${nonAncestorRows.length} đời${
+          ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""
+        }`;
   })();
 
   const renderInspector = (onClose?: () => void) => {
@@ -711,7 +718,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
 
   const inspectorTitle =
     scope.kind === "generation"
-      ? `Đời ${scope.generation}`
+      ? rowLabel(scope.generation)
       : scope.kind === "person"
         ? tree.members.find((member) => member.id === scope.memberId)?.name ?? "Thành viên"
         : scope.kind === "decoration"
@@ -746,7 +753,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               <Avatar person={member} size={26} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-semibold">{member.name}</span>
-                <span className="block text-[0.62rem] text-[var(--pat-muted)]">Đời {gens.get(member.id) ?? 1}</span>
+                <span className="block text-[0.62rem] text-[var(--pat-muted)]">{generationTag(gens.get(member.id) ?? 1)}</span>
               </span>
             </button>
           ))}
@@ -791,7 +798,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                   checked={active}
                   onChange={() => toggleGen(row.generation)}
                   className="h-3.5 w-3.5 shrink-0 accent-[var(--pat-red)]"
-                  aria-label={`Hiện đời ${row.generation}`}
+                  aria-label={`Hiện ${row.label ?? generationTag(row.generation)}`}
                 />
                 <button
                   type="button"
@@ -801,7 +808,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                   <span
                     className={`min-w-0 flex-1 truncate font-medium ${selected ? "text-[var(--pat-red)]" : ""}`}
                   >
-                    Đời {row.generation}
+                    {row.label ?? generationTag(row.generation)}
                   </span>
                   <span className="text-[0.62rem] text-[var(--pat-muted)]">{row.count}</span>
                   <PanelRight size={11} className="text-[var(--pat-muted)]" />
@@ -1015,7 +1022,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       >
         <div className="mb-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2">
           <p className="text-[0.72rem] font-semibold text-[var(--pat-red)]">
-            {paperLabel} · {tree.members.length} thành viên · {layout.generations.length} đời
+            {paperLabel} · {tree.members.length} thành viên · {nonAncestorRows.length} đời
+            {ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""}
           </p>
           {paper.widthMm > 1500 || paper.heightMm > 1500 ? (
             <p className="mt-1 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
