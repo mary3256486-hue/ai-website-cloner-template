@@ -8,6 +8,7 @@ import {
   Download,
   FileJson,
   FileSpreadsheet,
+  FileText,
   Filter,
   GitBranch,
   Info,
@@ -26,6 +27,7 @@ import {
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
 import { generationTag } from "./types";
+import { CLAN_ROLE_HINTS, CLAN_ROLE_LABELS, classifyClan } from "./clan";
 import {
   ageText,
   buildFamilyIndex,
@@ -37,6 +39,7 @@ import {
   sortPersons,
 } from "./utils";
 import { exportBackup, exportMembersCsv } from "./export";
+import { exportGedcom } from "./gedcom";
 import { TreeShell } from "./app-shell";
 import { Avatar, Badge, EmptyState, Field, Segmented, Sheet, SheetRow, Stat } from "./ui";
 import { MemberFormSheet } from "./member-form-sheet";
@@ -81,8 +84,9 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
     if (nh) setBranch(nh);
   }, []);
 
-  const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
-  const index = useMemo(() => buildFamilyIndex(tree.members), [tree.members]);
+  const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const gens = useMemo(() => computeGenerations(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const index = useMemo(() => buildFamilyIndex(tree.members, tree.founderId), [tree.members, tree.founderId]);
   const stats = useMemo(() => getStats(tree), [tree]);
   const generationStats = useMemo(() => getGenerationStats(tree), [tree]);
   const branchName = useMemo(
@@ -93,6 +97,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
   const filtered = useMemo(() => {
     const needle = normalize(query.trim());
     const list = tree.members.filter((person) => {
+      // Danh sách chỉ gồm người hiển thị trên cây/phả đồ; hồ sơ tham khảo mở từ hồ sơ dâu/rể.
+      if (!clan.isDisplayed(person.id)) return false;
       if (gen !== "all" && (gens.get(person.id) ?? 1) !== gen) return false;
       if (branch !== "all" && person.branchId !== branch) return false;
       if (gender !== "all" && person.gender !== gender) return false;
@@ -125,7 +131,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       if (ga !== gb) return sortGenerations(ga, gb);
       return sortPersons(a, b);
     });
-  }, [tree.members, query, gen, branch, gender, status, sort, gens, branchName]);
+  }, [tree.members, query, gen, branch, gender, status, sort, gens, branchName, clan]);
 
   const activeFilters =
     (gender !== "all" ? 1 : 0) +
@@ -147,7 +153,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="danh-sach-thanh-vien"
       title="Phả hệ"
-      subtitle={`${tree.name} · ${stats.total} thành viên`}
+      subtitle={`${tree.name} · ${stats.total} hồ sơ`}
       actions={
         <>
           <button
@@ -179,7 +185,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       <div className="no-print space-y-4">
         <section className="pat-card px-4 py-3">
           <div className="grid grid-cols-4 divide-x divide-[var(--pat-line)]">
-            <Stat value={stats.total} label="Thành viên" tone="red" />
+            <Stat value={stats.total} label="Trong phả đồ" tone="red" />
             <Stat value={stats.male} label="Nam" />
             <Stat value={stats.female} label="Nữ" />
             <Stat
@@ -196,7 +202,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
               className="pat-input pl-9"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Tìm tên, năm sinh, quê quán, nhánh…"
+              placeholder="Tìm tên, năm sinh, quê quán, chi phái…"
               aria-label="Tìm thành viên"
             />
           </div>
@@ -272,7 +278,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           <>
             <div className="flex items-center justify-between px-1 text-xs text-[var(--pat-muted)]">
               <span>
-                {filtered.length} / {stats.total} thành viên
+                {filtered.length} / {stats.total} hồ sơ
                 {branch !== "all" ? ` · ${branchName.get(branch) ?? ""}` : ""}
               </span>
               <span>
@@ -289,6 +295,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                   .map((id) => tree.members.find((m) => m.id === id))
                   .filter((m): m is Person => Boolean(m));
                 const branch = person.branchId ? branchName.get(person.branchId) : undefined;
+                const role = clan.roleOf(person.id);
                 return (
                   <article key={person.id} className="pat-card overflow-hidden">
                     <div className="flex items-start gap-3 p-3">
@@ -308,6 +315,13 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                         <div className="flex flex-wrap items-center gap-1.5">
                           <h3 className="truncate text-sm font-bold text-[var(--pat-ink)]">{person.name}</h3>
                           {person.title ? <Badge tone="gold">{person.title}</Badge> : null}
+                          {role !== "clan" ? (
+                            <span title={CLAN_ROLE_HINTS[role]} className="inline-flex">
+                              <Badge tone={role === "ancestor" ? "gold" : role === "maternal" ? "green" : "muted"}>
+                                {CLAN_ROLE_LABELS[role]}
+                              </Badge>
+                            </span>
+                          ) : null}
                           {!person.alive ? <Badge tone="muted">Đã mất</Badge> : null}
                         </div>
                         <p className="mt-0.5 text-[0.7rem] text-[var(--pat-muted)]">
@@ -347,6 +361,11 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
 
                     {expanded ? (
                       <div className="space-y-1.5 border-t border-dashed border-[var(--pat-line)] px-3 py-2.5 text-[0.7rem]">
+                        {role === "inLaw" || role === "reference" ? (
+                          <p className="rounded-lg bg-[#fbf3e2] px-2 py-1 text-[0.65rem] leading-relaxed text-[#7a5a10]">
+                            {CLAN_ROLE_HINTS[role]}
+                          </p>
+                        ) : null}
                         <p className="flex flex-wrap gap-1.5 text-[var(--pat-muted)]">
                           <span className="font-semibold text-[var(--pat-ink)]">Cha:</span>
                           {father ? (
@@ -448,8 +467,9 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
         <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--pat-muted)]">
           <Info size={15} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
           <p>
-            Đời được tính tự động từ liên kết cha/mẹ, nối không trực hệ hoặc bậc tiền tổ. Chạm vào thẻ để mở hồ sơ,
-            hoặc dùng bút chì để sửa nhanh.
+            Đời được tính tự động từ quan hệ cha/mẹ trong dòng họ hoặc bậc tiền tổ. Dâu/rể theo đời vợ/chồng; con của
+            con gái chỉ hiển thị một đời. Hồ sơ tham khảo (cha mẹ của dâu/rể) không nằm trong danh sách, mở từ hồ sơ
+            dâu/rể. Chạm vào thẻ để mở hồ sơ, hoặc dùng bút chì để sửa nhanh.
           </p>
         </div>
       </div>
@@ -471,7 +491,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
               <th className="py-1 pr-2">Mất</th>
               <th className="py-1 pr-2">Cha</th>
               <th className="py-1 pr-2">Mẹ</th>
-              <th className="py-1 pr-2">Nhánh</th>
+              <th className="py-1 pr-2">Phạm vi</th>
+              <th className="py-1 pr-2">Chi phái</th>
             </tr>
           </thead>
           <tbody>
@@ -485,6 +506,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                 <td className="py-1 pr-2">{person.deathDate ?? ""}</td>
                 <td className="py-1 pr-2">{tree.members.find((m) => m.id === person.fatherId)?.name ?? ""}</td>
                 <td className="py-1 pr-2">{tree.members.find((m) => m.id === person.motherId)?.name ?? ""}</td>
+                <td className="py-1 pr-2">{CLAN_ROLE_LABELS[clan.roleOf(person.id)]}</td>
                 <td className="py-1 pr-2">{person.branchId ? branchName.get(person.branchId) ?? "" : ""}</td>
               </tr>
             ))}
@@ -570,7 +592,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             </div>
           </Field>
           {tree.branches.length ? (
-            <Field label="Nhánh họ">
+            <Field label="Chi phái">
               <div className="pat-scroll flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
                 <button
                   type="button"
@@ -578,7 +600,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                   data-active={branch === "all"}
                   onClick={() => setBranch("all")}
                 >
-                  Tất cả nhánh
+                  Tất cả chi phái
                 </button>
                 {tree.branches.map((item) => (
                   <button
@@ -606,10 +628,28 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
         <div className="grid gap-1">
           <SheetRow
             icon={<FileSpreadsheet size={18} />}
-            title="Xuất Excel (CSV)"
-            subtitle="Toàn bộ thành viên, quan hệ và tiểu sử"
+            title="Xuất Excel (CSV) đầy đủ"
+            subtitle="Toàn bộ 55 cột: Mã, quan hệ, tên cổ, bản đồ, tiểu sử"
             onClick={() => {
               exportMembersCsv(tree);
+              setExportOpen(false);
+            }}
+          />
+          <SheetRow
+            icon={<FileSpreadsheet size={18} />}
+            title="Excel cột thiết yếu"
+            subtitle="Mã, họ tên, giới tính, tình trạng, cha mẹ, vợ/chồng, đời"
+            onClick={() => {
+              exportMembersCsv(tree, { essentialOnly: true });
+              setExportOpen(false);
+            }}
+          />
+          <SheetRow
+            icon={<FileText size={18} />}
+            title="Xuất GEDCOM (.ged)"
+            subtitle="Tệp chuẩn 5.5.1 để trao đổi với phần mềm gia phả khác"
+            onClick={() => {
+              exportGedcom(tree);
               setExportOpen(false);
             }}
           />
@@ -669,7 +709,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           />
           <SheetRow
             icon={<GitBranch size={18} />}
-            title="Quản lý nhánh"
+            title="Quản lý chi phái"
             onClick={() => {
               setMoreOpen(false);
               router.push(`/gia-pha/${tree.id}/danh-sach-nhanh`);

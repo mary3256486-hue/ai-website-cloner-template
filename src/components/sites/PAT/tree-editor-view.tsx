@@ -21,6 +21,7 @@ import {
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
 import { cardOrientationFor, generationTag } from "./types";
+import { classifyClan } from "./clan";
 import { computeGenerations, lifeSpan, sortGenerations, sortPersons } from "./utils";
 import { computeLayout } from "./layout";
 import { TreeShell } from "./app-shell";
@@ -34,7 +35,11 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
   const fittedRef = useRef<string | null>(null);
 
   const layout = useMemo(() => computeLayout(tree), [tree]);
-  const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
+  const gens = useMemo(
+    () => computeGenerations(tree.members, tree.founderId),
+    [tree.members, tree.founderId],
+  );
+  const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
   const branchColor = useMemo(
     () => new Map(tree.branches.map((branch) => [branch.id, branch.color])),
     [tree.branches],
@@ -54,23 +59,34 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
 
   const selected = selectedId ? tree.members.find((member) => member.id === selectedId) : undefined;
   const missingFather = useMemo(
-    () => tree.members.filter((member) => !member.fatherId && (gens.get(member.id) ?? 1) > 1).sort(sortPersons),
-    [tree.members, gens],
+    () =>
+      tree.members
+        .filter((member) => {
+          const role = clan.roleOf(member.id);
+          return (
+            (role === "clan" || role === "maternal") &&
+            !member.fatherId &&
+            (gens.get(member.id) ?? 1) > 1
+          );
+        })
+        .sort(sortPersons),
+    [tree.members, gens, clan],
   );
   const searchResults = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = needle
       ? tree.members.filter(
           (member) =>
-            member.name.toLowerCase().includes(needle) ||
-            member.birthDate?.includes(needle) ||
-            member.title?.toLowerCase().includes(needle),
+            clan.isDisplayed(member.id) &&
+            (member.name.toLowerCase().includes(needle) ||
+              member.birthDate?.includes(needle) ||
+              member.title?.toLowerCase().includes(needle)),
         )
-      : tree.members;
+      : tree.members.filter((member) => clan.isDisplayed(member.id));
     return [...list]
       .sort((a, b) => sortGenerations(gens.get(a.id) ?? 1, gens.get(b.id) ?? 1) || sortPersons(a, b))
       .slice(0, 30);
-  }, [tree.members, gens, query]);
+  }, [tree.members, gens, query, clan]);
 
   const fit = useCallback(() => {
     const el = viewportRef.current;
@@ -170,7 +186,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="chinh-sua-voi-cay-gia-pha"
       title="Cây phả hệ"
-      subtitle={`${tree.members.length} thành viên · ${layout.generations.filter((row) => !row.isAncestor).length} đời${
+      subtitle={`${layout.nodes.length} thành viên · ${layout.generations.filter((row) => !row.isAncestor).length} đời${
         layout.generations.some((row) => row.isAncestor)
           ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tiền tổ`
           : ""
@@ -371,14 +387,21 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-[0.68rem] text-[var(--pat-muted)]">
-          <Badge tone="gold">{tree.members.length} thành viên</Badge>
-          <Badge tone="muted">{tree.branches.length} nhánh</Badge>
+          <Badge tone="gold">{layout.nodes.length} thành viên trên phả đồ</Badge>
+          <Badge tone="muted">{tree.branches.length} chi phái</Badge>
           <Badge tone="muted">
             {layout.generations.filter((row) => !row.isAncestor).length} đời
             {layout.generations.some((row) => row.isAncestor)
               ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tổ`
               : ""}
           </Badge>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-0 w-4 border-t border-dashed border-[var(--pat-gold)]" /> dâu/rể
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-0 w-4 border-t border-dotted border-[var(--pat-gold)]" /> con của con
+            gái (một đời)
+          </span>
           <span className="ml-auto inline-flex items-center gap-1">
             <Network size={12} /> Chạm vào ô để xem thao tác
           </span>
@@ -413,14 +436,24 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
             <SheetRow
               icon={<PencilLine size={18} />}
               title="Sửa thông tin"
-              subtitle="Cha mẹ, vợ/chồng, tiểu sử, nhánh"
+              subtitle="Cha mẹ, vợ/chồng, tiểu sử, chi phái"
               onClick={() => setEditPerson(selected)}
             />
             <SheetRow
               icon={<Baby size={18} />}
               title="Thêm con"
-              subtitle="Tự gán cha/mẹ theo giới tính"
-              onClick={() => setChildOf(selected)}
+              disabled={clan.roleOf(selected.id) !== "clan"}
+              subtitle={
+                clan.roleOf(selected.id) === "maternal"
+                  ? "Con của con gái chỉ hiển thị một đời — không thêm đời tiếp theo"
+                  : clan.roleOf(selected.id) === "clan"
+                    ? "Tự gán cha/mẹ theo giới tính"
+                    : "Chỉ thêm con từ người thuộc nội tộc"
+              }
+              onClick={() => {
+                if (clan.roleOf(selected.id) !== "clan") return;
+                setChildOf(selected);
+              }}
             />
             <SheetRow
               icon={<Users size={18} />}
@@ -446,8 +479,13 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
         <div className="space-y-2">
           <SheetRow icon={<ZoomIn size={18} />} title="Kéo nền và phóng to" subtitle="Dùng chuột/tay để di chuyển, lăn chuột hoặc nút +/− để thu phóng" />
           <SheetRow icon={<UserRound size={18} />} title="Chạm vào thành viên" subtitle="Mở thao tác: xem hồ sơ, sửa, thêm con, thêm vợ/chồng, xoá" />
-          <SheetRow icon={<Plus size={18} />} title="Thêm thành viên" subtitle="Nút Thêm ở góc trên; sau đó gán cha/mẹ và nhánh" />
+          <SheetRow icon={<Plus size={18} />} title="Thêm thành viên" subtitle="Nút Thêm ở góc trên; sau đó gán cha/mẹ và chi phái" />
           <SheetRow icon={<Network size={18} />} title="Đời tự động" subtitle="Đời được tính từ liên kết cha/mẹ, không cần nhập tay" />
+          <SheetRow
+            icon={<Users size={18} />}
+            title="Phạm vi dòng họ"
+            subtitle="Dâu/rể đứng cùng đời vợ/chồng. Con của con gái chỉ hiển thị một đời (đời n+1). Người từ đời n+2 cùng vợ/chồng của họ được ẩn khỏi trang và chuyển vào ghi chú của thân nhân. Cha mẹ của dâu/rể là hồ sơ tham khảo."
+          />
         </div>
       </Sheet>
 
@@ -530,7 +568,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
           defaults={{
             fatherId: childOf.gender === "male" ? childOf.id : undefined,
             motherId: childOf.gender === "female" ? childOf.id : undefined,
-            branchId: childOf.branchId,
+            branchId: childOf.gender === "male" ? childOf.branchId : undefined,
             birthOrder:
               tree.members.filter((m) => m.fatherId === childOf.id || m.motherId === childOf.id).length + 1,
           }}

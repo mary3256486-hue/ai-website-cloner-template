@@ -11,6 +11,7 @@ import {
   ChevronRight,
   FileDown,
   FileSpreadsheet,
+  FileText,
   GitBranch,
   HelpCircle,
   History,
@@ -31,8 +32,9 @@ import type { FamilyTree, Person } from "./types";
 import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
 import { getStats } from "./utils";
 import { createDemoTree } from "./seed";
-import { downloadExcelTemplate, importSpreadsheet, type ImportResult } from "./import";
+import { buildTreeFromRows, downloadExcelTemplate, parseSpreadsheet, type ImportResult } from "./import";
 import { readBackup } from "./export";
+import { parseGedcom } from "./gedcom";
 import { Field, Sheet, SheetRow } from "./ui";
 
 type HomeTab = "mau" | "tao" | "luu";
@@ -78,6 +80,7 @@ export function HomeView() {
     restoreTree,
     purgeTree,
     importTree,
+    replaceTree,
   } = useGenealogy();
   const router = useRouter();
 
@@ -95,8 +98,11 @@ export function HomeView() {
   const [error, setError] = useState("");
   const [importError, setImportError] = useState("");
   const [pendingImport, setPendingImport] = useState<ImportResult | null>(null);
+  const [pendingRows, setPendingRows] = useState<Record<string, unknown>[] | null>(null);
+  const [pendingName, setPendingName] = useState("");
   const spreadsheetRef = useRef<HTMLInputElement>(null);
   const backupRef = useRef<HTMLInputElement>(null);
+  const gedcomRef = useRef<HTMLInputElement>(null);
 
   const sample = useMemo(() => trees.find((tree) => tree.sample), [trees]);
   const ownTrees = useMemo(
@@ -220,14 +226,38 @@ export function HomeView() {
     router.push(`/gia-pha/${id}/trang-chu`);
   };
 
+  const buildPreview = (rows: Record<string, unknown>[], name: string, target: string) => {
+    const base = target === "new" ? undefined : trees.find((tree) => tree.id === target);
+    try {
+      setPendingImport(buildTreeFromRows(rows, name, { baseTree: base }));
+      setImportError("");
+    } catch (cause) {
+      setPendingImport(null);
+      setImportError(cause instanceof Error ? cause.message : "Không đọc được tệp Excel.");
+    }
+  };
+
   const onSpreadsheetPicked = async (file: File | undefined) => {
     if (!file) return;
     setImportError("");
     try {
-      setPendingImport(await importSpreadsheet(file));
+      const rows = await parseSpreadsheet(file);
+      const name = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+      setPendingRows(rows);
+      setPendingName(name);
+      buildPreview(rows, name, "new");
     } catch (cause) {
       setImportError(cause instanceof Error ? cause.message : "Không đọc được tệp Excel.");
     }
+  };
+
+  const chooseImportTarget = (target: string) => {
+    if (pendingRows) buildPreview(pendingRows, pendingName, target);
+  };
+
+  const closeImport = () => {
+    setPendingImport(null);
+    setPendingRows(null);
   };
 
   const onBackupPicked = async (file: File | undefined) => {
@@ -242,10 +272,37 @@ export function HomeView() {
     }
   };
 
+  const onGedcomPicked = async (file: File | undefined) => {
+    if (!file) return;
+    setImportError("");
+    try {
+      const name = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+      const result = parseGedcom(await file.text(), name);
+      setPendingRows(null);
+      setPendingName(name);
+      setPendingImport({
+        tree: result.tree,
+        warnings: result.warnings,
+        memberCount: result.tree.members.length,
+        importedCount: result.tree.members.length,
+        matchedCount: 0,
+        createdCount: result.tree.members.length,
+      });
+    } catch (cause) {
+      setImportError(cause instanceof Error ? cause.message : "Không đọc được tệp GEDCOM.");
+    }
+  };
+
   const confirmImport = () => {
     if (!pendingImport) return;
-    const id = importTree(pendingImport.tree, { suffix: false });
-    setPendingImport(null);
+    let id: string;
+    if (pendingImport.baseTreeId) {
+      id = pendingImport.baseTreeId;
+      replaceTree(id, pendingImport.tree);
+    } else {
+      id = importTree(pendingImport.tree, { suffix: false });
+    }
+    closeImport();
     router.push(`/gia-pha/${id}/trang-chu`);
   };
 
@@ -404,6 +461,7 @@ export function HomeView() {
                 setCreateOpen(true);
               }}
               onSpreadsheet={() => spreadsheetRef.current?.click()}
+              onGedcom={() => gedcomRef.current?.click()}
               onTemplate={() => downloadExcelTemplate()}
               onBackup={() => backupRef.current?.click()}
             />
@@ -452,30 +510,83 @@ export function HomeView() {
           event.target.value = "";
         }}
       />
+      <input
+        ref={gedcomRef}
+        type="file"
+        accept=".ged,.gedcom,text/plain"
+        className="hidden"
+        onChange={(event) => {
+          void onGedcomPicked(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
 
       <Sheet
         open={Boolean(pendingImport)}
-        onClose={() => setPendingImport(null)}
-        title="Xác nhận nhập gia phả"
-        subtitle={pendingImport?.tree.name ?? ""}
+        onClose={closeImport}
+        title={pendingImport?.baseTreeId ? "Cập nhật gia phả từ tệp" : "Xác nhận nhập gia phả"}
+        subtitle={
+          pendingImport?.baseTreeId
+            ? (trees.find((tree) => tree.id === pendingImport.baseTreeId)?.name ?? "")
+            : pendingImport?.tree.name ?? ""
+        }
         footer={
           <div className="flex gap-2">
-            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={() => setPendingImport(null)}>
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={closeImport}>
               Huỷ
             </button>
             <button type="button" className="pat-btn pat-btn-red h-11 flex-1 text-sm" onClick={confirmImport}>
-              Nhập {pendingImport?.memberCount ?? 0} thành viên
+              {pendingImport?.baseTreeId
+                ? `Cập nhật ${pendingImport.matchedCount + pendingImport.createdCount} dòng`
+                : `Nhập ${pendingImport?.memberCount ?? 0} thành viên`}
             </button>
           </div>
         }
       >
         {pendingImport ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            {pendingRows && ownTrees.length ? (
+              <label className="block">
+                <span className="mb-1 block text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
+                  Nhập vào
+                </span>
+                <select
+                  className="pat-input"
+                  value={pendingImport.baseTreeId ?? "new"}
+                  onChange={(event) => chooseImportTarget(event.target.value)}
+                >
+                  <option value="new">Tạo gia phả mới từ tệp</option>
+                  {ownTrees.map((tree) => (
+                    <option key={tree.id} value={tree.id}>
+                      Cập nhật: {tree.name} ({tree.members.length} người)
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <p className="text-sm text-[var(--pat-ink)]">
-              Tìm thấy <strong>{pendingImport.memberCount}</strong> thành viên
-              {pendingImport.tree.branches.length ? ` trong ${pendingImport.tree.branches.length} nhánh` : ""}. Kiểm tra
-              kỹ trước khi nhập.
+              Đọc được <strong>{pendingImport.importedCount}</strong> dòng
+              {pendingImport.baseTreeId ? (
+                <>
+                  : cập nhật <strong>{pendingImport.matchedCount}</strong>, thêm mới{" "}
+                  <strong>{pendingImport.createdCount}</strong>; cây có <strong>{pendingImport.memberCount}</strong> thành
+                  viên.
+                </>
+              ) : (
+                <>
+                  {" "}
+                  với <strong>{pendingImport.memberCount}</strong> thành viên
+                  {pendingImport.tree.branches.length ? ` trong ${pendingImport.tree.branches.length} chi phái` : ""}.
+                </>
+              )}{" "}
+              Kiểm tra kỹ trước khi nhập.
             </p>
+            {pendingImport.baseTreeId ? (
+              <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/80 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
+                Nhập cập nhật ghép theo Mã trước, sau đó theo tên. Thành viên vắng mặt trong tệp được giữ nguyên, không tự
+                xóa.
+              </p>
+            ) : null}
             {pendingImport.warnings.length ? (
               <ul className="max-h-44 space-y-1 overflow-y-auto rounded-xl border border-[var(--pat-gold)]/50 bg-[#f9edcf]/60 px-3 py-2 text-[0.7rem] leading-relaxed text-[#7a5a10]">
                 {pendingImport.warnings.map((warning) => (
@@ -744,13 +855,13 @@ export function HomeView() {
               <div className="min-w-0 text-sm">
                 <p className="truncate font-semibold">{deleteTarget.name}</p>
                 <p className="text-xs text-[var(--pat-muted)]">
-                  {deleteTarget.members.length} thành viên · {deleteTarget.branches.length} nhánh · cập nhật{" "}
+                  {deleteTarget.members.length} thành viên · {deleteTarget.branches.length} chi phái · cập nhật{" "}
                   {formatDate(deleteTarget.updatedAt) || "chưa rõ"}
                 </p>
               </div>
             </div>
             <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
-              Gia phả sẽ được chuyển vào mục <strong>Đã xóa</strong> trong Lưu trữ. Thành viên, nhánh, phả đồ và phả ký
+              Gia phả sẽ được chuyển vào mục <strong>Đã xóa</strong> trong Lưu trữ. Thành viên, chi phái, phả đồ và phả ký
               được giữ nguyên để khôi phục khi cần.
             </p>
             <div className="rounded-xl border border-[var(--pat-gold)]/50 bg-[#f9edcf]/70 px-3 py-2 text-xs text-[#7a5a10]">
@@ -933,7 +1044,7 @@ function SampleTab({
         <div className="relative">
           <p className="pat-serif text-lg font-semibold text-[var(--pat-red)]">Chưa có gia phả mẫu</p>
           <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[var(--pat-muted)]">
-            Khôi phục bản mẫu đầy đủ để xem cách ghi chép thành viên, bậc tiền tổ, nhánh họ và trình bày phả đồ.
+            Khôi phục bản mẫu đầy đủ để xem cách ghi chép thành viên, bậc tiền tổ, chi phái và trình bày phả đồ.
           </p>
           <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={onRestoreSample}>
             <Sparkles size={15} /> Khôi phục gia phả mẫu
@@ -950,7 +1061,7 @@ function SampleTab({
       label: `${stats.total} thành viên`,
       hint: `${stats.generations} đời${stats.ancestorTiers ? ` và ${stats.ancestorTiers} bậc tiền tổ` : ""}, có vợ/chồng và con cái`,
     },
-    { icon: GitBranch, label: `${sample.branches.length} chi, cành`, hint: "Nhánh họ tách rõ, có trưởng nhánh" },
+    { icon: GitBranch, label: `${sample.branches.length} chi phái`, hint: "Chi phái tách rõ, có trưởng chi phái" },
     { icon: PenTool, label: "Phả đồ in sẵn", hint: "Khung ngang/dọc, xuất PDF và PNG" },
   ];
 
@@ -978,7 +1089,7 @@ function SampleTab({
             {[
               [stats.ancestorTiers ? `${stats.generations}+${stats.ancestorTiers}` : stats.generations, stats.ancestorTiers ? "Đời · bậc tổ" : "Đời"],
               [stats.total, "Thành viên"],
-              [sample.branches.length, "Nhánh"],
+              [sample.branches.length, "Chi phái"],
             ].map(([value, label]) => (
               <div key={String(label)} className="px-1">
                 <p className="text-base font-bold text-[#ffe9bd]">{value}</p>
@@ -1040,12 +1151,14 @@ function CreateTab({
   importError,
   onCreate,
   onSpreadsheet,
+  onGedcom,
   onTemplate,
   onBackup,
 }: {
   importError: string;
   onCreate: () => void;
   onSpreadsheet: () => void;
+  onGedcom: () => void;
   onTemplate: () => void;
   onBackup: () => void;
 }) {
@@ -1055,10 +1168,17 @@ function CreateTab({
       key: "excel",
       icon: FileSpreadsheet,
       title: "Nhập Excel / CSV",
-      hint: "Chọn tệp .xlsx, .xls, .csv đã điền",
+      hint: "Tạo mới hoặc cập nhật cây có sẵn",
       onClick: onSpreadsheet,
     },
-    { key: "template", icon: FileDown, title: "File Excel mẫu", hint: "Tải cột chuẩn để điền dữ liệu", onClick: onTemplate },
+    {
+      key: "gedcom",
+      icon: FileText,
+      title: "Nhập GEDCOM",
+      hint: "Mở tệp .ged từ phần mềm gia phả khác",
+      onClick: onGedcom,
+    },
+    { key: "template", icon: FileDown, title: "File Excel mẫu", hint: "Tải cột chuẩn, có cột Mã và Tình trạng", onClick: onTemplate },
     { key: "backup", icon: History, title: "Phục hồi sao lưu", hint: "Nạp lại từ tệp .json đã xuất", onClick: onBackup },
   ];
 
@@ -1074,7 +1194,7 @@ function CreateTab({
         <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">Khởi tạo</p>
         <h2 className="pat-serif mt-1 text-xl font-semibold text-[var(--pat-red)]">Bắt đầu một dòng họ</h2>
         <p className="mt-1 text-xs leading-relaxed text-[var(--pat-muted)]">
-          Chọn cách nhập dữ liệu phù hợp. Có thể bổ sung thành viên, nhánh và phả ký sau.
+          Chọn cách nhập dữ liệu phù hợp. Có thể bổ sung thành viên, chi phái và phả ký sau.
         </p>
 
         <div className="mt-3 grid grid-cols-2 gap-2.5">
@@ -1109,7 +1229,7 @@ function CreateTab({
         <div className="mt-4 rounded-xl border border-[var(--pat-line)] bg-white/50 px-3.5 py-3">
           <p className="text-[0.66rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">Ba bước dựng phả</p>
           <ol className="mt-2 grid gap-2 sm:grid-cols-3">
-            {["Lập gia phả", "Thêm thành viên, nhánh", "In phả đồ"].map((label, index) => (
+            {["Lập gia phả", "Thêm thành viên, chi phái", "In phả đồ"].map((label, index) => (
               <li key={label} className="flex items-center gap-2 text-xs">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#e3cd92] bg-[#f6e9c8] text-[0.66rem] font-bold text-[#7a5a10]">
                   {index + 1}
@@ -1276,7 +1396,7 @@ function ArchiveCard({
               <span className="pat-serif truncate text-base font-bold text-[var(--pat-red)]">{tree.name}</span>
               {tree.branches.length ? (
                 <span className="rounded-full border border-[var(--pat-line)] bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-semibold text-[#7a5a10]">
-                  {tree.branches.length} nhánh
+                  {tree.branches.length} chi phái
                 </span>
               ) : null}
             </span>

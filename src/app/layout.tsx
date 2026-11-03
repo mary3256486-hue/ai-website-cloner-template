@@ -18,7 +18,7 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: "Tiểu Phạm — Gia Phả",
   description:
-    "Dựng gia phả số: quản lý thành viên, nhánh họ, cây phả hệ, phả đồ và xuất bản in.",
+    "Dựng gia phả số: quản lý thành viên, chi phái, cây phả hệ, phả đồ và xuất bản in.",
 };
 
 export default function RootLayout({

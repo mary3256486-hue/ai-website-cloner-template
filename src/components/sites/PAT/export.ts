@@ -1,8 +1,19 @@
-import type { FamilyTree } from "./types";
-import { LINK_CONFIDENCE_LABELS, normalizeCustomPaper, PAPER_MM } from "./types";
+import type { FamilyTree, Person } from "./types";
+import {
+  CALENDAR_LABELS,
+  FAMILY_TREE_SCHEMA_VERSION,
+  LIFE_STATUS_LABELS,
+  LINK_CONFIDENCE_LABELS,
+  normalizeCustomPaper,
+  PAPER_MM,
+  SPOUSE_RANK_LABELS,
+  lifeStatusOf,
+} from "./types";
 import type { TreeLayout } from "./types";
 import { computeLayout } from "./layout";
-import { byId, computeGenerations, lifeSpan } from "./utils";
+import { classifyClan, CLAN_ROLE_LABELS } from "./clan";
+import { byId, computeGenerations, ensurePersonCodes, lifeSpan, orderedSpouses, splitFullName } from "./utils";
+import { ESSENTIAL_HEADERS, MEMBER_COLUMNS, MEMBER_HEADERS, type MemberColumnKey } from "./columns";
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -30,94 +41,87 @@ function csvCell(value: string | number | undefined) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-export function exportMembersCsv(tree: FamilyTree) {
+export function exportMembersCsv(tree: FamilyTree, options: { essentialOnly?: boolean } = {}) {
   const map = byId(tree);
-  const gens = computeGenerations(tree.members);
-  const header = [
-    "Họ tên",
-    "Giới tính",
-    "Đời",
-    "Bậc tiền tổ",
-    "Danh xưng",
-    "Thế thứ",
-    "Tên húy",
-    "Tên tự",
-    "Tên hiệu",
-    "Thụy hiệu",
-    "Chức tước",
-    "Phẩm hàm",
-    "Khoa bảng",
-    "Sinh",
-    "Mất",
-    "Còn sống",
-    "Cha",
-    "Mẹ",
-    "Vợ/chồng",
-    "Nhánh",
-    "Liên kết tới",
-    "Quan hệ liên kết",
-    "Cách mấy đời",
-    "Độ tin cậy",
-    "Ghi chú liên kết",
-    "Tên quy ước",
-    "Nguyên quán",
-    "Nghề nghiệp",
-    "Hôn nhân",
-    "Ngày giỗ",
-    "Nơi thờ tự",
-    "Nơi an nghỉ",
-    "Mộ táng",
-    "Điện thoại",
-    "Địa chỉ",
-    "Học vấn",
-    "Tiểu sử",
-  ];
-  const lines = tree.members.map((m) => {
+  const gens = computeGenerations(tree.members, tree.founderId);
+  const clan = classifyClan(tree.members, tree.founderId);
+  const headers = options.essentialOnly ? ESSENTIAL_HEADERS : MEMBER_HEADERS;
+  const columns = MEMBER_COLUMNS.filter((column) =>
+    options.essentialOnly ? headers.includes(column.header) : true,
+  );
+  const rankLabel = (person: Person, spouses: Person[]) =>
+    spouses
+      .map((spouse) => (person.spouseRank?.[spouse.id] ? SPOUSE_RANK_LABELS[person.spouseRank[spouse.id]] : ""))
+      .join("; ");
+
+  const values = (m: Person): Record<MemberColumnKey, string | number | undefined> => {
     const branch = tree.branches.find((b) => b.id === m.branchId)?.name;
-    const generation = gens.get(m.id) ?? 1;
-    return [
-      m.name,
-      m.gender === "male" ? "Nam" : "Nữ",
-      generation >= 0 ? generation : "",
-      m.ancestorOrder,
-      m.title,
-      m.generationNote,
-      m.tabooName,
-      m.courtesyName,
-      m.styleName,
-      m.posthumousName,
-      m.officeTitle,
-      m.mandarinRank,
-      m.honors,
-      m.birthDate,
-      m.deathDate,
-      m.alive ? "Có" : "Không",
-      m.fatherId ? map.get(m.fatherId)?.name : "",
-      m.motherId ? map.get(m.motherId)?.name : "",
-      m.spouseIds.map((id) => map.get(id)?.name).filter(Boolean).join("; "),
+    const generation = gens.get(m.id);
+    const spouses = orderedSpouses(m, tree.members);
+    const nameParts = splitFullName(m.name);
+    return {
+      code: m.code,
+      name: m.name,
+      surname: nameParts.surname,
+      middleName: nameParts.middle,
+      givenName: nameParts.given,
+      gender: m.gender === "male" ? "Nam" : "Nữ",
+      lifeStatus: LIFE_STATUS_LABELS[lifeStatusOf(m)],
+      birthDate: m.birthDate,
+      birthCalendar: m.birthCalendar ? CALENDAR_LABELS[m.birthCalendar] : undefined,
+      deathDate: m.deathDate,
+      deathCalendar: m.deathCalendar ? CALENDAR_LABELS[m.deathCalendar] : undefined,
+      alive: m.alive ? "Có" : "Không",
+      father: m.fatherId ? map.get(m.fatherId)?.name : undefined,
+      mother: m.motherId ? map.get(m.motherId)?.name : undefined,
+      spouses: spouses.map((spouse) => spouse.name).join("; "),
+      spouseOrder: spouses.map((spouse) => spouse.name).join("; "),
+      spouseRank: rankLabel(m, spouses),
+      generation: generation !== undefined && generation >= 0 ? generation : undefined,
+      scope: CLAN_ROLE_LABELS[clan.roleOf(m.id)],
+      ancestorOrder: m.ancestorOrder,
+      founder: tree.founderId === m.id ? "Có" : undefined,
+      title: m.title,
+      generationNote: m.generationNote,
+      tabooName: m.tabooName,
+      courtesyName: m.courtesyName,
+      styleName: m.styleName,
+      posthumousName: m.posthumousName,
+      officeTitle: m.officeTitle,
+      mandarinRank: m.mandarinRank,
+      honors: m.honors,
       branch,
-      m.linkToId ? map.get(m.linkToId)?.name : "",
-      m.linkRelation,
-      m.linkGap,
-      m.linkConfidence ? LINK_CONFIDENCE_LABELS[m.linkConfidence] : "",
-      m.linkNote,
-      m.nameIsConventional ? "Có" : "Không",
-      m.hometown,
-      m.occupation,
-      m.maritalStatus,
-      m.deathAnniversary,
-      m.worshipPlace,
-      m.restingPlace,
-      m.graveAddress,
-      m.phone,
-      m.address,
-      m.education,
-      m.biography,
-    ]
-      .map(csvCell)
-      .join(",");
+      ancestorLink: m.ancestorLinkId ? map.get(m.ancestorLinkId)?.name : undefined,
+      ancestorLinkRelation: m.ancestorLinkRelation,
+      ancestorLinkGap: m.ancestorLinkGap,
+      ancestorLinkConfidence: m.ancestorLinkConfidence
+        ? LINK_CONFIDENCE_LABELS[m.ancestorLinkConfidence]
+        : undefined,
+      ancestorLinkNote: m.ancestorLinkNote,
+      nameIsConventional: m.nameIsConventional ? "Có" : "Không",
+      nameNote: m.nameNote,
+      hometown: m.hometown,
+      occupation: m.occupation,
+      maritalStatus: m.maritalStatus,
+      deathAnniversary: m.deathAnniversary,
+      worshipPlace: m.worshipPlace,
+      worshipMapUrl: m.worshipMapUrl,
+      restingPlace: m.restingPlace,
+      graveAddress: m.graveAddress,
+      graveMapUrl: m.graveMapUrl,
+      phone: m.phone,
+      address: m.address,
+      education: m.education,
+      biography: m.biography,
+      notes: m.notes,
+    };
+  };
+
+  const lines = tree.members.map((member) => {
+    const row = values(member);
+    return columns.map((column) => csvCell(row[column.key])).join(",");
   });
-  const content = `\uFEFF${header.map(csvCell).join(",")}\n${lines.join("\n")}`;
+  const content = `\uFEFF${headers.map(csvCell).join(",")}\n${lines.join("\n")}`;
   downloadBlob(new Blob([content], { type: "text/csv;charset=utf-8" }), `${safeName(tree.name)}-thanh-vien.csv`);
 }
 
@@ -134,9 +138,12 @@ export async function readBackup(file: File): Promise<FamilyTree> {
   }
   return {
     ...parsed,
+    schemaVersion: parsed.schemaVersion ?? FAMILY_TREE_SCHEMA_VERSION,
+    members: ensurePersonCodes(parsed.members),
     positions: parsed.positions ?? {},
     decorations: parsed.decorations ?? [],
     branches: parsed.branches ?? [],
+    documents: parsed.documents ?? [],
     history: parsed.history ?? "",
   };
 }

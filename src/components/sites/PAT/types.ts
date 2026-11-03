@@ -31,6 +31,68 @@ export const LINK_CONFIDENCE_LABELS: Record<LinkConfidence, string> = {
   unknown: "Chưa rõ",
 };
 
+/** Tình trạng của một thành viên. `alive` cũ vẫn được giữ để đọc dữ liệu đã lưu. */
+export type LifeStatus = "alive" | "deceased" | "missing" | "unknown";
+
+export const LIFE_STATUS_LABELS: Record<LifeStatus, string> = {
+  alive: "Còn sống",
+  deceased: "Đã mất",
+  missing: "Mất tích",
+  unknown: "Chưa rõ",
+};
+
+export type SpouseRank = "chinh" | "ke" | "thu" | "khac";
+
+export const SPOUSE_RANK_LABELS: Record<SpouseRank, string> = {
+  chinh: "Chánh thất",
+  ke: "Kế thất",
+  thu: "Thứ thất",
+  khac: "Khác",
+};
+
+export type CalendarKind = "duong" | "am" | "unknown";
+
+export const CALENDAR_LABELS: Record<CalendarKind, string> = {
+  duong: "Dương lịch",
+  am: "Âm lịch",
+  unknown: "Chưa rõ lịch",
+};
+
+export type ReferenceDocumentKind = "link" | "file" | "image" | "note";
+
+export const REFERENCE_DOCUMENT_LABELS: Record<ReferenceDocumentKind, string> = {
+  link: "Liên kết",
+  file: "Tệp tài liệu",
+  image: "Hình ảnh",
+  note: "Ghi chú",
+};
+
+export interface ReferenceDocument {
+  id: string;
+  title: string;
+  kind: ReferenceDocumentKind;
+  url?: string;
+  note?: string;
+  addedAt: string;
+}
+
+export const FAMILY_TREE_SCHEMA_VERSION = 5;
+
+/** Giá trị đời dành cho người chưa đủ dữ liệu để xác định đời. */
+export const UNKNOWN_GENERATION = -999;
+
+export function lifeStatusOf(person: Pick<Person, "alive" | "lifeStatus">): LifeStatus {
+  return person.lifeStatus ?? (person.alive ? "alive" : "deceased");
+}
+
+export function lifeStatusLabel(person: Pick<Person, "alive" | "lifeStatus">): string {
+  return LIFE_STATUS_LABELS[lifeStatusOf(person)];
+}
+
+export function isDeceasedStatus(status: LifeStatus): boolean {
+  return status === "deceased" || status === "missing";
+}
+
 export interface GenerationStyle {
   orientation?: CardOrientation;
   showAvatar?: boolean;
@@ -64,6 +126,8 @@ export interface DiagramTuning {
   connectorDash: boolean;
   tintByLevel: boolean;
   showLinkGap: boolean;
+  /** Thứ tự trình bày anh chị em trên phả đồ: 1→n hoặc n→1. */
+  siblingOrder: "asc" | "desc";
   generationBandLabel: GenerationBandLabel;
   generationBandColor?: string;
   frameStyle: "none" | "wood" | "meander";
@@ -103,11 +167,17 @@ export interface BackgroundImageSettings {
 
 export interface Person {
   id: string;
+  /** Mã thành viên, dùng làm khóa ổn định khi nhập/xuất và cập nhật từ Excel. */
+  code?: string;
   name: string;
   gender: Gender;
   birthDate?: string;
   deathDate?: string;
   alive: boolean;
+  /** Tình trạng đầy đủ: còn sống, đã mất, mất tích, chưa rõ. */
+  lifeStatus?: LifeStatus;
+  birthCalendar?: CalendarKind;
+  deathCalendar?: CalendarKind;
   title?: string;
   generationNote?: string;
   tabooName?: string;
@@ -122,17 +192,28 @@ export interface Person {
   generation?: number;
   /** Thứ tự bậc tiền tổ: 1 = xa nhất, tăng dần về phía Khởi Tổ. */
   ancestorOrder?: number;
-  /** Nối không trực hệ tới một thành viên ở đời trên. */
-  linkToId?: string;
-  linkRelation?: string;
-  linkGap?: number;
-  linkConfidence?: LinkConfidence;
-  linkNote?: string;
+  /** Nối bậc tiền tổ này xuống bậc kế tiếp khi thiếu cha/mẹ ruột. */
+  ancestorLinkId?: string;
+  ancestorLinkRelation?: string;
+  ancestorLinkGap?: number;
+  ancestorLinkConfidence?: LinkConfidence;
+  ancestorLinkNote?: string;
+  /**
+   * Hồ sơ tham khảo: thường là cha/mẹ của dâu/rể. Chỉ để tra cứu,
+   * không hiện trên phả đồ và không tham gia tính đời của dòng họ.
+   */
+  reference?: boolean;
   /** Tên đang dùng là tên quy ước/tạm, chưa phải tên thật. */
   nameIsConventional?: boolean;
+  /** Nguồn hoặc lý do tên đang dùng là tên quy ước. */
+  nameNote?: string;
   fatherId?: string;
   motherId?: string;
   spouseIds: string[];
+  /** Thứ bậc của từng người phối ngẫu, khóa theo id người phối ngẫu. */
+  spouseRank?: Record<string, SpouseRank>;
+  /** Thứ tự hiển thị vợ/chồng; nếu trống thì dùng thứ tự trong spouseIds. */
+  spouseOrder?: string[];
   branchId?: string;
   hometown?: string;
   occupation?: string;
@@ -141,12 +222,15 @@ export interface Person {
   deathAnniversary?: string;
   restingPlace?: string;
   graveAddress?: string;
+  /** Liên kết bản đồ tới phần mộ. */
+  graveMapUrl?: string;
   worshipPlace?: string;
+  /** Liên kết bản đồ tới nhà thờ họ / nơi thờ tự. */
+  worshipMapUrl?: string;
   phone?: string;
   address?: string;
   education?: string;
   avatar?: string;
-  photos?: string[];
   notes?: string;
 }
 
@@ -208,6 +292,12 @@ export interface FamilyTree {
   design: DesignSettings;
   positions: Record<string, { x: number; y: number }>;
   decorations: Decoration[];
+  /** Phiên bản mô hình dữ liệu, dùng để nâng cấp tệp sao lưu cũ. */
+  schemaVersion?: number;
+  /** Người duy nhất được đánh dấu là Khởi Tổ của dòng đang soạn. */
+  founderId?: string;
+  /** Kho tư liệu tham khảo của cả gia phả. */
+  documents?: ReferenceDocument[];
   sample?: boolean;
 }
 
@@ -220,6 +310,10 @@ export interface TreeNode {
   generation: number;
   person: Person;
   isSpouse: boolean;
+  /** Dâu/rể của dòng họ, hiển thị cạnh người hôn phối. */
+  inLaw?: boolean;
+  /** Con của con gái: chỉ hiển thị một đời, không mở các đời tiếp theo. */
+  maternal?: boolean;
   unitId: string;
 }
 
@@ -235,6 +329,8 @@ export interface TreeEdge {
   fromId?: string;
   toId?: string;
   indirect?: boolean;
+  /** Nối xuống con của con gái (ngoại tộc, chỉ một đời). */
+  maternal?: boolean;
   label?: string;
 }
 
@@ -441,7 +537,8 @@ export const DEFAULT_TUNING: DiagramTuning = {
   connectorColor: "",
   connectorDash: false,
   tintByLevel: false,
-  showLinkGap: true,
+  showLinkGap: false,
+  siblingOrder: "asc",
   generationBandLabel: "ordinal",
   generationBandColor: "",
   frameStyle: "none",
@@ -472,6 +569,7 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
     marginRight: clampNumber(tuning?.marginRight, DEFAULT_TUNING.marginRight, 20, 240),
     connectorWidth: clampNumber(tuning?.connectorWidth, DEFAULT_TUNING.connectorWidth, 1, 20),
     showLinkGap: tuning?.showLinkGap ?? DEFAULT_TUNING.showLinkGap,
+    siblingOrder: tuning?.siblingOrder === "desc" ? "desc" : "asc",
     frameScale: clampNumber(tuning?.frameScale, DEFAULT_TUNING.frameScale, 0.5, 2),
     fontSize: clampNumber(tuning?.fontSize, DEFAULT_TUNING.fontSize, 7, 24),
     lineCount: Math.round(clampNumber(tuning?.lineCount, DEFAULT_TUNING.lineCount, 1, 5)),
@@ -531,6 +629,7 @@ export function ancestorLabelFor(style: GenerationBandLabel, tier: number) {
 
 /** Nhãn ngắn dùng trong danh sách, huy hiệu và biểu mẫu. */
 export function generationTag(generation: number): string {
+  if (generation === UNKNOWN_GENERATION) return "Chưa xác định đời";
   return generation < 0 ? `Tiền tổ ${-generation}` : `Đời ${generation}`;
 }
 

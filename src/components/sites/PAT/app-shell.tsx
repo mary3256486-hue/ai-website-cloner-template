@@ -22,7 +22,7 @@ import { Sheet, SheetRow } from "./ui";
 const sections = [
   { key: "trang-chu", label: "Tổng quan", icon: Home },
   { key: "danh-sach-thanh-vien", label: "Phả hệ", icon: Users },
-  { key: "danh-sach-nhanh", label: "Nhánh", icon: GitBranch },
+  { key: "danh-sach-nhanh", label: "Chi phái", icon: GitBranch },
   { key: "chinh-sua-voi-cay-gia-pha", label: "Cây phả hệ", icon: Network },
   { key: "ve-pha-do", label: "Phả đồ", icon: PenTool },
   { key: "giao-dien", label: "Thiết kế", icon: Palette },
@@ -116,7 +116,7 @@ export function TreeShell({
           <BottomLink
             href={`/gia-pha/${tree.id}/danh-sach-nhanh`}
             icon={<GitBranch size={19} />}
-            label="Nhánh"
+            label="Chi phái"
             active={section === "danh-sach-nhanh"}
           />
           <BottomLink

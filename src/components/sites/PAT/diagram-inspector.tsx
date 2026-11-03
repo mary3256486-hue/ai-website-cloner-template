@@ -602,6 +602,16 @@ export function WholeDiagramInspector({
           max={120}
           onChange={(siblingGap) => onTuning({ siblingGap })}
         />
+        <Field label="Chiều thứ tự anh em" hint="Chỉ đổi cách bày trên phả đồ, không đổi thứ tự sinh đã lưu.">
+          <Segmented<DiagramTuning["siblingOrder"]>
+            value={tuning.siblingOrder}
+            onChange={(siblingOrder) => onTuning({ siblingOrder })}
+            options={[
+              { value: "asc", label: "1 → n (lớn trước)" },
+              { value: "desc", label: "n → 1 (nhỏ trước)" },
+            ]}
+          />
+        </Field>
         <SliderField
           label="Giãn giữa các chi"
           value={tuning.branchGap}
@@ -661,7 +671,7 @@ export function WholeDiagramInspector({
         />
         <ToggleRow
           label="Ghi chú nét đứt"
-          hint="Hiện nhãn “cách n đời” hoặc quan hệ trên đường nối không trực hệ."
+          hint="Hiện nhãn “cách n đời” hoặc quan hệ trên đường nối tiền tổ."
           checked={tuning.showLinkGap}
           onChange={(showLinkGap) => onTuning({ showLinkGap })}
         />

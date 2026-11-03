@@ -197,7 +197,7 @@ export function DiagramCanvas({
   const settings = design ?? tree.design;
   const tuning = normalizeTuning(settings.tuning);
   const palette = PALETTES[settings.palette];
-  const generations = computeGenerations(tree.members);
+  const generations = computeGenerations(tree.members, tree.founderId);
   const branchColor = new Map(tree.branches.map((branch) => [branch.id, branch.color]));
   const { width, height, contentW, offsetX, offsetY } = diagramDimensions(
     layout,
@@ -566,13 +566,15 @@ export function DiagramCanvas({
                 }
                 strokeWidth={tuning.connectorWidth * (edge.type === "spouse" ? 1.08 : 1)}
                 strokeDasharray={
-                  edge.indirect
-                    ? "5 4"
-                    : tuning.connectorDash
-                      ? "6 4"
-                      : edge.type === "spouse"
-                        ? "5 3"
-                        : undefined
+                  edge.maternal
+                    ? "2 3"
+                    : edge.indirect
+                      ? "5 4"
+                      : tuning.connectorDash
+                        ? "6 4"
+                        : edge.type === "spouse"
+                          ? "5 3"
+                          : undefined
                 }
                 strokeLinecap="round"
               />
@@ -704,7 +706,7 @@ export function DiagramCanvas({
                     fillOpacity={node.isSpouse ? 0.86 : 0.96}
                     stroke={focused ? palette.accent : color}
                     strokeWidth={focused ? 2.6 : 1}
-                    strokeDasharray={node.isSpouse ? "5 3" : undefined}
+                    strokeDasharray={node.maternal ? "2 3" : node.isSpouse ? "5 3" : undefined}
                   />
                   <rect
                     x="0"
@@ -796,6 +798,19 @@ export function DiagramCanvas({
                             {line}
                           </tspan>
                         ))}
+                      </text>
+                    ) : null}
+                    {node.maternal ? (
+                      <text
+                        x={node.width - 6}
+                        y={node.height - 5}
+                        textAnchor="end"
+                        fontSize={Math.max(5.4, nameSize * 0.54)}
+                        fill={palette.gold}
+                        opacity="0.9"
+                        fontFamily={fontFamily}
+                      >
+                        ngoại tộc
                       </text>
                     ) : null}
                   </g>
@@ -892,7 +907,7 @@ export function DiagramCanvas({
 
       <g transform={`translate(${width - 74}, ${height - 20})`} opacity="0.45">
         <text fontSize="8" fill={palette.accent} textAnchor="end" fontFamily="'Be Vietnam Pro', sans-serif">
-          {tree.members.length} thành viên ·{" "}
+          {layout.nodes.length} thành viên ·{" "}
           {layout.generations.filter((row) => !row.isAncestor).length} đời
           {layout.generations.some((row) => row.isAncestor)
             ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tiền tổ`
@@ -912,9 +927,10 @@ export function DiagramCanvas({
 }
 
 export function orderedMembers(tree: FamilyTree) {
+  const gens = computeGenerations(tree.members, tree.founderId);
   return [...tree.members].sort((a, b) => {
-    const ga = computeGenerations(tree.members).get(a.id) ?? 1;
-    const gb = computeGenerations(tree.members).get(b.id) ?? 1;
+    const ga = gens.get(a.id) ?? 1;
+    const gb = gens.get(b.id) ?? 1;
     if (ga !== gb) return ga - gb;
     return sortPersons(a, b);
   });

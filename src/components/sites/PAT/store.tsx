@@ -9,16 +9,27 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Branch, Decoration, DesignSettings, FamilyTree, Person } from "./types";
-import { DEFAULT_DESIGN } from "./types";
-import { uid } from "./utils";
+import type { Branch, Decoration, DesignSettings, FamilyTree, LinkConfidence, Person } from "./types";
+import { DEFAULT_DESIGN, FAMILY_TREE_SCHEMA_VERSION } from "./types";
+import { ensurePersonCodes, nextPersonCode, uid } from "./utils";
+import { foldOutsideMembers } from "./clan";
 import { createDemoTree } from "./seed";
 
 const STORAGE_KEY = "phatue.familyTrees.v1";
 const TRASH_KEY = "phatue.familyTrees.trash.v1";
 const SEED_VERSION_KEY = "phatue.seedVersion.v1";
 // Bump it whenever the demo tree changes so browsers stop showing the cached older sample.
-const SEED_VERSION = "2026-11-02a";
+const SEED_VERSION = "2026-11-03c";
+
+interface LegacyPerson extends Person {
+  linkToId?: string;
+  linkRelation?: string;
+  linkGap?: number;
+  linkConfidence?: LinkConfidence;
+  linkNote?: string;
+  extraParents?: unknown;
+  photos?: string[];
+}
 
 export interface ArchivedTree {
   tree: FamilyTree;
@@ -62,6 +73,8 @@ interface StoreValue {
   setDecoration: (treeId: string, decoration: Decoration) => void;
   removeDecoration: (treeId: string, decorationId: string) => void;
   importTree: (tree: FamilyTree, opts?: { suffix?: boolean }) => string;
+  /** Ghi đè nội dung một cây đang mở, dùng cho chế độ nhập cập nhật. */
+  replaceTree: (treeId: string, tree: FamilyTree) => void;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -70,12 +83,76 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/**
+ * Nâng cấp dữ liệu đã lưu:
+ * - v4 gỡ cha mẹ nuôi/dượng/kế, ảnh tư liệu và “nối không trực hệ”.
+ * - Liên kết giữa các bậc tiền tổ được chuyển sang `ancestorLink*` để không mất chuỗi Đại Tổ → Thủy Tổ → Khởi Tổ.
+ * - v5 ẩn hồ sơ ngoài phả đồ khỏi trang và chuyển thông tin vào ghi chú của thân nhân gần nhất.
+ */
+function normalizeTree(tree: FamilyTree): FamilyTree {
+  const version = tree.schemaVersion ?? 1;
+  const source = ensurePersonCodes(tree.members ?? []);
+  const byId = new Map(source.map((person) => [person.id, person]));
+  const members = source.map((person) => {
+    const legacy = person as LegacyPerson;
+    const next: Person & Partial<LegacyPerson> = { ...person };
+    if (version < 4 && legacy.linkToId) {
+      const target = byId.get(legacy.linkToId);
+      const isAncestorTier =
+        (person.ancestorOrder ?? 0) > 0 || (target?.ancestorOrder ?? 0) > 0;
+      if (isAncestorTier && !next.ancestorLinkId) {
+        next.ancestorLinkId = legacy.linkToId;
+        next.ancestorLinkRelation = legacy.linkRelation;
+        next.ancestorLinkGap = legacy.linkGap;
+        next.ancestorLinkConfidence = legacy.linkConfidence;
+        next.ancestorLinkNote = legacy.linkNote;
+      }
+    }
+    delete next.linkToId;
+    delete next.linkRelation;
+    delete next.linkGap;
+    delete next.linkConfidence;
+    delete next.linkNote;
+    delete next.extraParents;
+    delete next.photos;
+    return next as Person;
+  });
+  const design = tree.design ?? DEFAULT_DESIGN;
+  const folded = foldOutsideMembers(members, tree.founderId);
+  const positions = { ...(tree.positions ?? {}) };
+  for (const id of folded.removedIds) delete positions[id];
+  const branches = (tree.branches ?? []).map((branch) =>
+    branch.headId && folded.removedIds.has(branch.headId)
+      ? { ...branch, headId: undefined }
+      : branch,
+  );
+  const founderId =
+    tree.founderId && !folded.removedIds.has(tree.founderId) ? tree.founderId : undefined;
+  return {
+    ...tree,
+    schemaVersion: FAMILY_TREE_SCHEMA_VERSION,
+    members: folded.members,
+    branches,
+    design:
+      version < 3 && design.tuning
+        ? { ...design, tuning: { ...design.tuning, showLinkGap: false } }
+        : design,
+    positions,
+    decorations: tree.decorations ?? [],
+    history: tree.history ?? "",
+    documents: tree.documents ?? [],
+    founderId,
+  };
+}
+
 function loadTrees(): FamilyTree[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length) return parsed as FamilyTree[];
+      if (Array.isArray(parsed) && parsed.length) {
+        return (parsed as FamilyTree[]).map(normalizeTree);
+      }
     }
   } catch {
     // ignore corrupt storage
@@ -102,7 +179,7 @@ function readSeedVersion() {
 function refreshSample(trees: FamilyTree[]): FamilyTree[] {
   if (readSeedVersion() === SEED_VERSION) return trees;
   const refreshed = trees.map((tree) =>
-    tree.sample ? { ...createDemoTree(), id: tree.id } : tree,
+    tree.sample ? normalizeTree({ ...createDemoTree(), id: tree.id }) : tree,
   );
   try {
     localStorage.setItem(SEED_VERSION_KEY, SEED_VERSION);
@@ -179,6 +256,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       const founder: Person = {
         ...input.founderDetails,
         id: founderId,
+        code: "P0001",
         name: input.founderName.trim() || "Thủy tổ",
         gender: input.founderGender,
         birthDate: input.founderBirth?.trim() || undefined,
@@ -187,7 +265,6 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
         generation: 0,
         birthOrder: 1,
         spouseIds: [],
-        photos: [],
       };
       const tree: FamilyTree = {
         id: treeId,
@@ -203,6 +280,9 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
         design: { ...DEFAULT_DESIGN },
         positions: {},
         decorations: [],
+        schemaVersion: FAMILY_TREE_SCHEMA_VERSION,
+        founderId,
+        documents: [],
       };
       commit((prev) => [...prev, tree]);
       return treeId;
@@ -263,20 +343,28 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       updateTreeIn(treeId, (tree) => {
         const member: Person = {
           id: memberId,
+          code: input.code?.trim() || nextPersonCode(tree.members),
           name: input.name.trim(),
           gender: input.gender,
           birthDate: input.birthDate?.trim() || undefined,
           deathDate: input.deathDate?.trim() || undefined,
           alive: input.alive ?? !input.deathDate,
+          lifeStatus: input.lifeStatus,
+          birthCalendar: input.birthCalendar,
+          deathCalendar: input.deathCalendar,
           title: input.title?.trim() || undefined,
           generation: input.generation,
           ancestorOrder: input.ancestorOrder,
-          linkToId: input.linkToId || undefined,
-          linkRelation: input.linkRelation?.trim() || undefined,
-          linkGap: input.linkGap,
-          linkConfidence: input.linkConfidence,
-          linkNote: input.linkNote?.trim() || undefined,
+          ancestorLinkId: input.ancestorLinkId || undefined,
+          ancestorLinkRelation: input.ancestorLinkRelation?.trim() || undefined,
+          ancestorLinkGap: input.ancestorLinkGap,
+          ancestorLinkConfidence: input.ancestorLinkConfidence,
+          ancestorLinkNote: input.ancestorLinkNote?.trim() || undefined,
+          reference: input.reference || undefined,
           nameIsConventional: input.nameIsConventional,
+          nameNote: input.nameNote?.trim() || undefined,
+          spouseRank: input.spouseRank,
+          spouseOrder: input.spouseOrder,
           birthOrder: input.birthOrder ?? tree.members.length + 1,
           fatherId: input.fatherId || undefined,
           motherId: input.motherId || undefined,
@@ -289,11 +377,12 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
           deathAnniversary: input.deathAnniversary?.trim() || undefined,
           restingPlace: input.restingPlace?.trim() || undefined,
           graveAddress: input.graveAddress?.trim() || undefined,
+          graveMapUrl: input.graveMapUrl?.trim() || undefined,
+          worshipMapUrl: input.worshipMapUrl?.trim() || undefined,
           phone: input.phone?.trim() || undefined,
           address: input.address?.trim() || undefined,
           education: input.education?.trim() || undefined,
           avatar: input.avatar,
-          photos: input.photos ?? [],
           notes: input.notes?.trim() || undefined,
         };
         const spouses = (input.spouseIds ?? []).filter((id) => id && id !== memberId);
@@ -345,14 +434,30 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
             }
             if (next.fatherId === memberId) next = { ...next, fatherId: undefined };
             if (next.motherId === memberId) next = { ...next, motherId: undefined };
+            if (next.ancestorLinkId === memberId) next = { ...next, ancestorLinkId: undefined };
+            if (next.spouseRank && memberId in next.spouseRank) {
+              const spouseRank = { ...next.spouseRank };
+              delete spouseRank[memberId];
+              next = { ...next, spouseRank };
+            }
+            if (next.spouseOrder?.includes(memberId)) {
+              next = { ...next, spouseOrder: next.spouseOrder.filter((id) => id !== memberId) };
+            }
             return next;
           });
+        const founder = tree.founderId === memberId;
         const branches = tree.branches.map((b) =>
           b.headId === memberId ? { ...b, headId: undefined } : b,
         );
         const positions = { ...tree.positions };
         delete positions[memberId];
-        return { ...tree, members, branches, positions };
+        return {
+          ...tree,
+          members,
+          branches,
+          positions,
+          founderId: founder ? undefined : tree.founderId,
+        };
       });
     },
     [updateTreeIn],
@@ -441,17 +546,33 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     (tree: FamilyTree, opts?: { suffix?: boolean }) => {
       const id = tree.id && !trees.some((t) => t.id === tree.id) ? tree.id : uid("g");
       const withSuffix = opts?.suffix !== false;
-      const imported: FamilyTree = {
+      const imported: FamilyTree = normalizeTree({
         ...tree,
         id,
         name: withSuffix ? `${tree.name} (bản nhập)` : tree.name,
         sample: false,
         updatedAt: nowIso(),
-      };
+      });
       commit((prev) => [...prev, imported]);
       return id;
     },
     [commit, trees],
+  );
+
+  const replaceTree = useCallback(
+    (treeId: string, tree: FamilyTree) => {
+      updateTreeIn(treeId, (current) =>
+        normalizeTree({
+          ...tree,
+          id: treeId,
+          name: tree.name || current.name,
+          createdAt: current.createdAt,
+          sample: current.sample,
+          updatedAt: nowIso(),
+        }),
+      );
+    },
+    [updateTreeIn],
   );
 
   const getTree = useCallback((id: string) => trees.find((tree) => tree.id === id), [trees]);
@@ -478,6 +599,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       setDecoration,
       removeDecoration,
       importTree,
+      replaceTree,
     }),
     [
       trees,
@@ -500,6 +622,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       setDecoration,
       removeDecoration,
       importTree,
+      replaceTree,
     ],
   );
 

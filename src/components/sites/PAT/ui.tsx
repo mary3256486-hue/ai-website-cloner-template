@@ -302,20 +302,24 @@ export function SheetRow({
   subtitle,
   onClick,
   danger,
+  disabled,
 }: {
   icon?: ReactNode;
   title: string;
   subtitle?: string;
   onClick?: () => void;
   danger?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       className={cn(
         "flex w-full items-center gap-3 rounded-xl border border-transparent px-2 py-3 text-left transition hover:border-[var(--pat-line)] hover:bg-white/60",
         danger && "text-[#a3271d]",
+        disabled && "cursor-not-allowed opacity-45 hover:border-transparent hover:bg-transparent",
       )}
     >
       {icon ? <span className="text-[var(--pat-gold)]">{icon}</span> : null}

@@ -35,6 +35,7 @@ import type {
 } from "./types";
 import { cardOrientationFor, generationTag, normalizeTuning } from "./types";
 import { computeGenerations, sortPersons, uid } from "./utils";
+import { classifyClan } from "./clan";
 import { computeLayout } from "./layout";
 import { DiagramCanvas, contentTop, diagramDimensions } from "./diagram-canvas";
 import { DECOR_CATEGORIES, DECOR_ITEMS, type DecorSlot } from "./decor-library";
@@ -125,7 +126,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [zoom, setZoom] = useState(1);
   const scale = Math.min(4, Math.max(0.02, fitScale * zoom));
   const [genFilter, setGenFilter] = useState<Set<number>>(() => {
-    const gens = computeGenerations(tree.members);
+    const gens = computeGenerations(tree.members, tree.founderId);
     return new Set(Array.from(gens.values()));
   });
   const [query, setQuery] = useState("");
@@ -148,14 +149,22 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     [baseLayout, tree.design],
   );
   const dims = diagramDimensions(layout, tree.design, paperAspect);
-  const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
+  const gens = useMemo(() => computeGenerations(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const displayedCount = useMemo(
+    () => tree.members.filter((member) => clan.isDisplayed(member.id)).length,
+    [clan, tree.members],
+  );
   const genCounts = useMemo(() => {
     const counts = new Map<number, number>();
-    for (const generation of gens.values()) {
+    for (const member of tree.members) {
+      if (!clan.isDisplayed(member.id)) continue;
+      const generation = gens.get(member.id);
+      if (generation === undefined) continue;
       counts.set(generation, (counts.get(generation) ?? 0) + 1);
     }
     return counts;
-  }, [gens]);
+  }, [clan, gens, tree.members]);
   const top = contentTop(tree.design);
 
   useEffect(() => {
@@ -308,7 +317,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     pushHistory(overrides);
     setOverrides(next);
     setSaved(false);
-    if (member) showToast(`Đã dịch cả nhánh của ${member.name}`);
+    if (member) showToast(`Đã dịch cả dòng của ${member.name}`);
   };
 
   const resetPosition = (memberId: string) => {
@@ -630,8 +639,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       return "Đang chỉnh trang trí · kéo để di chuyển, kéo ô vuông góc để đổi kích thước";
     }
     return visibleIds
-      ? `${visibleIds.size} / ${tree.members.length} thành viên đang hiển thị`
-      : `${tree.members.length} thành viên · ${nonAncestorRows.length} đời${
+      ? `${visibleIds.size} / ${displayedCount} thành viên đang hiển thị`
+      : `${displayedCount} thành viên · ${nonAncestorRows.length} đời${
           ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""
         }`;
   })();
@@ -844,7 +853,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="ve-pha-do"
       title="Tạo phả đồ"
-      subtitle={`${paperLabel} · ${tree.members.length} thành viên`}
+      subtitle={`${paperLabel} · ${displayedCount} thành viên`}
       wide
       actions={
         <>
@@ -1022,7 +1031,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       >
         <div className="mb-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2">
           <p className="text-[0.72rem] font-semibold text-[var(--pat-red)]">
-            {paperLabel} · {tree.members.length} thành viên · {nonAncestorRows.length} đời
+            {paperLabel} · {displayedCount} thành viên · {nonAncestorRows.length} đời
             {ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""}
           </p>
           {paper.widthMm > 1500 || paper.heightMm > 1500 ? (
@@ -1030,7 +1039,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               Khổ lớn hơn 1500 mm có thể bị nhà in tự thu nhỏ. Nên xem trước bản PDF trước khi gửi in.
             </p>
           ) : null}
-          {tree.members.length > 120 ? (
+          {displayedCount > 120 ? (
             <p className="mt-1 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
               Phả đồ nhiều thành viên: nên chọn khổ lớn hơn hoặc giảm số dòng tên để chữ còn đọc được khi in.
             </p>

@@ -7,7 +7,7 @@ import { EmptyState } from "./ui";
 
 const labels: Record<string, string> = {
   "danh-sach-thanh-vien": "Danh sách thành viên",
-  "danh-sach-nhanh": "Danh sách nhánh",
+  "danh-sach-nhanh": "Danh sách chi phái",
   "chinh-sua-voi-cay-gia-pha": "Cây phả hệ",
   "ve-pha-do": "Tạo phả đồ",
   "giao-dien": "Thiết kế phả đồ",

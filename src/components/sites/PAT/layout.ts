@@ -1,6 +1,14 @@
 import type { FamilyTree, Person, TreeEdge, TreeLayout, TreeNode } from "./types";
 import { ancestorLabelFor, bandLabelFor, cardDimsFor, normalizeTuning, SPOUSE_GAP } from "./types";
-import { buildFamilyIndex, computeGenerations, isIndirectLink, linkLabel, sortGenerations, sortPersons } from "./utils";
+import { classifyClan, type ClanIndex } from "./clan";
+import {
+  computeGenerations,
+  isIndirectLink,
+  linkLabel,
+  orderedSpouses,
+  sortGenerations,
+  sortPersons,
+} from "./utils";
 
 interface Measure {
   person: Person;
@@ -12,11 +20,12 @@ interface Measure {
 
 export function computeLayout(tree: FamilyTree): TreeLayout {
   const tuning = normalizeTuning(tree.design.tuning);
-  const byId = new Map(tree.members.map((m) => [m.id, m]));
-  const generations = computeGenerations(tree.members);
-  const index = buildFamilyIndex(tree.members);
+  const clan = classifyClan(tree.members, tree.founderId);
+  const generations = computeGenerations(tree.members, tree.founderId);
   const counts = new Map<number, number>();
-  for (const generation of generations.values()) {
+  for (const member of tree.members) {
+    if (!clan.isDisplayed(member.id)) continue;
+    const generation = generations.get(member.id) ?? 1;
     counts.set(generation, (counts.get(generation) ?? 0) + 1);
   }
   const inset = tuning.frameStyle === "meander" ? Math.round(88 * tuning.frameScale) : 0;
@@ -24,18 +33,48 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const marginBottom = tuning.marginBottom + inset;
   const marginLeft = tuning.marginLeft + inset;
   const marginRight = tuning.marginRight + inset;
-  const roots = tree.members
-    .filter((p) => index.bloodline.has(p.id) && !index.lineParent(p))
+  const orderSiblings = (list: Person[]) =>
+    tuning.siblingOrder === "desc" ? [...list].reverse() : list;
+
+  /**
+   * Vợ/chồng cùng khối hiển thị: dâu/rể đứng cạnh người hôn phối, vợ/chồng
+   * của tiền tổ cùng hàng tiền tổ cũng đứng cạnh nhau.
+   */
+  const isUnitSpouse = (person: Person, spouse: Person) => {
+    const role = clan.roleOf(spouse.id);
+    if (role === "inLaw") return true;
+    if (role === "ancestor" && clan.roleOf(person.id) === "ancestor") {
+      return clan.ancestorTier.get(spouse.id) === clan.ancestorTier.get(person.id);
+    }
+    return false;
+  };
+
+  const rootCandidates = tree.members
+    .filter(
+      (person) =>
+        (clan.roleOf(person.id) === "ancestor" || clan.roleOf(person.id) === "clan") &&
+        !clan.lineParent(person),
+    )
     .sort(sortPersons);
+  const rootIds = new Set(rootCandidates.map((person) => person.id));
+  const absorbed = new Set<string>();
+  for (const person of rootCandidates) {
+    if (absorbed.has(person.id)) continue;
+    for (const spouse of orderedSpouses(person, tree.members)) {
+      if (spouse.id === person.id || !rootIds.has(spouse.id)) continue;
+      if (!isUnitSpouse(person, spouse)) continue;
+      absorbed.add(spouse.id);
+    }
+  }
+  const roots = orderSiblings(rootCandidates.filter((person) => !absorbed.has(person.id)));
 
   const measure = (person: Person): Measure => {
     const generation = generations.get(person.id) ?? 1;
     const { width: cardW } = cardDimsFor(tree.design, generation, counts.get(generation));
-    const spouses = person.spouseIds
-      .map((id) => byId.get(id))
-      .filter((p): p is Person => p !== undefined && !index.bloodline.has(p.id))
-      .sort(sortPersons);
-    const children = (index.childrenOf.get(person.id) ?? []).map(measure);
+    const spouses = orderedSpouses(person, tree.members).filter((spouse) =>
+      isUnitSpouse(person, spouse),
+    );
+    const children = orderSiblings(clan.clanChildren.get(person.id) ?? []).map(measure);
     const unitWidth = cardW + spouses.length * (SPOUSE_GAP + cardW);
     const childWidth =
       children.reduce((sum, c) => sum + c.width, 0) +
@@ -46,7 +85,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const measured = roots.map(measure);
   const nodes: TreeNode[] = [];
 
-  const generationKeys = Array.from(new Set(Array.from(generations.values()))).sort(sortGenerations);
+  const generationKeys = Array.from(new Set(Array.from(counts.keys()))).sort(sortGenerations);
   const rowTop = new Map<number, number>();
   let rowCursor = marginTop;
   for (const generation of generationKeys) {
@@ -64,6 +103,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     );
     const y = rowTop.get(generation) ?? marginTop;
     const add = (person: Person, x: number, isSpouse: boolean) => {
+      const role = clan.roleOf(person.id);
       nodes.push({
         id: person.id,
         x,
@@ -73,6 +113,8 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
         generation,
         person,
         isSpouse,
+        inLaw: role === "inLaw" || undefined,
+        maternal: role === "maternal" || undefined,
         unitId: m.person.id,
       });
     };
@@ -158,9 +200,10 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     }
   }
 
-  const edges = buildEdges(nodes, index.lineParent);
+  const edges = buildEdges(nodes, clan);
   const ancestorTitles = new Map<number, string[]>();
   for (const member of tree.members) {
+    if (!clan.isDisplayed(member.id)) continue;
     const generation = generations.get(member.id);
     if (generation === undefined || generation >= 0) continue;
     const title = member.title?.trim();
@@ -196,8 +239,9 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   };
 }
 
-function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undefined): TreeEdge[] {
+function buildEdges(nodes: TreeNode[], clan: ClanIndex): TreeEdge[] {
   const edges: TreeEdge[] = [];
+  const lineParent = clan.lineParent;
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
   const units = new Map<string, TreeNode[]>();
   for (const node of nodes) {
@@ -229,7 +273,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
     if (!parent) continue;
     const parentNode = nodeById.get(parent);
     if (!parentNode) continue;
-    if (isIndirectLink(node.person) && node.person.linkToId === parent) {
+    if (isIndirectLink(node.person) && node.person.ancestorLinkId === parent) {
       const startX = parentNode.x + parentNode.width / 2;
       const startY = parentNode.y + parentNode.height;
       const endX = node.x + node.width / 2;
@@ -243,6 +287,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
         fromId: parentNode.id,
         toId: node.id,
         indirect: true,
+        maternal: node.maternal,
       };
       if (Math.abs(startX - endX) < 1) {
         edges.push({
@@ -328,6 +373,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
             y2: endY,
             generation: node.generation,
             subjectId: node.id,
+            maternal: node.maternal,
           });
         } else {
           edges.push({
@@ -339,6 +385,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
             y2: midY,
             generation: node.generation,
             subjectId: node.id,
+            maternal: node.maternal,
           });
           edges.push({
             id: `${groupId}-b`,
@@ -349,6 +396,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
             y2: midY,
             generation: node.generation,
             subjectId: node.id,
+            maternal: node.maternal,
           });
           edges.push({
             id: `${groupId}-c`,
@@ -359,6 +407,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
             y2: endY,
             generation: node.generation,
             subjectId: node.id,
+            maternal: node.maternal,
           });
         }
         continue;
@@ -397,6 +446,7 @@ function buildEdges(nodes: TreeNode[], lineParent: (p: Person) => string | undef
           y2: node.y,
           generation: node.generation,
           subjectId: node.id,
+          maternal: node.maternal,
         });
       }
     }

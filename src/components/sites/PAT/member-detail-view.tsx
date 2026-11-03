@@ -6,17 +6,14 @@ import {
   Award,
   Baby,
   Ban,
-  CalendarHeart,
   ChevronRight,
   Flower2,
   HeartHandshake,
-  Home,
   Info,
   MapPin,
   Network,
   PencilLine,
   Phone,
-  Plus,
   ScrollText,
   Trash2,
   UserRound,
@@ -25,19 +22,27 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
-import { generationTag, LINK_CONFIDENCE_LABELS } from "./types";
+import {
+  CALENDAR_LABELS,
+  generationTag,
+  LIFE_STATUS_LABELS,
+  lifeStatusOf,
+  LINK_CONFIDENCE_LABELS,
+  SPOUSE_RANK_LABELS,
+  UNKNOWN_GENERATION,
+} from "./types";
+import { classifyClan, CLAN_ROLE_LABELS, CLAN_ROLE_HINTS } from "./clan";
 import {
   ageText,
   buildFamilyIndex,
   computeGenerations,
-  grandchildrenCount,
   lifeSpan,
   nameAliases,
   sortPersons,
   spouseNames,
 } from "./utils";
 import { TreeShell } from "./app-shell";
-import { Avatar, Badge, EmptyState, SectionTitle, Stat } from "./ui";
+import { Avatar, Badge, SectionTitle, Stat } from "./ui";
 import { MemberFormSheet } from "./member-form-sheet";
 import { KinshipSheet } from "./kinship-sheet";
 
@@ -55,10 +60,12 @@ function PersonChip({
   person,
   onClick,
   tone = "gold",
+  rank,
 }: {
   person: Person;
   onClick: () => void;
   tone?: "gold" | "red" | "muted";
+  rank?: string;
 }) {
   return (
     <button
@@ -71,6 +78,7 @@ function PersonChip({
         <span className="block truncate text-xs font-semibold">{person.name}</span>
         <span className="block truncate text-[0.62rem] text-[var(--pat-muted)]">
           {lifeSpan(person)} · {person.gender === "male" ? "Nam" : "Nữ"}
+          {rank ? ` · ${rank}` : ""}
         </span>
       </span>
       {tone === "red" ? <Ban size={13} className="text-[var(--pat-muted)]" /> : null}
@@ -87,17 +95,45 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
   const [addSpouseOpen, setAddSpouseOpen] = useState(false);
   const [kinOpen, setKinOpen] = useState(false);
 
-  const index = useMemo(() => buildFamilyIndex(tree.members), [tree.members]);
-  const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
+  const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const role = clan.roleOf(member.id);
+  const isReference = role === "reference";
+  const canAddChild = role === "clan";
+  const index = useMemo(
+    () => buildFamilyIndex(tree.members, tree.founderId),
+    [tree.members, tree.founderId],
+  );
+  const gens = useMemo(
+    () => computeGenerations(tree.members, tree.founderId),
+    [tree.members, tree.founderId],
+  );
   const generation = gens.get(member.id) ?? 1;
+  const lifeStatus = lifeStatusOf(member);
+  const statusTone = lifeStatus === "alive" ? "green" : lifeStatus === "deceased" ? "muted" : "gold";
+  const generationKnown = generation !== UNKNOWN_GENERATION;
+  const birthText = member.birthDate
+    ? `${member.birthDate}${member.birthCalendar ? ` (${CALENDAR_LABELS[member.birthCalendar]})` : ""}`
+    : undefined;
+  const deathText = member.deathDate
+    ? `${member.deathDate}${member.deathCalendar ? ` (${CALENDAR_LABELS[member.deathCalendar]})` : ""}`
+    : undefined;
   const branch = tree.branches.find((b) => b.id === member.branchId);
   const father = tree.members.find((m) => m.id === member.fatherId);
   const mother = tree.members.find((m) => m.id === member.motherId);
-  const linkTarget = member.linkToId ? tree.members.find((m) => m.id === member.linkToId) : undefined;
-  const hasLinkInfo = Boolean(member.ancestorOrder || member.linkToId || member.nameIsConventional);
+  const ancestorLinkTarget = member.ancestorLinkId
+    ? tree.members.find((m) => m.id === member.ancestorLinkId)
+    : undefined;
+  const hasLinkInfo = Boolean(
+    member.ancestorOrder || member.ancestorLinkId || member.nameIsConventional || isReference,
+  );
   const spouses = spouseNames(tree, member);
   const children = index.childrenAny.get(member.id) ?? [];
-  const grandchildren = grandchildrenCount(tree, member);
+  const grandchildren = useMemo(() => {
+    const kids = index.childrenAny.get(member.id) ?? [];
+    return kids
+      .filter((child) => clan.roleOf(child.id) === "clan")
+      .reduce((sum, child) => sum + (index.childrenAny.get(child.id)?.length ?? 0), 0);
+  }, [index, clan, member.id]);
   const siblings = tree.members
     .filter(
       (p) =>
@@ -105,7 +141,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
         ((member.fatherId && p.fatherId === member.fatherId) || (member.motherId && p.motherId === member.motherId)),
     )
     .sort(sortPersons);
-  const photos = member.photos ?? [];
+  const generationBadgeValue = generationKnown ? generationTag(generation) : "Chưa rõ";
   const aliasLine = nameAliases(member);
   const hasLineageInfo = Boolean(
     member.generationNote || member.tabooName || member.courtesyName || member.styleName || member.posthumousName,
@@ -116,7 +152,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
   const childDefaults = {
     fatherId: member.gender === "male" ? member.id : primarySpouse?.gender === "male" ? primarySpouse.id : undefined,
     motherId: member.gender === "female" ? member.id : primarySpouse?.gender === "female" ? primarySpouse.id : undefined,
-    branchId: member.branchId,
+    branchId: member.gender === "male" ? member.branchId : undefined,
     birthOrder: children.length + 1,
   };
   const spouseDefaults = {
@@ -166,16 +202,22 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <Avatar person={member} size={72} className="border-2 border-[#f2d27c]" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
+                {member.code ? <Badge tone="muted">{member.code}</Badge> : null}
                 {member.title ? <Badge tone="gold">{member.title}</Badge> : null}
-                <Badge tone={member.alive ? "green" : "muted"}>{member.alive ? "Còn sống" : "Đã mất"}</Badge>
-                <Badge tone="red">{generationTag(generation)}</Badge>
+                <Badge tone={statusTone}>{LIFE_STATUS_LABELS[lifeStatus]}</Badge>
+                <Badge tone={generationKnown ? "red" : "gold"}>{generationTag(generation)}</Badge>
+                <Badge tone="muted">{CLAN_ROLE_LABELS[role]}</Badge>
                 {member.nameIsConventional ? <Badge tone="muted">Tên quy ước</Badge> : null}
               </div>
               <h1 className="pat-serif mt-1 text-xl font-bold leading-tight text-[var(--pat-red)]">
                 {member.name}
               </h1>
-              {aliasLine ? (
-                <p className="text-[0.72rem] italic leading-snug text-[#7a5a10]">{aliasLine}</p>
+              {aliasLine || member.nameNote ? (
+                <p className="text-[0.72rem] italic leading-snug text-[#7a5a10]">
+                  {aliasLine}
+                  {aliasLine && member.nameNote ? " · " : ""}
+                  {member.nameNote}
+                </p>
               ) : null}
               <p className="text-xs text-[var(--pat-muted)]">
                 {lifeSpan(member)}
@@ -198,8 +240,8 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
           <div className="mt-4 grid grid-cols-4 divide-x divide-[var(--pat-line)] rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/80 py-2.5">
             <Stat value={spouses.length} label="Vợ/chồng" />
             <Stat value={children.length} label="Con" tone="red" />
-            <Stat value={grandchildren} label="Cháu" />
-            <Stat value={photos.length} label="Ảnh" />
+            <Stat value={grandchildren} label="Cháu nội tộc" />
+            <Stat value={generationBadgeValue} label="Vị trí" />
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -249,6 +291,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <div className="grid gap-x-4 sm:grid-cols-2">
               <div>
                 <InfoRow label="Đời / bậc tổ" value={generationTag(generation)} />
+                <InfoRow label="Phạm vi" value={CLAN_ROLE_LABELS[role]} />
                 <InfoRow
                   label="Bậc tiền tổ"
                   value={member.ancestorOrder ? `Bậc ${member.ancestorOrder} (1 = xa nhất)` : undefined}
@@ -257,31 +300,43 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               </div>
               <div>
                 <InfoRow
-                  label="Nối không trực hệ"
+                  label="Liên kết tiền tổ"
                   value={
-                    linkTarget ? (
+                    ancestorLinkTarget ? (
                       <button
                         type="button"
                         className="font-semibold text-[var(--pat-red)] underline underline-offset-2"
-                        onClick={() => goMember(linkTarget.id)}
+                        onClick={() => goMember(ancestorLinkTarget.id)}
                       >
-                        {linkTarget.name}
+                        {ancestorLinkTarget.name}
                       </button>
                     ) : undefined
                   }
                 />
-                <InfoRow label="Quan hệ" value={member.linkRelation} />
-                <InfoRow label="Cách mấy đời" value={member.linkGap ? `${member.linkGap} đời` : undefined} />
+                <InfoRow label="Quan hệ" value={member.ancestorLinkRelation} />
+                <InfoRow
+                  label="Cách mấy bậc"
+                  value={member.ancestorLinkGap ? `${member.ancestorLinkGap} bậc` : undefined}
+                />
                 <InfoRow
                   label="Độ tin cậy"
-                  value={member.linkConfidence ? LINK_CONFIDENCE_LABELS[member.linkConfidence] : undefined}
+                  value={
+                    member.ancestorLinkConfidence
+                      ? LINK_CONFIDENCE_LABELS[member.ancestorLinkConfidence]
+                      : undefined
+                  }
                 />
-                <InfoRow label="Ghi chú" value={member.linkNote} />
+                <InfoRow label="Ghi chú" value={member.ancestorLinkNote} />
               </div>
             </div>
             <p className="mt-2 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
-              Liên kết không trực hệ chỉ nối xuống đời sau, không thay thế quan hệ cha/mẹ. Trên phả đồ, đường nối này được vẽ
-              bằng nét đứt.
+              {role === "reference"
+                ? "Hồ sơ tham khảo chỉ để tra cứu, không hiện trên phả đồ và không tham gia tính đời."
+                : role === "inLaw"
+                  ? "Dâu/rể hiển thị cạnh vợ/chồng; đời lấy theo vợ/chồng, cha mẹ chỉ là thông tin tham khảo."
+                  : role === "maternal"
+                    ? "Con của con gái thuộc dòng họ bên chồng nên chỉ hiển thị một đời, không nối tiếp các đời sau."
+                    : "Liên kết tiền tổ chỉ nối các bậc trên Khởi Tổ khi thiếu đời nối tiếp và được vẽ bằng nét đứt trên phả đồ."}
             </p>
           </section>
         ) : null}
@@ -291,9 +346,13 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <SectionTitle icon={<UserRound size={13} />} title="Thông tin cá nhân" />
             <div>
               <InfoRow label="Họ tên" value={member.name} />
+              <InfoRow label="Mã thành viên" value={member.code} />
               <InfoRow label="Giới tính" value={member.gender === "male" ? "Nam" : "Nữ"} />
-              <InfoRow label="Sinh" value={member.birthDate} />
-              <InfoRow label="Mất" value={member.alive ? "Còn sống" : member.deathDate} />
+              <InfoRow label="Sinh" value={birthText} />
+              <InfoRow
+                label="Mất"
+                value={lifeStatus === "alive" ? "Còn sống" : lifeStatus === "missing" ? "Mất tích" : lifeStatus === "unknown" ? "Chưa rõ" : deathText}
+              />
               <InfoRow label="Tuổi" value={ageText(member)} />
               <InfoRow label="Quê quán" value={member.hometown} />
               <InfoRow label="Nghề nghiệp" value={member.occupation} />
@@ -315,11 +374,46 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <div>
               <InfoRow label="Ngày giỗ" value={member.deathAnniversary} />
               <InfoRow label="Nơi thờ tự" value={member.worshipPlace} />
+              <InfoRow
+                label="Bản đồ nơi thờ"
+                value={
+                  member.worshipMapUrl ? (
+                    <a
+                      className="text-[var(--pat-red)] underline underline-offset-2"
+                      href={member.worshipMapUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Mở bản đồ nơi thờ
+                    </a>
+                  ) : undefined
+                }
+              />
               <InfoRow label="Nơi an nghỉ" value={member.restingPlace} />
               <InfoRow label="Vị trí mộ" value={member.graveAddress} />
-              <InfoRow label="Tình trạng" value={member.alive ? "Đang sinh sống" : "Đã khuất"} />
+              <InfoRow
+                label="Bản đồ phần mộ"
+                value={
+                  member.graveMapUrl ? (
+                    <a
+                      className="text-[var(--pat-red)] underline underline-offset-2"
+                      href={member.graveMapUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Mở bản đồ phần mộ
+                    </a>
+                  ) : undefined
+                }
+              />
+              <InfoRow label="Tình trạng" value={LIFE_STATUS_LABELS[lifeStatus]} />
             </div>
-            {!member.deathAnniversary && !member.worshipPlace && !member.restingPlace && !member.graveAddress ? (
+            {!member.deathAnniversary &&
+            !member.worshipPlace &&
+            !member.restingPlace &&
+            !member.graveAddress &&
+            !member.worshipMapUrl &&
+            !member.graveMapUrl ? (
               <p className="mt-2 text-xs text-[var(--pat-muted)]">Chưa ghi nhận thông tin thờ tự, phần mộ.</p>
             ) : null}
           </section>
@@ -348,10 +442,19 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
                   </p>
                 )}
               </div>
+              <p className="mt-2 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
+                {CLAN_ROLE_HINTS[role]}
+              </p>
               <div className="mt-3 flex gap-2">
                 <button
                   type="button"
-                  className="pat-btn pat-btn-outline h-8 flex-1 text-[0.68rem]"
+                  disabled={!canAddChild}
+                  title={
+                    canAddChild
+                      ? undefined
+                      : "Chỉ thêm con từ người thuộc nội tộc. Con của con gái hiển thị một đời; dâu/rể và hồ sơ tham khảo không mở đời mới."
+                  }
+                  className="pat-btn pat-btn-outline h-8 flex-1 text-[0.68rem] disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={() => setAddChildOpen(true)}
                 >
                   <Baby size={13} /> Thêm con
@@ -372,7 +475,18 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               </p>
               <div className="grid gap-1.5">
                 {spouses.length ? (
-                  spouses.map((spouse) => <PersonChip key={spouse.id} person={spouse} onClick={() => goMember(spouse.id)} />)
+                  spouses.map((spouse) => (
+                    <PersonChip
+                      key={spouse.id}
+                      person={spouse}
+                      onClick={() => goMember(spouse.id)}
+                      rank={
+                        member.spouseRank?.[spouse.id]
+                          ? SPOUSE_RANK_LABELS[member.spouseRank[spouse.id]]
+                          : undefined
+                      }
+                    />
+                  ))
                 ) : (
                   <p className="rounded-lg border border-dashed border-[var(--pat-line)] px-2.5 py-2 text-xs text-[var(--pat-muted)]">
                     Chưa ghi nhận hôn nhân
@@ -480,37 +594,6 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             ) : null}
           </section>
         </div>
-
-        {photos.length ? (
-          <section className="pat-card px-4 py-4">
-            <SectionTitle icon={<CalendarHeart size={13} />} title={`Ảnh tư liệu (${photos.length})`} />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {photos.map((url, i) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={`${url}-${i}`}
-                  src={url}
-                  alt={`${member.name} — ảnh ${i + 1}`}
-                  className="aspect-[4/3] w-full rounded-xl border border-[var(--pat-line)] object-cover"
-                />
-              ))}
-            </div>
-          </section>
-        ) : (
-          <section className="pat-card px-4 py-4">
-            <SectionTitle icon={<CalendarHeart size={13} />} title="Ảnh tư liệu" />
-            <EmptyState
-              icon={<Home size={24} />}
-              title="Chưa có ảnh"
-              description="Thêm ảnh chân dung hoặc ảnh tư liệu trong phần sửa thành viên."
-              action={
-                <button type="button" className="pat-btn pat-btn-outline h-8 text-xs" onClick={() => setEditOpen(true)}>
-                  <Plus size={13} /> Thêm ảnh
-                </button>
-              }
-            />
-          </section>
-        )}
 
         {member.biography || member.notes ? null : (
           <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-xs text-[var(--pat-muted)]">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   BookOpen,
   CalendarDays,
   ChevronRight,
@@ -21,7 +22,16 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree } from "./types";
-import { computeGenerations, getGenerationStats, getStats, initials } from "./utils";
+import { generationTag, UNKNOWN_GENERATION } from "./types";
+import {
+  branchHeadcounts,
+  computeGenerations,
+  diagnoseGenerations,
+  getGenerationStats,
+  getStats,
+  initials,
+} from "./utils";
+import { classifyClan } from "./clan";
 import { TreeShell } from "./app-shell";
 import { Badge, Field, Sheet, SheetRow, SectionTitle, Stat } from "./ui";
 
@@ -65,8 +75,8 @@ const features = [
     key: "branches",
     href: "danh-sach-nhanh",
     icon: GitBranch,
-    label: "NHÁNH HỌ",
-    caption: "Chi, cành và trưởng nhánh",
+    label: "CHI PHÁI",
+    caption: "Chi phái và trưởng chi phái",
   },
 ];
 
@@ -80,15 +90,25 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
     address: tree.address ?? "",
     ownerName: tree.ownerName ?? "",
     description: tree.description ?? "",
+    founderId: tree.founderId ?? "",
   });
 
   const stats = getStats(tree);
   const generationStats = getGenerationStats(tree);
-  const gens = computeGenerations(tree.members);
-  const founder = tree.members
-    .filter((member) => (gens.get(member.id) ?? 1) >= 0)
-    .sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || a.birthOrder - b.birthOrder)[0];
+  const clan = classifyClan(tree.members, tree.founderId);
+  const gens = computeGenerations(tree.members, tree.founderId);
+  const issues = diagnoseGenerations(tree.members, tree.founderId);
+  const founder =
+    (tree.founderId ? tree.members.find((member) => member.id === tree.founderId) : undefined) ??
+    tree.members
+      .filter((member) => clan.clanIds.has(member.id) && (gens.get(member.id) ?? 1) >= 0)
+      .sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || a.birthOrder - b.birthOrder)[0];
+  const rootsAtZero = tree.members.filter(
+    (member) => clan.clanIds.has(member.id) && gens.get(member.id) === 0,
+  );
+  const needsFounder = rootsAtZero.length > 1 && !tree.founderId;
   const sortedBranches = tree.branches;
+  const branchMen = branchHeadcounts(tree).byBranch;
 
   const open = (href: string) => router.push(`/gia-pha/${tree.id}/${href}`);
 
@@ -109,6 +129,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               address: tree.address ?? "",
               ownerName: tree.ownerName ?? "",
               description: tree.description ?? "",
+              founderId: tree.founderId ?? "",
             });
             setMenuOpen(true);
           }}
@@ -138,7 +159,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               {[
                 [stats.ancestorTiers ? `${stats.generations}+${stats.ancestorTiers}` : stats.generations, stats.ancestorTiers ? "Đời · bậc tổ" : "Đời"],
                 [stats.total, "Thành viên"],
-                [tree.branches.length, "Nhánh"],
+                [tree.branches.length, "Chi phái"],
                 [stats.alive, "Còn sống"],
               ].map(([value, label]) => (
                 <div key={String(label)} className="px-1">
@@ -194,6 +215,67 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           </div>
         </section>
 
+        {issues.length || needsFounder ? (
+          <section className="pat-card border-[#e6b7ad] px-4 py-4">
+            <SectionTitle
+              icon={<AlertTriangle size={13} />}
+              title={`Cần rà soát (${issues.length + (needsFounder ? 1 : 0)})`}
+            />
+            {needsFounder ? (
+              <div className="mb-2 rounded-xl border border-[#e6b7ad] bg-[#f9e3df]/60 px-3 py-2.5">
+                <p className="text-xs font-semibold leading-relaxed text-[#8a1c15]">
+                  Có {rootsAtZero.length} người cùng ở Đời 0 nhưng chưa chọn Khởi Tổ cho dòng đang soạn.
+                </p>
+                <p className="mt-1 text-[0.7rem] leading-relaxed text-[#8a5a52]">
+                  Mỗi dòng họ chỉ có một Khởi Tổ; các vị tổ phía trên nên nối bằng liên kết tiền tổ.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(true)}
+                  className="pat-btn pat-btn-outline mt-2 h-8 text-[0.68rem]"
+                >
+                  <Crown size={13} /> Chọn Khởi Tổ
+                </button>
+              </div>
+            ) : null}
+            {issues.length ? (
+              <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+                {issues.slice(0, 8).map((issue) => {
+                  const tone =
+                    issue.kind === "cycle"
+                      ? "border-[#e6b7ad] bg-[#f9e3df]/50 text-[#8a1c15]"
+                      : issue.kind === "conflict"
+                        ? "border-[var(--pat-gold)]/60 bg-[#f9edcf]/60 text-[#7a5a10]"
+                        : "border-[var(--pat-line)] bg-[#fffaf0]/70 text-[var(--pat-ink)]";
+                  const label =
+                    issue.kind === "cycle" ? "Vòng lặp" : issue.kind === "conflict" ? "Xung đột đời" : "Chưa rõ đời";
+                  return (
+                    <li key={`${issue.kind}-${issue.personId ?? issue.message}`}>
+                      <button
+                        type="button"
+                        disabled={!issue.personId}
+                        onClick={() => issue.personId && open(`thanh-vien/${issue.personId}`)}
+                        className={`flex w-full items-start gap-2 rounded-xl border px-2.5 py-2 text-left text-[0.7rem] leading-relaxed transition enabled:hover:border-[var(--pat-gold)] ${tone}`}
+                      >
+                        <span className="mt-px shrink-0 rounded-full border border-current/30 px-1.5 py-0.5 text-[0.58rem] font-bold uppercase tracking-wide">
+                          {label}
+                        </span>
+                        <span className="min-w-0 flex-1">{issue.message}</span>
+                        {issue.personId ? <ChevronRight size={13} className="mt-0.5 shrink-0" /> : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            {issues.length > 8 ? (
+              <p className="mt-2 text-[0.68rem] text-[var(--pat-muted)]">
+                Còn {issues.length - 8} mục khác. Mở từng thành viên để bổ sung cha/mẹ, đời hoặc gỡ liên kết trùng.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-2">
           <section className="pat-card px-4 py-4">
             <SectionTitle
@@ -241,7 +323,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           <section className="pat-card px-4 py-4">
             <SectionTitle
               icon={<GitBranch size={13} />}
-              title="Chi, cành"
+              title="Chi phái"
               action={
                 <button
                   type="button"
@@ -254,19 +336,19 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
             />
             {sortedBranches.length === 0 ? (
               <div className="rounded-xl border border-dashed border-[var(--pat-line)] px-3 py-4 text-center">
-                <p className="text-xs text-[var(--pat-muted)]">Gia phả chưa tách nhánh nào.</p>
+                <p className="text-xs text-[var(--pat-muted)]">Gia phả chưa tách chi phái nào.</p>
                 <button
                   type="button"
                   onClick={() => open("danh-sach-nhanh")}
                   className="pat-btn pat-btn-outline mt-2 h-8 text-xs"
                 >
-                  <GitBranch size={13} /> Tách nhánh
+                  <GitBranch size={13} /> Tạo chi phái
                 </button>
               </div>
             ) : (
               <div className="space-y-2">
                 {sortedBranches.slice(0, 4).map((branch) => {
-                  const members = tree.members.filter((m) => m.branchId === branch.id).length;
+                  const members = branchMen.get(branch.id)?.length ?? 0;
                   const head = tree.members.find((m) => m.id === branch.headId);
                   return (
                     <button
@@ -279,7 +361,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{branch.name}</span>
                         <span className="block truncate text-[0.68rem] text-[var(--pat-muted)]">
-                          {head ? `Trưởng nhánh: ${head.name}` : "Chưa chọn trưởng nhánh"} · {members} người
+                          {head ? `Trưởng chi phái: ${head.name}` : "Chưa chọn trưởng chi phái"} · {members} nam
                         </span>
                       </span>
                       <ChevronRight size={14} className="text-[var(--pat-muted)]" />
@@ -381,7 +463,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           <SheetRow icon={<PenTool size={18} />} title="Tạo phả đồ" onClick={() => open("ve-pha-do")} />
           <SheetRow icon={<Palette size={18} />} title="Thiết kế phả đồ" onClick={() => open("giao-dien")} />
           <SheetRow icon={<BookOpen size={18} />} title="Phả ký" onClick={() => open("pha-ky")} />
-          <SheetRow icon={<GitBranch size={18} />} title="Nhánh họ" onClick={() => open("danh-sach-nhanh")} />
+          <SheetRow icon={<GitBranch size={18} />} title="Chi phái" onClick={() => open("danh-sach-nhanh")} />
           <SheetRow icon={<CalendarDays size={18} />} title="Xuất dữ liệu" subtitle="Excel, JSON, PDF, PNG" onClick={() => open("ve-pha-do")} />
         </div>
       </Sheet>
@@ -401,6 +483,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                 address: form.address.trim(),
                 ownerName: form.ownerName.trim(),
                 description: form.description.trim(),
+                founderId: form.founderId || undefined,
               });
               setEditOpen(false);
             }}
@@ -426,6 +509,33 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
             />
           </Field>
+          <Field
+            label="Khởi Tổ của dòng đang soạn"
+            hint="Chỉ chọn một người thuộc nội tộc. Các vị tổ phía trên dùng liên kết tiền tổ trong hồ sơ."
+          >
+            <select
+              className="pat-input"
+              value={form.founderId}
+              onChange={(e) => setForm({ ...form, founderId: e.target.value })}
+            >
+              <option value="">Tự động — người ở Đời 0 đầu tiên</option>
+              {[...tree.members]
+                .filter((member) => clan.clanIds.has(member.id) || member.id === tree.founderId)
+                .sort((a, b) => (gens.get(a.id) ?? 999) - (gens.get(b.id) ?? 999) || a.birthOrder - b.birthOrder)
+                .map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.code ? `${member.code} · ` : ""}
+                    {member.name} — {generationTag(gens.get(member.id) ?? UNKNOWN_GENERATION)}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          {needsFounder ? (
+            <p className="rounded-xl border border-[#e6b7ad] bg-[#f9e3df]/60 px-3 py-2 text-[0.7rem] leading-relaxed text-[#8a1c15]">
+              Có {rootsAtZero.length} người ở Đời 0. Hãy chọn đúng một Khởi Tổ cho dòng đang soạn để phả đồ và bản in ghi
+              đúng danh xưng.
+            </p>
+          ) : null}
           <div className="grid grid-cols-3 divide-x divide-[var(--pat-line)] rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 py-2">
             <div className="flex justify-center">
               <Stat value={stats.total} label="Thành viên" />
@@ -438,7 +548,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               />
             </div>
             <div className="flex justify-center">
-              <Stat value={tree.branches.length} label="Nhánh" />
+              <Stat value={tree.branches.length} label="Chi phái" />
             </div>
           </div>
         </div>

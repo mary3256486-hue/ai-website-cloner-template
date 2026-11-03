@@ -6,6 +6,7 @@ import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
 import { generationTag } from "./types";
 import {
+  branchHeadcounts,
   buildFamilyIndex,
   careerSummary,
   computeGenerations,
@@ -16,6 +17,7 @@ import {
   sortGenerations,
   sortPersons,
 } from "./utils";
+import { classifyClan } from "./clan";
 import { TreeShell } from "./app-shell";
 import { Badge } from "./ui";
 
@@ -24,17 +26,18 @@ function printBook() {
 }
 
 function draftHistory(tree: FamilyTree) {
-  const index = buildFamilyIndex(tree.members);
-  const gens = computeGenerations(tree.members);
+  const index = buildFamilyIndex(tree.members, tree.founderId);
+  const gens = computeGenerations(tree.members, tree.founderId);
   const stats = getStats(tree);
   const founder = tree.members
     .filter((member) => index.bloodline.has(member.id) && (gens.get(member.id) ?? 1) >= 0)
     .sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || sortPersons(a, b))[0];
+  const branchMen = branchHeadcounts(tree).byBranch;
   const branchLines = tree.branches
     .map((branch) => {
       const head = tree.members.find((member) => member.id === branch.headId);
-      const count = tree.members.filter((member) => member.branchId === branch.id).length;
-      return `${branch.name}${head ? ` do ${head.name} làm trưởng nhánh` : ""} gồm ${count} người`;
+      const count = branchMen.get(branch.id)?.length ?? 0;
+      return `${branch.name}${head ? ` do ${head.name} làm trưởng chi phái` : ""} gồm ${count} nam`;
     })
     .join("; ");
   const origin = founder
@@ -49,7 +52,7 @@ function draftHistory(tree: FamilyTree) {
     stats.ancestorTiers ? ` cùng ${stats.ancestorTiers} bậc tiền tổ` : ""
   }, dòng họ hiện có ${stats.total} thành viên, trong đó ${stats.male} nam và ${stats.female} nữ${
     stats.alive ? `, ${stats.alive} người còn sống` : ""
-  }. ${branchLines ? `Các chi, cành trong họ gồm: ${branchLines}.` : "Dòng họ chưa tách thành các chi, cành riêng."}`;
+  }. ${branchLines ? `Các chi phái trong họ gồm: ${branchLines}.` : "Dòng họ chưa tách thành các chi phái riêng."}`;
   const thirdParagraph =
     "Gia phả này được biên soạn nhằm ghi nhớ công lao sinh thành, dưỡng dục của tổ tiên và giữ gìn mối dây gắn bó giữa các thế hệ. Mong rằng con cháu muôn đời ghi lòng tạc dạ cội nguồn, tiếp nối truyền thống tốt đẹp của gia tộc và cùng nhau vun đắp cho dòng họ ngày càng hưng thịnh.";
   return [firstParagraph, secondParagraph, thirdParagraph].join("\n\n");
@@ -241,10 +244,12 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
   const [draft, setDraft] = useState(tree.history);
   const [saved, setSaved] = useState(false);
 
-  const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
-  const index = useMemo(() => buildFamilyIndex(tree.members), [tree.members]);
+  const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const gens = useMemo(() => computeGenerations(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const index = useMemo(() => buildFamilyIndex(tree.members, tree.founderId), [tree.members, tree.founderId]);
   const stats = useMemo(() => getStats(tree), [tree]);
   const generationStats = useMemo(() => getGenerationStats(tree), [tree]);
+  const branchMen = useMemo(() => branchHeadcounts(tree).byBranch, [tree]);
 
   const founder = useMemo(
     () =>
@@ -257,6 +262,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
   const generationMembers = useMemo(() => {
     const rows = new Map<number, Person[]>();
     for (const member of tree.members) {
+      if (!clan.isDisplayed(member.id)) continue;
       const generation = gens.get(member.id) ?? 1;
       const list = rows.get(generation) ?? [];
       list.push(member);
@@ -264,7 +270,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
     }
     for (const list of rows.values()) list.sort(sortPersons);
     return Array.from(rows.entries()).sort((a, b) => sortGenerations(a[0], b[0]));
-  }, [tree.members, gens]);
+  }, [tree.members, gens, clan]);
 
   const paragraphs = tree.history
     .split(/\n{2,}/)
@@ -422,7 +428,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                 {[
                   [stats.generations, "Đời"],
                   [stats.total, "Thành viên"],
-                  [tree.branches.length, "Chi, cành"],
+                  [tree.branches.length, "Chi phái"],
                 ].map(([value, label]) => (
                   <div key={String(label)} className="px-2">
                     <p className="pat-serif text-2xl font-bold text-[var(--pat-red)]">{value}</p>
@@ -534,20 +540,20 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
 
           {tree.branches.length ? (
             <Page>
-              <PageHeading eyebrow="Chi, cành trong họ" title="Các nhánh họ" />
+              <PageHeading eyebrow="Chi phái trong họ" title="Các chi phái" />
               <div className="space-y-4">
                 {tree.branches.map((branch) => {
                   const head = tree.members.find((member) => member.id === branch.headId);
-                  const count = tree.members.filter((member) => member.branchId === branch.id).length;
+                  const count = branchMen.get(branch.id)?.length ?? 0;
                   return (
                     <div key={branch.id} className="rounded-lg border border-[#c9a227]/35 bg-[#fffaf0]/60 px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="h-5 w-1.5 rounded-full" style={{ background: branch.color }} />
                         <p className="font-semibold text-[var(--pat-red)]">{branch.name}</p>
-                        <span className="text-[0.68rem] text-[var(--pat-muted)]">{count} người</span>
+                        <span className="text-[0.68rem] text-[var(--pat-muted)]">{count} nam</span>
                       </div>
                       <p className="mt-1 text-xs text-[var(--pat-muted)]">
-                        {head ? `Trưởng nhánh: ${head.name}` : "Chưa chọn trưởng nhánh"}
+                        {head ? `Trưởng chi phái: ${head.name}` : "Chưa chọn trưởng chi phái"}
                       </p>
                       {branch.description ? (
                         <p className="mt-1 text-sm leading-relaxed text-[var(--pat-ink)]">{branch.description}</p>
@@ -590,7 +596,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
         <footer className="no-print flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5 text-[0.68rem] text-[var(--pat-muted)]">
           <span className="inline-flex items-center gap-1.5">
             <Users size={13} className="text-[var(--pat-gold)]" /> {stats.total} thành viên ·{" "}
-            <GitBranch size={13} className="text-[var(--pat-gold)]" /> {tree.branches.length} nhánh
+            <GitBranch size={13} className="text-[var(--pat-gold)]" /> {tree.branches.length} chi phái
           </span>
           <span>In khổ A4, mỗi trang phả ký ngắt trang tự động.</span>
         </footer>

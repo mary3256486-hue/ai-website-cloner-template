@@ -1,5 +1,6 @@
-import type { FamilyTree, Person } from "./types";
-import { generationTag } from "./types";
+import type { FamilyTree, Person, SpouseRank } from "./types";
+import { generationTag, UNKNOWN_GENERATION } from "./types";
+import { classifyClan, computeClanGenerations, findClanCycles, type ClanIndex } from "./clan";
 
 export function uid(prefix = "id"): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-3)}`;
@@ -9,132 +10,236 @@ export function byId(tree: FamilyTree): Map<string, Person> {
   return new Map(tree.members.map((m) => [m.id, m]));
 }
 
-export function computeGenerations(members: Person[]): Map<string, number> {
-  const ids = new Set(members.map((m) => m.id));
-  const gen = new Map<string, number>();
-  const locked = new Set<string>();
-
-  for (const p of members) {
-    if (p.ancestorOrder && p.ancestorOrder > 0) {
-      // Bậc 1 là xa nhất nên nhận hàng âm nhỏ nhất; các bậc sau lùi dần về Đời 0.
-      gen.set(p.id, -p.ancestorOrder);
-      locked.add(p.id);
-    } else if (typeof p.generation === "number" && Number.isFinite(p.generation)) {
-      gen.set(p.id, Math.trunc(p.generation));
-      locked.add(p.id);
-    }
-  }
-
-  for (let pass = 0; pass < 60; pass++) {
-    let changed = false;
-    for (const p of members) {
-      if (locked.has(p.id)) continue;
-      let next = gen.get(p.id);
-      if (p.fatherId && ids.has(p.fatherId)) {
-        const parentGen = gen.get(p.fatherId);
-        if (parentGen !== undefined) next = next === undefined ? parentGen + 1 : Math.max(next, parentGen + 1);
-      }
-      if (p.motherId && ids.has(p.motherId)) {
-        const parentGen = gen.get(p.motherId);
-        if (parentGen !== undefined) next = next === undefined ? parentGen + 1 : Math.max(next, parentGen + 1);
-      }
-      if (p.linkToId && ids.has(p.linkToId)) {
-        const targetGen = gen.get(p.linkToId);
-        if (targetGen !== undefined) {
-          const linked = targetGen + Math.max(1, Math.trunc(p.linkGap ?? 1));
-          next = next === undefined ? linked : Math.max(next, linked);
-        }
-      }
-      for (const sid of p.spouseIds) {
-        if (!ids.has(sid)) continue;
-        const spouseGen = gen.get(sid);
-        if (spouseGen === undefined) continue;
-        next = next === undefined ? spouseGen : Math.max(next, spouseGen);
-      }
-      if (next !== undefined && next !== gen.get(p.id)) {
-        gen.set(p.id, next);
-        changed = true;
-      }
-    }
-    if (!changed) break;
-  }
-  for (const p of members) if (gen.get(p.id) === undefined) gen.set(p.id, 1);
-  return gen;
+function formatPersonCode(sequence: number): string {
+  return `P${String(sequence).padStart(4, "0")}`;
 }
 
-/** Liên kết không trực hệ: người này chỉ nối xuống đời sau, không phải cha/mẹ ruột. */
+/** Mã kế tiếp chưa dùng, ví dụ P0007. */
+export function nextPersonCode(members: Person[]): string {
+  const used = new Set(members.map((m) => m.code).filter((code): code is string => Boolean(code)));
+  let sequence = 1;
+  while (used.has(formatPersonCode(sequence))) sequence += 1;
+  return formatPersonCode(sequence);
+}
+
+/** Gán Mã ổn định cho thành viên cũ chưa có Mã, giữ nguyên Mã đã có. */
+export function ensurePersonCodes(members: Person[]): Person[] {
+  const used = new Set(members.map((m) => m.code).filter((code): code is string => Boolean(code)));
+  let sequence = 1;
+  return members.map((member) => {
+    if (member.code) return member;
+    while (used.has(formatPersonCode(sequence))) sequence += 1;
+    const code = formatPersonCode(sequence);
+    used.add(code);
+    sequence += 1;
+    return { ...member, code };
+  });
+}
+
+/** Tìm các vòng lặp cha/mẹ/liên kết tiền tổ để không lan truyền đời sai vô hạn. */
+export function findRelationshipCycles(members: Person[]): { edges: Set<string>; cycles: string[][] } {
+  return findClanCycles(members);
+}
+
+/** Đời của từng người, chỉ tính theo phạm vi dòng họ (bỏ qua hồ sơ tham khảo). */
+export function computeGenerations(members: Person[], founderId?: string): Map<string, number> {
+  return computeClanGenerations(members, founderId);
+}
+
+export type GenerationIssueKind = "conflict" | "unknown" | "cycle";
+
+export interface GenerationIssue {
+  kind: GenerationIssueKind;
+  personId?: string;
+  name?: string;
+  message: string;
+}
+
+/**
+ * Rà soát các nguồn xác định đời để người dùng tự quyết thay vì lấy đời lớn nhất.
+ *
+ * Chỉ cảnh báo trong phạm vi dòng họ: dâu/rể lấy đời theo vợ/chồng, cha mẹ của
+ * dâu/rể là hồ sơ tham khảo nên không bao giờ bị nhắc thiếu đời hay lệch đời.
+ */
+export function diagnoseGenerations(members: Person[], founderId?: string): GenerationIssue[] {
+  const clan = classifyClan(members, founderId);
+  const byIdMap = new Map(members.map((m) => [m.id, m]));
+  const { cycles, edges: cycleEdges } = findRelationshipCycles(members);
+  const gen = computeGenerations(members, founderId);
+  const issues: GenerationIssue[] = [];
+
+  for (const cycle of cycles) {
+    if (!cycle.every((id) => clan.isDisplayed(id))) continue;
+    const names = cycle.map((id) => byIdMap.get(id)?.name ?? id);
+    issues.push({
+      kind: "cycle",
+      personId: cycle[0],
+      name: names[0],
+      message: `Vòng lặp quan hệ: ${[...names, names[0]].join(" → ")}. Hãy gỡ một liên kết cha/mẹ hoặc liên kết tiền tổ.`,
+    });
+  }
+
+  for (const person of members) {
+    const role = clan.roleOf(person.id);
+    if (role === "reference" || role === "outside") continue;
+
+    const own = gen.get(person.id);
+    if (own === UNKNOWN_GENERATION) {
+      issues.push({
+        kind: "unknown",
+        personId: person.id,
+        name: person.name,
+        message:
+          role === "inLaw"
+            ? `${person.name} (dâu/rể) chưa xác định được đời vì chưa nối vợ/chồng với người trong dòng họ.`
+            : `${person.name} chưa có đủ dữ kiện để xác định đời (thiếu cha/mẹ, liên kết tiền tổ hoặc đời nhập tay).`,
+      });
+    }
+
+    if (role !== "clan" && role !== "maternal") continue;
+    const explicit =
+      typeof person.generation === "number" && Number.isFinite(person.generation)
+        ? Math.trunc(person.generation)
+        : undefined;
+    if (explicit === undefined) continue;
+
+    const parentId = clan.lineParent(person);
+    if (parentId && !cycleEdges.has(`${parentId}>${person.id}`)) {
+      const parentGen = gen.get(parentId);
+      if (parentGen !== undefined && parentGen !== UNKNOWN_GENERATION) {
+        // Liên kết tiền tổ có thể nhảy nhiều bậc (ông–cháu…), cha/mẹ trong họ luôn cách một đời.
+        const gap =
+          person.ancestorLinkId === parentId ? Math.max(1, Math.trunc(person.ancestorLinkGap ?? 1)) : 1;
+        const expected = parentGen + gap;
+        if (expected !== explicit) {
+          issues.push({
+            kind: "conflict",
+            personId: person.id,
+            name: person.name,
+            message: `${person.name}: đời nhập tay là ${generationTag(explicit)} nhưng quan hệ cha/mẹ trong dòng họ cho ra ${generationTag(expected)}.`,
+          });
+        }
+      }
+    }
+
+    for (const spouseId of person.spouseIds) {
+      const spouse = byIdMap.get(spouseId);
+      if (!spouse || clan.roleOf(spouseId) !== "clan") continue;
+      const spouseExplicit =
+        typeof spouse.generation === "number" && Number.isFinite(spouse.generation)
+          ? Math.trunc(spouse.generation)
+          : undefined;
+      if (spouseExplicit !== undefined && spouseExplicit !== explicit) {
+        issues.push({
+          kind: "conflict",
+          personId: person.id,
+          name: person.name,
+          message: `${person.name} (${generationTag(explicit)}) và ${spouse.name} (${generationTag(spouseExplicit)}) đang được nhập khác đời nhưng lại là vợ/chồng.`,
+        });
+        break;
+      }
+    }
+  }
+  return issues;
+}
+
+export function generationFor(gens: Map<string, number>, personId: string): number {
+  return gens.get(personId) ?? UNKNOWN_GENERATION;
+}
+
+/** Liên kết tiền tổ: nối xuống bậc kế tiếp khi thiếu cha/mẹ ruột. */
 export function isIndirectLink(p: Person): boolean {
-  return Boolean(p.linkToId && p.linkToId !== p.fatherId && p.linkToId !== p.motherId);
+  return Boolean(
+    p.ancestorLinkId &&
+      p.ancestorLinkId !== p.fatherId &&
+      p.ancestorLinkId !== p.motherId,
+  );
 }
 
 export function linkLabel(p: Person): string {
   if (!isIndirectLink(p)) return "";
-  const gap = Math.trunc(p.linkGap ?? 1);
+  const gap = Math.trunc(p.ancestorLinkGap ?? 1);
   if (gap > 1) return `cách ${gap} đời`;
-  return p.linkRelation?.trim() || "nối phả hệ";
+  return p.ancestorLinkRelation?.trim() || "liên kết tiền tổ";
 }
 
 export interface FamilyIndex {
   ids: Set<string>;
+  clan: ClanIndex;
+  /** Người thuộc nội tộc hoặc tiền tổ, dùng cho các phép đếm theo dòng họ. */
   bloodline: Set<string>;
   lineParent: (p: Person) => string | undefined;
   childrenOf: Map<string, Person[]>;
   childrenAny: Map<string, Person[]>;
 }
 
-export function buildFamilyIndex(members: Person[]): FamilyIndex {
+export function buildFamilyIndex(members: Person[], founderId?: string): FamilyIndex {
+  const clan = classifyClan(members, founderId);
   const ids = new Set(members.map((m) => m.id));
-  const byIdMap = new Map(members.map((m) => [m.id, m]));
-  const bloodline = new Set<string>();
-  for (const p of members) {
-    if ((p.fatherId && ids.has(p.fatherId)) || (p.motherId && ids.has(p.motherId))) bloodline.add(p.id);
-    if (p.linkToId && ids.has(p.linkToId)) bloodline.add(p.id);
-    if (p.ancestorOrder && p.ancestorOrder > 0) bloodline.add(p.id);
-  }
-  const anchor = new Set<string>();
-  for (const p of members) {
-    if (p.fatherId && ids.has(p.fatherId)) anchor.add(p.fatherId);
-    else if (p.motherId && ids.has(p.motherId)) anchor.add(p.motherId);
-    if (p.linkToId && ids.has(p.linkToId)) anchor.add(p.linkToId);
-  }
-  for (const p of members) {
-    if (p.fatherId || p.motherId) continue;
-    if (!anchor.has(p.id)) continue;
-    const spouseIsBlood = p.spouseIds.some((sid) => bloodline.has(sid));
-    if (!spouseIsBlood) bloodline.add(p.id);
-  }
-  const lineParent = (p: Person): string | undefined => {
-    if (p.fatherId && ids.has(p.fatherId) && bloodline.has(p.fatherId)) return p.fatherId;
-    if (p.motherId && ids.has(p.motherId) && bloodline.has(p.motherId)) return p.motherId;
-    if (p.linkToId && ids.has(p.linkToId) && bloodline.has(p.linkToId)) return p.linkToId;
-    if (p.fatherId && ids.has(p.fatherId)) return p.fatherId;
-    if (p.motherId && ids.has(p.motherId)) return p.motherId;
-    return undefined;
-  };
+  const bloodline = new Set<string>([...clan.clanIds, ...clan.ancestorIds]);
   const childrenOf = new Map<string, Person[]>();
   const childrenAny = new Map<string, Person[]>();
-  for (const p of members) {
-    const parent = lineParent(p);
+  for (const person of members) {
+    if (!clan.isDisplayed(person.id)) continue;
+    const parent = clan.lineParent(person);
     if (parent) {
       const list = childrenOf.get(parent) ?? [];
-      list.push(p);
+      list.push(person);
       childrenOf.set(parent, list);
     }
-    if (p.fatherId && ids.has(p.fatherId)) {
-      const list = childrenAny.get(p.fatherId) ?? [];
-      list.push(p);
-      childrenAny.set(p.fatherId, list);
+    if (person.fatherId && ids.has(person.fatherId)) {
+      const list = childrenAny.get(person.fatherId) ?? [];
+      list.push(person);
+      childrenAny.set(person.fatherId, list);
     }
-    if (p.motherId && ids.has(p.motherId)) {
-      const list = childrenAny.get(p.motherId) ?? [];
-      list.push(p);
-      childrenAny.set(p.motherId, list);
+    if (person.motherId && ids.has(person.motherId)) {
+      const list = childrenAny.get(person.motherId) ?? [];
+      list.push(person);
+      childrenAny.set(person.motherId, list);
     }
   }
   for (const list of childrenOf.values()) list.sort(sortPersons);
   for (const list of childrenAny.values()) list.sort(sortPersons);
-  void byIdMap;
-  return { ids, bloodline, lineParent, childrenOf, childrenAny };
+  return { ids, clan, bloodline, lineParent: clan.lineParent, childrenOf, childrenAny };
+}
+
+/**
+ * Nam giới để đếm đinh của các chi phái: chỉ con cháu nội tộc, không tính
+ * dâu/rể kết hôn vào và không tính tổ tiên phía trên các trưởng chi phái.
+ */
+export function branchHeadcounts(tree: FamilyTree): {
+  men: Person[];
+  byBranch: Map<string, Person[]>;
+} {
+  const clan = classifyClan(tree.members, tree.founderId);
+  const memberById = new Map(tree.members.map((member) => [member.id, member]));
+  const headIds = new Set(tree.branches.map((branch) => branch.headId).filter((id): id is string => Boolean(id)));
+  const ancestorIds = new Set<string>();
+  const stack = [...headIds];
+  while (stack.length) {
+    const person = memberById.get(stack.pop() ?? "");
+    if (!person) continue;
+    for (const parentId of [person.fatherId, person.motherId, person.ancestorLinkId]) {
+      if (parentId && !ancestorIds.has(parentId)) {
+        ancestorIds.add(parentId);
+        stack.push(parentId);
+      }
+    }
+  }
+  const men = tree.members.filter(
+    (member) =>
+      member.gender === "male" &&
+      clan.clanIds.has(member.id) &&
+      !ancestorIds.has(member.id),
+  );
+  const byBranch = new Map<string, Person[]>();
+  for (const branch of tree.branches) {
+    byBranch.set(
+      branch.id,
+      men.filter((member) => member.branchId === branch.id),
+    );
+  }
+  return { men, byBranch };
 }
 
 export function initials(name: string): string {
@@ -155,21 +260,28 @@ export function sortPersons(a: Person, b: Person): number {
   return a.name.localeCompare(b.name, "vi");
 }
 
-export function descendants(members: Person[], id: string): Set<string> {
-  const byIdMap = new Map(members.map((m) => [m.id, m]));
+/** Hậu duệ trong phạm vi hiển thị; con của con gái chỉ tính một đời. */
+export function descendants(members: Person[], id: string, founderId?: string): Set<string> {
+  const clan = classifyClan(members, founderId);
   const out = new Set<string>();
   const stack = [id];
   while (stack.length) {
     const current = stack.pop();
     if (!current) continue;
-    for (const m of members) {
-      if (out.has(m.id)) continue;
-      if (m.fatherId === current || m.motherId === current || m.linkToId === current) {
-        out.add(m.id);
-        stack.push(m.id);
+    for (const person of members) {
+      if (out.has(person.id)) continue;
+      if (
+        person.fatherId !== current &&
+        person.motherId !== current &&
+        person.ancestorLinkId !== current
+      ) {
+        continue;
       }
+      const role = clan.roleOf(person.id);
+      if (role !== "clan" && role !== "maternal" && role !== "ancestor") continue;
+      out.add(person.id);
+      if (role !== "maternal") stack.push(person.id);
     }
-    void byIdMap;
   }
   return out;
 }
@@ -186,7 +298,9 @@ export function ancestorsOf(members: Person[], id: string): Map<string, number> 
     if (!p) continue;
     if (p.fatherId) queue.push({ id: p.fatherId, d: d + 1 });
     if (p.motherId) queue.push({ id: p.motherId, d: d + 1 });
-    if (p.linkToId) queue.push({ id: p.linkToId, d: d + Math.max(1, Math.trunc(p.linkGap ?? 1)) });
+    if (p.ancestorLinkId) {
+      queue.push({ id: p.ancestorLinkId, d: d + Math.max(1, Math.trunc(p.ancestorLinkGap ?? 1)) });
+    }
   }
   return result;
 }
@@ -205,36 +319,55 @@ export function commonAncestor(members: Person[], aId: string, bId: string) {
 }
 
 export function getStats(tree: FamilyTree) {
-  const total = tree.members.length;
-  const male = tree.members.filter((m) => m.gender === "male").length;
+  const clan = classifyClan(tree.members, tree.founderId);
+  const displayed = tree.members.filter((person) => clan.isDisplayed(person.id));
+  const total = displayed.length;
+  const male = displayed.filter((m) => m.gender === "male").length;
   const female = total - male;
-  const alive = tree.members.filter((m) => m.alive).length;
-  const generations = computeGenerations(tree.members);
-  const values = Array.from(generations.values());
-  const ancestorTiers = new Set(values.filter((value) => value < 0).map((value) => -value)).size;
+  const alive = displayed.filter((m) => m.alive).length;
+  const generations = computeGenerations(tree.members, tree.founderId);
+  const values = displayed.map((person) => generations.get(person.id) ?? UNKNOWN_GENERATION);
+  const known = values.filter((value) => value !== UNKNOWN_GENERATION);
+  const ancestorTiers = new Set(known.filter((value) => value < 0).map((value) => -value)).size;
   return {
     total,
     male,
     female,
     alive,
     deceased: total - alive,
-    generations: new Set(values.filter((value) => value >= 0)).size,
+    generations: new Set(known.filter((value) => value >= 0)).size,
     ancestorTiers,
-    ancestors: values.filter((value) => value < 0).length,
+    ancestors: known.filter((value) => value < 0).length,
+    unknownGeneration: values.filter((value) => value === UNKNOWN_GENERATION).length,
+    clan: clan.clanIds.size,
+    inLaw: clan.inLawIds.size,
+    maternal: clan.maternalIds.size,
+    reference: clan.referenceIds.size,
+    outside: clan.outsideIds.size,
+    all: tree.members.length,
   };
 }
 
 export function getGenerationStats(tree: FamilyTree) {
-  const gens = computeGenerations(tree.members);
+  const clan = classifyClan(tree.members, tree.founderId);
+  const gens = computeGenerations(tree.members, tree.founderId);
   const rows = new Map<
     number,
     { generation: number; male: number; female: number; total: number; label: string; isAncestor: boolean }
   >();
   for (const m of tree.members) {
+    if (!clan.isDisplayed(m.id)) continue;
     const g = gens.get(m.id) ?? 1;
     const row =
       rows.get(g) ??
-      { generation: g, male: 0, female: 0, total: 0, label: generationTag(g), isAncestor: g < 0 };
+      {
+        generation: g,
+        male: 0,
+        female: 0,
+        total: 0,
+        label: generationTag(g),
+        isAncestor: g < 0 && g !== UNKNOWN_GENERATION,
+      };
     row.total += 1;
     if (m.gender === "male") row.male += 1;
     else row.female += 1;
@@ -244,14 +377,20 @@ export function getGenerationStats(tree: FamilyTree) {
 }
 
 export function sortGenerations(a: number, b: number) {
+  if (a === UNKNOWN_GENERATION && b === UNKNOWN_GENERATION) return 0;
+  if (a === UNKNOWN_GENERATION) return -1;
+  if (b === UNKNOWN_GENERATION) return 1;
   if (a < 0 && b < 0) return b - a;
   return a - b;
 }
 
 export function lifeSpan(person: Person): string {
   const birth = person.birthDate?.trim() || "?";
-  const death = person.alive ? "" : person.deathDate?.trim() || "?";
-  return person.alive ? `${birth} —` : `${birth} — ${death}`;
+  if (person.alive) return `${birth} —`;
+  if (person.lifeStatus === "missing") return `${birth} — mất tích`;
+  if (person.lifeStatus === "unknown") return `${birth} — ?`;
+  const death = person.deathDate?.trim() || "?";
+  return `${birth} — ${death}`;
 }
 
 export function birthYear(person: Person): string {
@@ -261,9 +400,81 @@ export function birthYear(person: Person): string {
 export function ageText(person: Person): string {
   const birth = parseInt(person.birthDate ?? "", 10);
   if (Number.isNaN(birth)) return "";
-  const endRaw = person.alive ? new Date().getFullYear() : parseInt(person.deathDate ?? "", 10);
+  const endRaw =
+    person.alive || person.lifeStatus === "missing" || person.lifeStatus === "unknown"
+      ? person.alive
+        ? new Date().getFullYear()
+        : NaN
+      : parseInt(person.deathDate ?? "", 10);
   if (Number.isNaN(endRaw)) return "";
   return `${endRaw - birth} tuổi`;
+}
+
+export interface VietnameseNameParts {
+  surname: string;
+  middle: string;
+  given: string;
+}
+
+/** Tách họ, đệm và tên gọi theo thói quen ba chữ của người Việt. */
+export function splitFullName(name: string): VietnameseNameParts {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return { surname: "", middle: "", given: "" };
+  if (parts.length === 1) return { surname: parts[0], middle: "", given: "" };
+  return {
+    surname: parts[0],
+    middle: parts.slice(1, -1).join(" "),
+    given: parts[parts.length - 1],
+  };
+}
+
+export function sortByGivenName(a: Person, b: Person): number {
+  const ga = splitFullName(a.name);
+  const gb = splitFullName(b.name);
+  return (
+    ga.given.localeCompare(gb.given, "vi") ||
+    ga.surname.localeCompare(gb.surname, "vi") ||
+    a.name.localeCompare(b.name, "vi")
+  );
+}
+
+export const SPOUSE_RANK_ORDER: Record<SpouseRank, number> = {
+  chinh: 0,
+  ke: 1,
+  thu: 2,
+  khac: 3,
+};
+
+/** Vợ/chồng theo thứ tự người dùng đặt, sau đó theo thứ bậc chánh/kế/thứ. */
+export function orderedSpouses(person: Person, members: Person[]): Person[] {
+  const map = new Map(members.map((m) => [m.id, m]));
+  const base = person.spouseOrder?.length ? person.spouseOrder : person.spouseIds;
+  const seen = new Set<string>();
+  const list: Person[] = [];
+  for (const id of [...base, ...person.spouseIds]) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const spouse = map.get(id);
+    if (spouse) list.push(spouse);
+  }
+  return list.sort((a, b) => {
+    const ra = spouseRankFor(person, a.id);
+    const rb = spouseRankFor(person, b.id);
+    if (ra && rb && ra !== rb) return SPOUSE_RANK_ORDER[ra] - SPOUSE_RANK_ORDER[rb];
+    if (ra && !rb) return -1;
+    if (!ra && rb) return 1;
+    return 0;
+  });
+}
+
+/** Thứ bậc lưu trên người chồng; khi xem từ phía người vợ vẫn đọc được. */
+export function spouseRankFor(person: Person, spouseId: string): SpouseRank | undefined {
+  return person.spouseRank?.[spouseId];
+}
+
+export function spouseRankLabel(rank?: SpouseRank): string {
+  if (!rank) return "";
+  return rank === "chinh" ? "Chánh thất" : rank === "ke" ? "Kế thất" : rank === "thu" ? "Thứ thất" : "Khác";
 }
 
 export function nameAliases(person: Person): string {
@@ -282,16 +493,15 @@ export function careerSummary(person: Person): string {
 }
 
 export function generationOf(tree: FamilyTree, personId: string): number {
-  return computeGenerations(tree.members).get(personId) ?? 1;
+  return computeGenerations(tree.members, tree.founderId).get(personId) ?? 1;
 }
 
 export function spouseNames(tree: FamilyTree, person: Person): Person[] {
-  const map = byId(tree);
-  return person.spouseIds.map((id) => map.get(id)).filter((p): p is Person => Boolean(p));
+  return orderedSpouses(person, tree.members);
 }
 
 export function childrenOf(tree: FamilyTree, person: Person): Person[] {
-  const index = buildFamilyIndex(tree.members);
+  const index = buildFamilyIndex(tree.members, tree.founderId);
   return index.childrenAny.get(person.id) ?? [];
 }
 
@@ -371,7 +581,9 @@ function parentOnPathToLca(members: Person[], childId: string, lcaId: string): P
   const child = byIdMap.get(childId);
   if (!child) return undefined;
   const candidates = [child.fatherId, child.motherId].filter(Boolean) as string[];
-  if (child.linkToId && !candidates.includes(child.linkToId)) candidates.push(child.linkToId);
+  if (child.ancestorLinkId && !candidates.includes(child.ancestorLinkId)) {
+    candidates.push(child.ancestorLinkId);
+  }
   for (const pid of candidates) {
     const parent = byIdMap.get(pid);
     if (!parent) continue;

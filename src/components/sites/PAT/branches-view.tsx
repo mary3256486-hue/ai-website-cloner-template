@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { Branch, FamilyTree } from "./types";
-import { computeGenerations, initials, sortPersons } from "./utils";
+import { branchHeadcounts, computeGenerations, initials, sortPersons } from "./utils";
+import { classifyClan } from "./clan";
 import { TreeShell } from "./app-shell";
 import { Avatar, Badge, EmptyState, Field, SectionTitle, Sheet, Stat } from "./ui";
 
@@ -25,49 +26,54 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Branch | null>(null);
 
-  const gens = useMemo(() => computeGenerations(tree.members), [tree.members]);
-  const founder = tree.members
-    .filter((m) => (gens.get(m.id) ?? 1) === 1)
-    .sort(sortPersons)[0];
-  const assigned = tree.members.filter((m) => m.branchId).length;
-  const unassigned = tree.members.length - assigned;
+  const gens = useMemo(() => computeGenerations(tree.members, tree.founderId), [tree.members, tree.founderId]);
+  const { men, byBranch } = useMemo(() => branchHeadcounts(tree), [tree]);
+  const founder =
+    tree.members.find((m) => m.id === tree.founderId) ??
+    tree.members.filter((m) => (gens.get(m.id) ?? 1) === 0).sort(sortPersons)[0];
+  const assigned = men.filter((m) => m.branchId).length;
+  const unassigned = men.length - assigned;
   const close = () => {
     setFormOpen(false);
     setEditing(null);
   };
 
-  const membersOf = (branchId: string) => tree.members.filter((m) => m.branchId === branchId);
+  const membersOf = (branchId: string) => byBranch.get(branchId) ?? [];
 
   return (
     <TreeShell
       tree={tree}
       section="danh-sach-nhanh"
-      title="Nhánh họ"
-      subtitle={`${tree.name} · ${tree.branches.length} chi, cành`}
+      title="Chi phái"
+      subtitle={`${tree.name} · ${tree.branches.length} chi phái`}
       actions={
         <button
           type="button"
           onClick={() => setFormOpen(true)}
           className="flex h-9 items-center gap-1 rounded-full border border-[rgba(231,206,139,0.5)] bg-[#8f2018] px-3 text-xs font-semibold text-[#fff4df]"
         >
-          <Plus size={14} /> Tách nhánh
+          <Plus size={14} /> Tạo chi phái
         </button>
       }
     >
       <div className="space-y-4">
         <section className="pat-card px-4 py-3">
           <div className="grid grid-cols-3 divide-x divide-[var(--pat-line)]">
-            <Stat value={tree.branches.length} label="Nhánh" tone="red" />
-            <Stat value={assigned} label="Đã xếp nhánh" />
-            <Stat value={unassigned} label="Chưa xếp" />
+            <Stat value={tree.branches.length} label="Chi phái" tone="red" />
+            <Stat value={assigned} label="Nam đã xếp chi" />
+            <Stat value={unassigned} label="Nam chưa xếp chi" />
           </div>
+          <p className="mt-2 border-t border-[var(--pat-line)] pt-2 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+            Chi phái chỉ tính người nam thuộc nội tộc, không tính dâu/rể, con của con gái hay hồ sơ tham khảo. Con gái
+            vẫn thuộc gia phả nhưng không tính vào số nam của chi phái.
+          </p>
         </section>
 
         <section className="pat-card px-4 py-4">
-          <SectionTitle icon={<Network size={13} />} title="Sơ đồ nhánh" />
+          <SectionTitle icon={<Network size={13} />} title="Sơ đồ chi phái" />
           {tree.branches.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[var(--pat-line)] px-3 py-4 text-center text-xs text-[var(--pat-muted)]">
-              Chưa có nhánh nào. Tách nhánh để chia các chi theo con trai trưởng hoặc theo từng ngành.
+              Chưa có chi phái nào. Tạo chi phái để chia dòng họ theo các con trai của Khởi Tổ.
             </p>
           ) : (
             <div>
@@ -78,7 +84,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                 <span className="mt-1 max-w-[12rem] truncate text-[0.7rem] font-semibold">
                   {founder?.name ?? tree.name}
                 </span>
-                <span className="text-[0.6rem] uppercase tracking-[0.14em] text-[var(--pat-muted)]">Thủy tổ</span>
+                <span className="text-[0.6rem] uppercase tracking-[0.14em] text-[var(--pat-muted)]">Khởi tổ</span>
               </div>
               <div className="mx-auto h-4 w-px bg-[var(--pat-line)]" />
               <div className="relative mx-4 h-px bg-[var(--pat-line)]">
@@ -106,7 +112,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                       <span className="mx-auto block h-1 w-8 rounded-full" style={{ background: branch.color }} />
                       <span className="mt-1 block truncate text-[0.7rem] font-semibold">{branch.name}</span>
                       <span className="block truncate text-[0.6rem] text-[var(--pat-muted)]">
-                        {head?.name ?? "Chưa có trưởng nhánh"}
+                        {head?.name ?? "Chưa có trưởng chi phái"}
                       </span>
                     </button>
                   );
@@ -119,11 +125,11 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
         {tree.branches.length === 0 ? (
           <EmptyState
             icon={<GitBranch size={30} />}
-            title="Gia phả chưa có nhánh, chi cành nào"
-            description="Tách nhánh giúp quản lý từng ngành trong dòng họ, chọn trưởng nhánh và theo dõi số thành viên."
+            title="Gia phả chưa có chi phái nào"
+            description="Tạo chi phái giúp quản lý từng dòng trong họ, chọn trưởng chi phái và theo dõi số thành viên."
             action={
               <button type="button" className="pat-btn pat-btn-red h-10 text-sm" onClick={() => setFormOpen(true)}>
-                <Plus size={15} /> Tách nhánh
+                <Plus size={15} /> Tạo chi phái
               </button>
             }
           />
@@ -146,10 +152,10 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <h3 className="text-sm font-bold text-[var(--pat-ink)]">{branch.name}</h3>
-                          <Badge tone="muted">{members.length} người</Badge>
+                          <Badge tone="muted">{members.length} nam</Badge>
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
-                          {branch.description || "Chưa có mô tả cho nhánh này."}
+                          {branch.description || "Chưa có mô tả cho chi phái này."}
                         </p>
                       </div>
                       <div className="flex shrink-0 gap-1">
@@ -170,7 +176,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                           onClick={() => {
                             if (
                               window.confirm(
-                                `Xoá nhánh "${branch.name}"? ${members.length} thành viên sẽ được gỡ khỏi nhánh (không bị xoá khỏi gia phả).`,
+                                `Xoá chi phái "${branch.name}"? ${members.length} thành viên sẽ được gỡ khỏi chi phái (không bị xoá khỏi gia phả).`,
                               )
                             ) {
                               deleteBranch(tree.id, branch.id);
@@ -189,7 +195,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                           <Avatar person={head} size={30} />
                           <div className="min-w-0 flex-1">
                             <p className="text-[0.6rem] uppercase tracking-[0.12em] text-[var(--pat-muted)]">
-                              Trưởng nhánh
+                              Trưởng chi phái
                             </p>
                             <p className="truncate text-xs font-semibold">{head.name}</p>
                           </div>
@@ -197,7 +203,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                       ) : (
                         <>
                           <UserRound size={16} className="text-[var(--pat-muted)]" />
-                          <p className="flex-1 text-xs text-[var(--pat-muted)]">Chưa chọn trưởng nhánh</p>
+                          <p className="flex-1 text-xs text-[var(--pat-muted)]">Chưa chọn trưởng chi phái</p>
                         </>
                       )}
                       <button
@@ -219,8 +225,8 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
           <div className="flex items-start gap-2 rounded-xl border border-[var(--pat-gold)]/40 bg-[#f9edcf] px-3 py-2.5 text-xs text-[#7a5a10]">
             <Info size={15} className="mt-0.5 shrink-0" />
             <p>
-              Còn <strong>{unassigned}</strong> thành viên chưa xếp nhánh. Mở hồ sơ thành viên để chọn nhánh trong phần
-              sửa.
+              Còn <strong>{unassigned}</strong> người nam nội tộc chưa xếp chi phái. Mở hồ sơ thành viên để chọn chi phái
+              trong phần sửa.
             </p>
           </div>
         ) : null}
@@ -250,14 +256,39 @@ function BranchFormSheet({
   const { addBranch, updateBranch } = useGenealogy();
   const [name, setName] = useState(branch?.name ?? "");
   const [description, setDescription] = useState(branch?.description ?? "");
-  const [headId, setHeadId] = useState(branch?.headId ?? "");
   const [error, setError] = useState("");
 
-  const candidates = useMemo(() => [...tree.members].sort(sortPersons), [tree.members]);
+  const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
+
+  const candidates = useMemo(
+    () =>
+      tree.members
+        .filter(
+          (person) =>
+            (clan.clanIds.has(person.id) && person.gender === "male") || person.id === branch?.headId,
+        )
+        .sort(sortPersons),
+    [tree.members, clan, branch?.headId],
+  );
+
+  const suggestedHeadId = useMemo(() => {
+    if (branch) return "";
+    const gens = computeGenerations(tree.members, tree.founderId);
+    const taken = new Set(tree.branches.map((item) => item.headId).filter((id): id is string => Boolean(id)));
+    return (
+      [...tree.members]
+        .filter(
+          (person) => person.gender === "male" && clan.clanIds.has(person.id) && !taken.has(person.id),
+        )
+        .sort((a, b) => (gens.get(a.id) ?? 1) - (gens.get(b.id) ?? 1) || sortPersons(a, b))[0]?.id ?? ""
+    );
+  }, [branch, tree.members, tree.founderId, tree.branches, clan]);
+
+  const [headId, setHeadId] = useState(branch?.headId ?? suggestedHeadId);
 
   const submit = () => {
     if (!name.trim()) {
-      setError("Vui lòng nhập tên nhánh.");
+      setError("Vui lòng nhập tên chi phái.");
       return;
     }
     if (branch) {
@@ -272,16 +303,16 @@ function BranchFormSheet({
     <Sheet
       open
       onClose={onClose}
-      title={branch ? "Sửa nhánh" : "Tách nhánh mới"}
-      subtitle="Chia dòng họ thành các chi, cành"
+      title={branch ? "Sửa chi phái" : "Tạo chi phái mới"}
+      subtitle="Chia dòng họ thành các chi phái"
       footer={
         <button type="button" className="pat-btn pat-btn-red h-11 w-full text-sm" onClick={submit}>
-          {branch ? "Lưu thay đổi" : "Tạo nhánh"}
+          {branch ? "Lưu thay đổi" : "Tạo chi phái"}
         </button>
       }
     >
       <div className="space-y-3">
-        <Field label="Tên nhánh *">
+        <Field label="Tên chi phái *">
           <input
             className="pat-input"
             value={name}
@@ -294,21 +325,32 @@ function BranchFormSheet({
             className="pat-input min-h-20"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="Ghi chú về ngành này, nơi sinh sống, nghề truyền thống…"
+            placeholder="Ghi chú về chi phái này, nơi sinh sống, nghề truyền thống…"
           />
         </Field>
-        <Field label="Trưởng nhánh">
+        <Field
+          label="Trưởng chi phái"
+          hint="Quy ước chọn người nam thuộc nội tộc làm trưởng chi phái; có thể giữ chọn tay và đổi bất cứ lúc nào."
+        >
           <select className="pat-input" value={headId} onChange={(event) => setHeadId(event.target.value)}>
             <option value="">— Chưa chọn —</option>
             {candidates.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.name}
+                {person.id === suggestedHeadId ? " · gợi ý" : ""}
               </option>
             ))}
           </select>
         </Field>
+        {!branch && suggestedHeadId ? (
+          <p className="rounded-xl border border-[#e3cd92] bg-[#f9edcf] px-3 py-2 text-[0.7rem] leading-relaxed text-[#7a5a10]">
+            Gợi ý theo quy ước: chọn người nam nội tộc ở đời cao nhất chưa làm trưởng chi phái. Bạn vẫn có thể đổi lại.
+          </p>
+        ) : null}
         <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
-          Sau khi tạo nhánh, mở từng thành viên để gán vào nhánh. Phả đồ có thể tô màu theo nhánh trong phần thiết kế.
+          Chỉ người nam thuộc nội tộc mới tính vào chi phái và có thể làm trưởng chi phái. Dâu/rể, con của con gái và hồ
+          sơ tham khảo không tính. Sau khi tạo chi phái, mở từng thành viên để gán chi phái. Phả đồ có thể tô màu theo
+          chi phái trong phần thiết kế.
         </p>
         {error ? <p className="text-xs font-semibold text-[#a3271d]">{error}</p> : null}
       </div>

@@ -20,7 +20,10 @@ export function KinshipSheet({
   initialA?: string;
   initialB?: string;
 }) {
-  const generations = useMemo(() => computeGenerations(tree.members), [tree.members]);
+  const generations = useMemo(
+    () => computeGenerations(tree.members, tree.founderId),
+    [tree.members, tree.founderId],
+  );
   const options = useMemo(
     () =>
       [...tree.members].sort(
