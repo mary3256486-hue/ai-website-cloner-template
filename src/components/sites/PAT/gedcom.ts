@@ -16,7 +16,7 @@ import {
   SPOUSE_RANK_LABELS,
   lifeStatusOf,
 } from "./types";
-import { ensurePersonCodes, splitFullName, uid } from "./utils";
+import { applyPrivacyToPerson, ensurePersonCodes, splitFullName, uid } from "./utils";
 
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
@@ -173,7 +173,10 @@ function buildExportFamilies(tree: FamilyTree) {
   return { families, byId };
 }
 
-export function buildGedcom(tree: FamilyTree): string {
+export function buildGedcom(input: FamilyTree): string {
+  const tree: FamilyTree = input.privacy
+    ? { ...input, members: input.members.map((p) => applyPrivacyToPerson(p, input.privacy)) }
+    : input;
   const writer = new GedcomWriter();
   const { families } = buildExportFamilies(tree);
   const personXref = new Map<string, string>();

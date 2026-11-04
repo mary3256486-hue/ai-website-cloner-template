@@ -315,6 +315,79 @@ export interface FamilyTree {
   /** Kho tư liệu tham khảo của cả gia phả. */
   documents?: ReferenceDocument[];
   sample?: boolean;
+  /** Năm hoàn thành in trên trang bìa và lời bạt; mặc định là năm hiện tại. */
+  completedYear?: number;
+  /** Nơi viết ghi trên lời tựa và lời bạt. */
+  writtenPlace?: string;
+  /** Cỡ chữ và giãn dòng nội dung phả ký khi in. */
+  chronicleStyle?: { fontSize: number; lineHeight: number };
+  /** Lời bạt tự soạn, đoạn cách nhau một dòng trống; để trống thì dùng mẫu mặc định. */
+  colophon?: string;
+  /** Ẩn trang lời bạt khi in; mặc định vẫn in. */
+  showColophon?: boolean;
+  /** Ngày ghi trên lời bạt: ngày in hay năm hoàn thành. */
+  colophonDate?: "print" | "completed";
+  /** Hoa văn chữ Hán trên trang bìa phả ký. */
+  coverEmblem?: "none" | "jiapu" | "pham";
+  /** Khổ giấy in phả ký. */
+  chronicleFormat?: "a4" | "a5";
+  /** Lề trang in phả ký (mm): trên · phải · dưới · trái; mặc định 25 · 20 · 25 · 25. */
+  chronicleMargins?: { top: number; right: number; bottom: number; left: number };
+  /** Tuỳ chỉnh các dòng chữ mẫu trong sách phả ký; để trống thì dùng mặc định. */
+  chronicleTexts?: {
+    coverEyebrow?: string;
+    tocTitle?: string;
+    prefaceEyebrow?: string;
+    prefaceTitle?: string;
+    originsEyebrow?: string;
+    originsTitle?: string;
+    colophonEyebrow?: string;
+    colophonTitle?: string;
+  };
+  /** Chế độ riêng tư khi in và xuất dữ liệu. */
+  privacy?: PrivacySettings;
+  /** Thành viên đã xoá, giữ 30 ngày để hoàn tác. */
+  trashMembers?: TrashedMember[];
+  /** Chi phái đã xoá, giữ 30 ngày để hoàn tác. */
+  trashBranches?: TrashedBranch[];
+}
+
+/** Riêng tư khi in/xuất: ẩn thông tin nhạy cảm của thành viên còn sống. */
+export interface PrivacySettings {
+  /** Ẩn ngày sinh và thông tin liên hệ của thành viên còn sống khi in phả đồ, phả ký và xuất CSV/Excel/GEDCOM. */
+  hideLivingDetails?: boolean;
+  /** Với thành viên đã khuất chỉ ghi năm mất, không ghi năm sinh. */
+  deathYearOnly?: boolean;
+}
+
+/** Thành viên trong thùng rác: giữ nguyên hồ sơ kèm danh sách liên kết bị gỡ để khôi phục nguyên trạng. */
+export interface TrashedMember {
+  person: Person;
+  deletedAt: string;
+  /** Người từng liệt kê hồ sơ này trong spouseIds. */
+  spouseOf: string[];
+  /** Con có cha/mẹ là hồ sơ này. */
+  children: string[];
+  /** Người liên kết tiền tổ qua hồ sơ này. */
+  ancestorLinks: string[];
+  /** Người có spouseRank với hồ sơ này. */
+  spouseRankOf: string[];
+  /** Người có spouseOrder chứa hồ sơ này. */
+  spouseOrderOf: string[];
+  /** Chi phái do hồ sơ này làm trưởng chi. */
+  branchHeadOf: string[];
+  /** Hồ sơ từng là Khởi Tổ của dòng đang soạn. */
+  wasFounder: boolean;
+}
+
+/** Chi phái trong thùng rác, kèm thành viên từng gắn chi để khôi phục nguyên trạng. */
+export interface TrashedBranch {
+  branch: Branch;
+  deletedAt: string;
+  /** Thành viên từng mang mã chi này. */
+  memberIds: string[];
+  /** Vị trí trong danh sách chi phái lúc xoá. */
+  index: number;
 }
 
 export interface TreeNode {

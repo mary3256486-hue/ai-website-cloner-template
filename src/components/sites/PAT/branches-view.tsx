@@ -599,8 +599,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
               sẽ được gỡ liên kết chi phái nhưng không bị xoá khỏi gia phả.
             </p>
             <p className="text-[var(--pat-muted)]">
-              Trưởng chi phái hiện tại cũng chỉ mất liên kết, hồ sơ vẫn còn nguyên. Bạn có thể hoàn tác ngay sau khi
-              xoá.
+              Trưởng chi phái hiện tại cũng chỉ mất liên kết, hồ sơ vẫn còn nguyên. Chi phái nằm trong Thùng rác 30 ngày và có thể khôi phục nguyên vẹn từ trang chủ gia phả.
             </p>
             <p className="rounded-xl border border-[#e3cd92] bg-[#f9edcf] px-3 py-2 text-[0.72rem] text-[#7a5a10]">
               Nên xuất sao lưu (JSON) trước khi thay đổi cấu trúc chi phái, để luôn khôi phục được dữ liệu cũ.

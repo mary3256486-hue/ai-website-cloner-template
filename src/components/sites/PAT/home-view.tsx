@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -36,7 +35,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGenealogy, type ArchivedTree } from "./store";
+import { useGenealogy, trashDaysLeft, type ArchivedTree, type TreeSnapshot } from "./store";
 import type { FamilyTree, Person } from "./types";
 import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
 import { getStats } from "./utils";
@@ -54,7 +53,14 @@ import {
   type ImportResult,
   type SpreadsheetInfo,
 } from "./import";
-import { exportBackup, exportMembersCsv, readBackup } from "./export";
+import {
+  exportAllBackup,
+  exportBackup,
+  exportMembersCsv,
+  LAST_BACKUP_KEY,
+  markBackupExported,
+  readAnyBackup,
+} from "./export";
 import { exportGedcom, parseGedcom, type GedcomParseResult } from "./gedcom";
 import { MEMBER_COLUMN_COUNT, TEMPLATE_VERSION } from "./columns";
 import {
@@ -153,13 +159,17 @@ export function HomeView() {
     trees,
     archived,
     hydrated,
+    snapshots,
     createTree,
     updateTree,
     archiveTree,
     restoreTree,
     purgeTree,
+    purgeAllArchived,
     importTree,
     replaceTree,
+    restoreSnapshot,
+    deleteSnapshot,
   } = useGenealogy();
   const router = useRouter();
 
@@ -174,6 +184,12 @@ export function HomeView() {
   const [deleteInput, setDeleteInput] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [purgeTarget, setPurgeTarget] = useState<ArchivedTree | null>(null);
+  const [purgeAck, setPurgeAck] = useState(false);
+  const [purgeAllOpen, setPurgeAllOpen] = useState(false);
+  const [archivedQuery, setArchivedQuery] = useState("");
+  const [listSort, setListSort] = useState<"updated" | "name">("updated");
+  const [includeSample, setIncludeSample] = useState(false);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; treeId?: string } | null>(null);
   const [form, setForm] = useState(EMPTY_CREATE_FORM);
   const [error, setError] = useState("");
@@ -200,7 +216,7 @@ export function HomeView() {
   const [downloadTree, setDownloadTree] = useState<FamilyTree | null>(null);
   const [backupPickerOpen, setBackupPickerOpen] = useState(false);
   const [restorePreview, setRestorePreview] = useState<{
-    tree: FamilyTree;
+    trees: FamilyTree[];
     warnings: string[];
     fileName: string;
   } | null>(null);
@@ -218,6 +234,50 @@ export function HomeView() {
     () => trees.filter((tree) => !tree.sample).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [trees],
   );
+
+  const STORAGE_QUOTA_BYTES = 10 * 1024 * 1024;
+  // Đọc trực tiếp localStorage mỗi lần render: chỉ vài khoá, chi phí thấp, luôn đúng dữ liệu mới nhất.
+  let storageUsed = 0;
+  if (hydrated && typeof window !== "undefined") {
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key) storageUsed += (window.localStorage.getItem(key)?.length ?? 0) * 2;
+    }
+  }
+  const storagePercent = Math.min(100, Math.round((storageUsed / STORAGE_QUOTA_BYTES) * 100));
+
+  let daysSinceBackup: number | null = null;
+  if (hydrated && typeof window !== "undefined") {
+    const raw = window.localStorage.getItem(LAST_BACKUP_KEY);
+    const time = raw ? Number(raw) : Number.NaN;
+    daysSinceBackup = Number.isFinite(time)
+      ? Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000))
+      : Number.POSITIVE_INFINITY;
+  }
+
+  const visibleTrees = useMemo(() => {
+    const source = includeSample ? trees : ownTrees;
+    const needle = archivedQuery.trim().toLocaleLowerCase("vi");
+    const filtered = needle
+      ? source.filter(
+          (tree) =>
+            tree.name.toLocaleLowerCase("vi").includes(needle) ||
+            (tree.address ?? "").toLocaleLowerCase("vi").includes(needle),
+        )
+      : [...source];
+    if (listSort === "name") {
+      filtered.sort((a, b) => a.name.localeCompare(b.name, "vi"));
+    } else {
+      filtered.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    }
+    return filtered;
+  }, [trees, ownTrees, includeSample, archivedQuery, listSort]);
+
+  const filteredArchived = useMemo(() => {
+    const needle = archivedQuery.trim().toLocaleLowerCase("vi");
+    if (!needle) return archived;
+    return archived.filter((entry) => entry.tree.name.toLocaleLowerCase("vi").includes(needle));
+  }, [archived, archivedQuery]);
 
   const initialTabDone = useRef(false);
   useEffect(() => {
@@ -304,10 +364,11 @@ export function HomeView() {
   };
 
   const confirmPurge = () => {
-    if (!purgeTarget) return;
+    if (!purgeTarget || !purgeAck) return;
     const purgedId = purgeTarget.tree.id;
     purgeTree(purgedId);
     setPurgeTarget(null);
+    setPurgeAck(false);
     if (toast?.treeId === purgedId) setToast(null);
   };
 
@@ -518,10 +579,35 @@ export function HomeView() {
   const confirmRestore = () => {
     if (!restorePreview) return;
     const restored = restorePreview;
-    const imported = importTree(restored.tree, { suffix: true });
+    const imported = restored.trees.map((tree) => importTree(tree, { suffix: true }));
     setRestorePreview(null);
-    setCreatedTree({ id: imported.id, name: imported.name });
-    setToast({ message: `Đã phục hồi “${imported.name}” thành một gia phả mới.` });
+    if (imported.length === 1) setCreatedTree({ id: imported[0].id, name: imported[0].name });
+    setToast({
+      message:
+        restored.trees.length > 1
+          ? `Đã phục hồi ${restored.trees.length} gia phả từ “${restored.fileName}”.`
+          : `Đã phục hồi “${imported[0]?.name ?? ""}” thành một gia phả mới.`,
+    });
+  };
+
+  const confirmPurgeAll = () => {
+    purgeAllArchived();
+    setPurgeAllOpen(false);
+    setToast({ message: "Đã dọn sạch mục Đã xóa trên thiết bị này." });
+  };
+
+  const exportAllNow = () => {
+    exportAllBackup(trees);
+    markBackupExported();
+    setToast({ message: "Đã tải một tệp sao lưu chứa tất cả gia phả." });
+  };
+
+  const restoreSnapshotById = (snapshot: TreeSnapshot) => {
+    if (restoreSnapshot(snapshot.id)) {
+      setToast({ message: `Đã phục hồi “${snapshot.treeName}” về bản ${formatDate(snapshot.savedAt)}.` });
+    } else {
+      setToast({ message: "Không phục hồi được bản sao này." });
+    }
   };
 
   const openMemberSearch = (treeId: string, query?: string) => {
@@ -546,9 +632,10 @@ export function HomeView() {
     setImportErrorInfo(null);
     setBackupPickerOpen(false);
     try {
-      const result = await readBackup(file);
+      const result = await readAnyBackup(file);
+      const restoredTrees = "trees" in result ? result.trees : [result.tree];
       setRestorePreview({
-        tree: result.tree,
+        trees: restoredTrees,
         warnings: result.warnings,
         fileName: result.fileName,
       });
@@ -876,16 +963,36 @@ export function HomeView() {
 
           {tab === "luu" ? (
             <ArchiveTab
-              trees={ownTrees}
-              archived={archived}
+              trees={visibleTrees}
+              allCount={ownTrees.length}
+              includeSample={includeSample}
+              query={archivedQuery}
+              sort={listSort}
+              archived={filteredArchived}
               ready={hydrated}
+              storageUsed={storageUsed}
+              storagePercent={storagePercent}
+              daysSinceBackup={daysSinceBackup}
+              snapshots={snapshots}
+              snapshotsOpen={snapshotsOpen}
+              onToggleSnapshots={() => setSnapshotsOpen((prev) => !prev)}
+              onQuery={setArchivedQuery}
+              onSort={setListSort}
+              onToggleSample={() => setIncludeSample((prev) => !prev)}
               onNew={() => selectTab("tao")}
               onOpen={(id, section) => openTree(id, section)}
               onMore={setManageTree}
-              onDelete={startDelete}
-              onDownload={setDownloadTree}
               onRestore={restoreArchived}
-              onPurge={setPurgeTarget}
+              onPurge={(entry) => {
+                setPurgeAck(false);
+                setPurgeTarget(entry);
+              }}
+              onPurgeAll={() => setPurgeAllOpen(true)}
+              onImportJson={() => backupRef.current?.click()}
+              onViewSample={() => selectTab("mau")}
+              onExportAll={exportAllNow}
+              onRestoreSnapshot={restoreSnapshotById}
+              onDeleteSnapshot={(id) => deleteSnapshot(id)}
             />
           ) : null}
         </div>
@@ -1301,13 +1408,31 @@ export function HomeView() {
       >
         {restorePreview ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-3">
-              <p className="pat-serif text-base font-semibold text-[var(--pat-red)]">{restorePreview.tree.name}</p>
-              <p className="mt-0.5 text-xs text-[var(--pat-muted)]">
-                {restorePreview.tree.members.length} thành viên · {restorePreview.tree.branches.length} chi phái
-                {restorePreview.tree.address ? ` · ${restorePreview.tree.address}` : ""}
-              </p>
-            </div>
+            {restorePreview.trees.length > 1 ? (
+              <div className="rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-3">
+                <p className="pat-serif text-base font-semibold text-[var(--pat-red)]">
+                  {restorePreview.trees.length} gia phả trong tệp
+                </p>
+                <ul className="mt-1 space-y-0.5 text-xs text-[var(--pat-muted)]">
+                  {restorePreview.trees.map((tree) => (
+                    <li key={tree.id}>
+                      • {tree.name} — {tree.members.length} thành viên, {tree.branches.length} chi phái
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-3">
+                <p className="pat-serif text-base font-semibold text-[var(--pat-red)]">
+                  {restorePreview.trees[0]?.name}
+                </p>
+                <p className="mt-0.5 text-xs text-[var(--pat-muted)]">
+                  {restorePreview.trees[0]?.members.length ?? 0} thành viên ·{" "}
+                  {restorePreview.trees[0]?.branches.length ?? 0} chi phái
+                  {restorePreview.trees[0]?.address ? ` · ${restorePreview.trees[0].address}` : ""}
+                </p>
+              </div>
+            )}
             {restorePreview.warnings.length ? (
               <ul className="space-y-1 rounded-xl border border-[var(--pat-gold)]/50 bg-[#f9edcf]/60 px-3 py-2 text-[0.7rem] leading-relaxed text-[#7a5a10]">
                 {restorePreview.warnings.map((warning) => (
@@ -1320,8 +1445,8 @@ export function HomeView() {
               </p>
             )}
             <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/80 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
-              Tệp được phục hồi thành một gia phả mới, không ghi đè gia phả đang có. Nếu tên trùng, hệ thống tự thêm hậu
-              tố.
+              Tệp được phục hồi thành gia phả mới, không ghi đè gia phả đang có. Nếu tên trùng, hệ thống tự thêm hậu
+              tố. Lưu ý: tệp sao lưu chứa toàn bộ dữ liệu — cân nhắc chế độ riêng tư trước khi chia sẻ tệp.
             </p>
           </div>
         ) : null}
@@ -2172,6 +2297,21 @@ export function HomeView() {
       >
         {deleteTarget ? (
           <div className="space-y-3">
+            <p className="rounded-lg border border-[var(--pat-gold)]/50 bg-[#f9edcf]/70 px-3 py-2 text-xs text-[#7a5a10]">
+              {deleteTarget.members.length} thành viên, {deleteTarget.branches.length} chi phái sẽ chuyển vào mục Đã
+              xóa và được giữ 30 ngày.
+            </p>
+            <button
+              type="button"
+              className="pat-btn pat-btn-outline flex h-9 w-full items-center gap-1.5 px-3 text-xs"
+              onClick={() => {
+                exportBackup(deleteTarget);
+                markBackupExported();
+                setToast({ message: `Đã tải sao lưu JSON của “${deleteTarget.name}”.` });
+              }}
+            >
+              <Download size={14} /> Sao lưu trước khi xóa (tải tệp JSON)
+            </button>
             <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
               Để tránh xóa nhầm, hãy nhập đúng tên gia phả bên dưới:
             </p>
@@ -2201,15 +2341,30 @@ export function HomeView() {
 
       <Sheet
         open={Boolean(purgeTarget)}
-        onClose={() => setPurgeTarget(null)}
+        onClose={() => {
+          setPurgeTarget(null);
+          setPurgeAck(false);
+        }}
         title="Xóa vĩnh viễn?"
         subtitle={purgeTarget?.tree.name ?? ""}
         footer={
           <div className="flex gap-2">
-            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={() => setPurgeTarget(null)}>
+            <button
+              type="button"
+              className="pat-btn h-11 flex-1 text-sm"
+              onClick={() => {
+                setPurgeTarget(null);
+                setPurgeAck(false);
+              }}
+            >
               Huỷ
             </button>
-            <button type="button" className="pat-btn pat-btn-red h-11 flex-1 text-sm" onClick={confirmPurge}>
+            <button
+              type="button"
+              className="pat-btn pat-btn-red h-11 flex-1 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!purgeAck}
+              onClick={confirmPurge}
+            >
               Xóa vĩnh viễn
             </button>
           </div>
@@ -2225,8 +2380,54 @@ export function HomeView() {
               {purgeTarget.tree.members.length} thành viên · đã xóa {formatDate(purgeTarget.deletedAt)}. Nếu chỉ muốn ẩn
               tạm, hãy chọn Huỷ.
             </p>
+            <button
+              type="button"
+              className="pat-btn pat-btn-outline flex h-9 w-full items-center gap-1.5 px-3 text-xs"
+              onClick={() => {
+                exportBackup(purgeTarget.tree);
+                setToast({ message: `Đã tải tệp JSON của “${purgeTarget.tree.name}” — giữ lại nếu cần dữ liệu.` });
+              }}
+            >
+              <Download size={14} /> Xuất tệp JSON trước (khuyến nghị)
+            </button>
+            <label className="flex items-start gap-2 text-xs text-[var(--pat-ink)]">
+              <input
+                type="checkbox"
+                checked={purgeAck}
+                onChange={(event) => setPurgeAck(event.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--pat-red)]"
+              />
+              Tôi hiểu rằng dữ liệu sẽ bị xóa vĩnh viễn và không thể hoàn tác.
+            </label>
           </div>
         ) : null}
+      </Sheet>
+
+      <Sheet
+        open={purgeAllOpen}
+        onClose={() => setPurgeAllOpen(false)}
+        title="Dọn tất cả mục Đã xóa?"
+        subtitle="Xóa vĩnh viễn mọi bản đã xóa"
+        footer={
+          <div className="flex gap-2">
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={() => setPurgeAllOpen(false)}>
+              Huỷ
+            </button>
+            <button type="button" className="pat-btn pat-btn-red h-11 flex-1 text-sm" onClick={confirmPurgeAll}>
+              Dọn tất cả
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
+            Toàn bộ gia phả trong mục Đã xóa sẽ bị gỡ vĩnh viễn khỏi thiết bị này. Thao tác không thể hoàn tác — nếu
+            chưa chắc, hãy khôi phục gia phả về Lưu trữ trước.
+          </p>
+          <p className="rounded-lg border border-[var(--pat-gold)]/50 bg-[#f9edcf]/70 px-3 py-2 text-xs text-[#7a5a10]">
+            Nên dùng nút “Sao lưu tất cả” bên dưới danh sách để tải một tệp JSON chứa toàn bộ gia phả trước khi dọn.
+          </p>
+        </div>
       </Sheet>
 
       <Sheet
@@ -2240,22 +2441,55 @@ export function HomeView() {
             <SheetRow
               icon={<ChevronRight size={18} />}
               title="Mở gia phả"
+              subtitle="Trang chủ của gia phả"
               onClick={() => openTree(manageTree.id)}
             />
             <SheetRow
               icon={<Users size={18} />}
-              title="Danh sách thành viên"
+              title="Phả hệ"
+              subtitle="Danh sách thành viên"
               onClick={() => openTree(manageTree.id, "danh-sach-thanh-vien")}
             />
             <SheetRow
               icon={<PenTool size={18} />}
-              title="Vẽ phả đồ"
+              title="Phả đồ"
+              subtitle="Vẽ và in phả đồ"
               onClick={() => openTree(manageTree.id, "ve-pha-do")}
+            />
+            <SheetRow
+              icon={<Download size={18} />}
+              title="Sao lưu JSON"
+              subtitle="Tải một tệp chứa toàn bộ dữ liệu gia phả"
+              onClick={() => {
+                exportBackup(manageTree);
+                markBackupExported();
+                setToast({ message: `Đã tải sao lưu JSON của “${manageTree.name}”.` });
+                setManageTree(null);
+              }}
+            />
+            <SheetRow
+              icon={<FileSpreadsheet size={18} />}
+              title="Xuất Excel"
+              subtitle="Bảng thành viên theo mẫu nhập"
+              onClick={() => {
+                downloadExcelTemplate(manageTree);
+                setToast({ message: `Đã tải Excel của “${manageTree.name}”.` });
+                setManageTree(null);
+              }}
+            />
+            <SheetRow
+              icon={<Download size={18} />}
+              title="Xuất dữ liệu khác"
+              subtitle="CSV · GEDCOM · JSON"
+              onClick={() => {
+                setDownloadTree(manageTree);
+                setManageTree(null);
+              }}
             />
             <SheetRow
               icon={<Trash2 size={18} />}
               title="Xóa gia phả"
-              subtitle="Xác nhận 2 bước · vẫn khôi phục được"
+              subtitle="Xác nhận 2 bước · giữ 30 ngày trong Đã xóa"
               danger
               onClick={() => startDelete(manageTree)}
             />
@@ -2692,40 +2926,111 @@ function CreateTab({
 
 function ArchiveTab({
   trees,
+  allCount,
+  includeSample,
+  query,
+  sort,
   archived,
   ready,
+  storageUsed,
+  storagePercent,
+  daysSinceBackup,
+  snapshots,
+  snapshotsOpen,
+  onToggleSnapshots,
+  onQuery,
+  onSort,
+  onToggleSample,
   onNew,
   onOpen,
   onMore,
-  onDelete,
-  onDownload,
   onRestore,
   onPurge,
+  onPurgeAll,
+  onImportJson,
+  onViewSample,
+  onExportAll,
+  onRestoreSnapshot,
+  onDeleteSnapshot,
 }: {
   trees: FamilyTree[];
+  allCount: number;
+  includeSample: boolean;
+  query: string;
+  sort: "updated" | "name";
   archived: ArchivedTree[];
   ready: boolean;
+  storageUsed: number;
+  storagePercent: number;
+  daysSinceBackup: number | null;
+  snapshots: TreeSnapshot[];
+  snapshotsOpen: boolean;
+  onToggleSnapshots: () => void;
+  onQuery: (value: string) => void;
+  onSort: (value: "updated" | "name") => void;
+  onToggleSample: () => void;
   onNew: () => void;
   onOpen: (id: string, section: string) => void;
   onMore: (tree: FamilyTree) => void;
-  onDelete: (tree: FamilyTree) => void;
-  onDownload: (tree: FamilyTree) => void;
   onRestore: (id: string) => void;
   onPurge: (entry: ArchivedTree) => void;
+  onPurgeAll: () => void;
+  onImportJson: () => void;
+  onViewSample: () => void;
+  onExportAll: () => void;
+  onRestoreSnapshot: (snapshot: TreeSnapshot) => void;
+  onDeleteSnapshot: (id: string) => void;
 }) {
+  const storageMb = (storageUsed / (1024 * 1024)).toLocaleString("vi-VN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  });
   return (
     <section className="space-y-3">
       <div className="flex items-end justify-between gap-3 px-1">
         <div>
           <h2 className="pat-serif text-xl font-semibold text-[var(--pat-red)]">Gia phả đã tạo</h2>
           <p className="text-[0.7rem] text-[var(--pat-muted)]">
-            {ready ? `${trees.length} gia phả · lưu trên thiết bị này` : "Đang tải…"}
+            {ready ? `${allCount} gia phả · lưu trên thiết bị này · không tự đồng bộ giữa các máy` : "Đang tải…"}
           </p>
         </div>
         <button type="button" className="pat-btn pat-btn-red h-9 px-3.5 text-xs" onClick={onNew}>
           <Plus size={14} /> Tạo mới
         </button>
       </div>
+
+      {ready ? (
+        <div className="flex flex-wrap items-center gap-2 px-1">
+          <div className="relative min-w-[200px] flex-1">
+            <input
+              className="pat-input h-9 w-full pl-8 text-xs"
+              value={query}
+              onChange={(event) => onQuery(event.target.value)}
+              placeholder="Tìm theo tên gia phả hoặc địa chỉ…"
+              aria-label="Tìm kiếm gia phả"
+            />
+            <Users size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--pat-muted)]" />
+          </div>
+          <select
+            className="pat-input h-9 px-2 text-xs"
+            value={sort}
+            onChange={(event) => onSort(event.target.value as "updated" | "name")}
+            aria-label="Sắp xếp danh sách"
+          >
+            <option value="updated">Cập nhật gần nhất</option>
+            <option value="name">Tên (A–Z)</option>
+          </select>
+          <button
+            type="button"
+            className="pat-chip"
+            data-active={includeSample}
+            onClick={onToggleSample}
+            title="Hiện cả gia phả mẫu trong danh sách"
+          >
+            <BookOpen size={13} /> Bản mẫu
+          </button>
+        </div>
+      ) : null}
 
       {!ready ? (
         <div className="pat-card px-5 py-8 text-center text-sm text-[var(--pat-muted)]">Đang tải gia phả…</div>
@@ -2739,22 +3044,23 @@ function ArchiveTab({
             <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-[var(--pat-muted)]">
               Lập gia phả đầu tiên để ghi lại cội nguồn dòng họ. Không cần đăng nhập.
             </p>
-            <button type="button" className="pat-btn pat-btn-red mt-4 h-10 px-5 text-sm" onClick={onNew}>
-              <Plus size={15} /> Tạo gia phả đầu tiên
-            </button>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <button type="button" className="pat-btn pat-btn-red h-10 px-5 text-sm" onClick={onNew}>
+                <Plus size={15} /> Tạo gia phả đầu tiên
+              </button>
+              <button type="button" className="pat-btn pat-btn-outline h-10 px-4 text-sm" onClick={onImportJson}>
+                <Upload size={15} /> Khôi phục từ tệp JSON
+              </button>
+              <button type="button" className="pat-btn pat-btn-outline h-10 px-4 text-sm" onClick={onViewSample}>
+                <BookOpen size={15} /> Xem gia phả mẫu
+              </button>
+            </div>
           </div>
         </div>
       ) : (
         <div className="space-y-2.5">
           {trees.map((tree) => (
-            <ArchiveCard
-              key={tree.id}
-              tree={tree}
-              onOpen={onOpen}
-              onMore={onMore}
-              onDelete={onDelete}
-              onDownload={onDownload}
-            />
+            <ArchiveCard key={tree.id} tree={tree} onOpen={onOpen} onMore={onMore} />
           ))}
         </div>
       )}
@@ -2765,49 +3071,144 @@ function ArchiveTab({
             <h3 className="flex items-center gap-1.5 text-[0.72rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-muted)]">
               <Trash2 size={13} /> Đã xóa · {archived.length}
             </h3>
-            <span className="text-[0.68rem] text-[var(--pat-muted)]">Khôi phục bất cứ lúc nào</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[0.68rem] text-[var(--pat-muted)]">Tự động dọn sau 30 ngày</span>
+              <button type="button" className="pat-btn pat-btn-outline h-7 px-2 text-[0.66rem]" onClick={onPurgeAll}>
+                <Trash2 size={12} /> Dọn tất cả
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
-            {archived.map((entry) => (
-              <article
-                key={entry.tree.id}
-                className="rounded-xl border border-dashed border-[var(--pat-line)] bg-[#f7efe0]/80 px-3 py-2.5"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eadfc9] text-[var(--pat-muted)] sm:flex">
-                    <Archive size={15} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[var(--pat-ink)]">{entry.tree.name}</p>
-                    <p className="text-[0.72rem] text-[var(--pat-muted)]">
-                      {entry.tree.members.length} thành viên · đã xóa {formatDate(entry.deletedAt)}
-                    </p>
+            {archived.map((entry) => {
+              const daysLeft = trashDaysLeft(entry.deletedAt);
+              return (
+                <article
+                  key={entry.tree.id}
+                  className="rounded-xl border border-dashed border-[var(--pat-line)] bg-[#f7efe0]/80 px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eadfc9] text-[var(--pat-muted)] sm:flex">
+                      <Archive size={15} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[var(--pat-ink)]">{entry.tree.name}</p>
+                      <p className="text-[0.72rem] text-[var(--pat-muted)]">
+                        {entry.tree.members.length} thành viên · đã xóa {formatDate(entry.deletedAt)} ·{" "}
+                        {daysLeft > 0 ? `còn ${daysLeft} ngày để khôi phục` : "sắp tự động dọn"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="pat-btn pat-btn-outline h-8 shrink-0 px-2.5 text-[0.68rem]"
+                      onClick={() => onRestore(entry.tree.id)}
+                    >
+                      <RotateCcw size={13} /> Khôi phục
+                    </button>
+                    <button
+                      type="button"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] bg-white/60 text-[#a3271d]"
+                      aria-label={`Xóa vĩnh viễn ${entry.tree.name}`}
+                      onClick={() => onPurge(entry)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    className="pat-btn pat-btn-outline h-8 shrink-0 px-2.5 text-[0.68rem]"
-                    onClick={() => onRestore(entry.tree.id)}
-                  >
-                    <RotateCcw size={13} /> Khôi phục
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] bg-white/60 text-[#a3271d]"
-                    aria-label={`Xóa vĩnh viễn ${entry.tree.name}`}
-                    onClick={() => onPurge(entry)}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
+        </div>
+      ) : null}
+
+      {ready ? (
+        <div className="pat-card px-4 py-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--pat-ink)]">
+                <ShieldCheck size={14} className="shrink-0 text-[var(--pat-gold)]" /> Dữ liệu trên thiết bị
+              </p>
+              <p className="mt-1 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+                Đã dùng khoảng {storageMb} MB (~{storagePercent}% hạn mức trình duyệt). Dữ liệu không tự đồng bộ
+                giữa các máy — hãy tải tệp sao lưu JSON trước khi xoá dữ liệu trình duyệt hoặc đổi máy.
+              </p>
+            </div>
+            <button type="button" className="pat-btn pat-btn-outline h-9 shrink-0 px-3 text-xs" onClick={onExportAll}>
+              <Download size={14} /> Sao lưu tất cả (một tệp JSON)
+            </button>
+          </div>
+          {storagePercent >= 80 ? (
+            <p className="mt-2 flex items-start gap-1.5 rounded-lg border border-[#b3261e]/40 bg-[#f9e3df]/70 px-2.5 py-1.5 text-[0.68rem] font-semibold text-[#a3271d]">
+              <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+              Bộ nhớ trình duyệt sắp đầy. Hãy tải sao lưu JSON rồi dọn các bản không cần nữa để tránh mất dữ liệu.
+            </p>
+          ) : null}
+          {daysSinceBackup !== null && daysSinceBackup >= 7 && allCount > 0 ? (
+            <p className="mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--pat-gold)]/60 bg-[#f9edcf]/70 px-2.5 py-1.5 text-[0.68rem] text-[#7a5a10]">
+              <Info size={13} className="shrink-0" />
+              {Number.isFinite(daysSinceBackup)
+                ? `Đã ${daysSinceBackup} ngày chưa sao lưu.`
+                : "Chưa có lần sao lưu nào trên thiết bị này."}{" "}
+              Nên sao lưu tuần/tháng và giữ 3–5 bản gần nhất ở nơi an toàn.
+              <button type="button" className="ml-auto font-semibold underline underline-offset-2" onClick={onExportAll}>
+                Sao lưu ngay
+              </button>
+            </p>
+          ) : null}
+          <button
+            type="button"
+            className="mt-2.5 flex items-center gap-1.5 text-[0.68rem] font-semibold text-[var(--pat-muted)]"
+            onClick={onToggleSnapshots}
+            aria-expanded={snapshotsOpen}
+          >
+            {snapshotsOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            Bản sao tự động trước khi ghi đè · {snapshots.length}
+          </button>
+          {snapshotsOpen ? (
+            snapshots.length ? (
+              <div className="mt-1.5 space-y-1.5">
+                {snapshots.map((snapshot) => (
+                  <div
+                    key={snapshot.id}
+                    className="flex items-center gap-2 rounded-lg border border-[var(--pat-line)] bg-white/60 px-2.5 py-1.5"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold text-[var(--pat-ink)]">{snapshot.treeName}</p>
+                      <p className="text-[0.66rem] text-[var(--pat-muted)]">
+                        {formatDate(snapshot.savedAt)} · {Math.round(snapshot.size / 1024).toLocaleString("vi-VN")} KB ·{" "}
+                        {snapshot.reason}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="pat-btn pat-btn-outline h-7 shrink-0 px-2 text-[0.66rem]"
+                      onClick={() => onRestoreSnapshot(snapshot)}
+                    >
+                      <RotateCcw size={12} /> Phục hồi
+                    </button>
+                    <button
+                      type="button"
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] text-[#a3271d]"
+                      aria-label={`Xóa bản sao của ${snapshot.treeName}`}
+                      onClick={() => onDeleteSnapshot(snapshot.id)}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1.5 text-[0.68rem] text-[var(--pat-muted)]">
+                Chưa có bản sao tự động. Ứng dụng tự tạo tối đa 5 bản gần nhất mỗi gia phả trước khi ghi đè dữ liệu
+                từ tệp nhập hoặc nâng cấp định dạng.
+              </p>
+            )
+          ) : null}
         </div>
       ) : null}
 
       <p className="flex items-start gap-2 px-1 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
         <Info size={14} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
-        Xóa gia phả cần xác nhận 2 bước. Dữ liệu được giữ trong mục Đã xóa để khôi phục khi cần.
+        Xóa gia phả cần xác nhận 2 bước. Dữ liệu được giữ trong mục Đã xóa 30 ngày để khôi phục khi cần.
       </p>
     </section>
   );
@@ -2817,14 +3218,10 @@ function ArchiveCard({
   tree,
   onOpen,
   onMore,
-  onDelete,
-  onDownload,
 }: {
   tree: FamilyTree;
   onOpen: (id: string, section: string) => void;
   onMore: (tree: FamilyTree) => void;
-  onDelete: (tree: FamilyTree) => void;
-  onDownload: (tree: FamilyTree) => void;
 }) {
   const stats = getStats(tree);
   return (
@@ -2836,9 +3233,17 @@ function ArchiveCard({
       />
       <div className="min-w-0 flex-1 px-3.5 py-3">
         <div className="flex items-start gap-2">
-          <button type="button" onClick={() => onOpen(tree.id, "trang-chu")} className="min-w-0 flex-1 text-left">
+          <div className="min-w-0 flex-1">
             <span className="flex flex-wrap items-center gap-1.5">
               <span className="pat-serif truncate text-base font-bold text-[var(--pat-red)]">{tree.name}</span>
+              {tree.sample ? (
+                <span className="rounded-full border border-[var(--pat-line)] bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-semibold text-[#7a5a10]">
+                  Bản mẫu
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--pat-line)] bg-white/60 px-1.5 py-0.5 text-[0.56rem] font-semibold text-[var(--pat-muted)]">
+                <Users size={9} /> {stats.total} người · {stats.generations} đời
+              </span>
               {tree.branches.length ? (
                 <span className="rounded-full border border-[var(--pat-line)] bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-semibold text-[#7a5a10]">
                   {tree.branches.length} chi phái
@@ -2846,42 +3251,21 @@ function ArchiveCard({
               ) : null}
             </span>
             <span className="mt-0.5 flex items-center gap-1 truncate text-[0.68rem] text-[var(--pat-muted)]">
-              <MapPin size={11} /> {tree.address || "Chưa cập nhật địa chỉ"}
+              <MapPin size={11} /> {tree.address || "Chưa cập nhật địa chỉ"} · cập nhật{" "}
+              {formatDate(tree.updatedAt) || "chưa rõ"}
             </span>
-          </button>
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onMore(tree)}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-[#fffaf0] text-[var(--pat-muted)]"
-              aria-label="Thao tác gia phả"
-            >
-              <MoreHorizontal size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(tree)}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-[#fffaf0] text-[#a3271d]"
-              aria-label={`Xóa ${tree.name}`}
-            >
-              <Trash2 size={15} />
-            </button>
           </div>
+          <button
+            type="button"
+            onClick={() => onMore(tree)}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] bg-[#fffaf0] text-[var(--pat-muted)]"
+            aria-label={`Thao tác ${tree.name}`}
+          >
+            <MoreHorizontal size={16} />
+          </button>
         </div>
 
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.72rem] text-[var(--pat-muted)]">
-          <span className="inline-flex items-center gap-1">
-            <Users size={12} /> {stats.total} người
-          </span>
-          <span>
-            {stats.generations} đời{stats.ancestorTiers ? ` · ${stats.ancestorTiers} bậc tổ` : ""}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <CalendarDays size={12} /> {formatDate(tree.updatedAt)}
-          </span>
-        </div>
-
-        <div className="mt-2.5 flex flex-wrap gap-2">
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
           <button
             type="button"
             className="pat-btn pat-btn-red h-8 px-3 text-[0.7rem]"
@@ -2889,29 +3273,9 @@ function ArchiveCard({
           >
             Mở gia phả <ChevronRight size={13} />
           </button>
-          <button
-            type="button"
-            className="pat-btn pat-btn-outline h-8 px-3 text-[0.7rem]"
-            onClick={() => onOpen(tree.id, "danh-sach-thanh-vien")}
-          >
-            <Users size={13} /> Phả hệ
-          </button>
-          <button
-            type="button"
-            className="pat-btn pat-btn-outline h-8 px-3 text-[0.7rem]"
-            onClick={() => onOpen(tree.id, "ve-pha-do")}
-          >
-            <PenTool size={13} /> Phả đồ
-          </button>
-          <button
-            type="button"
-            className="pat-btn pat-btn-outline h-8 px-2.5 text-[0.66rem]"
-            title="Tải dữ liệu CSV, Excel, GEDCOM hoặc JSON"
-            aria-label={`Tải dữ liệu ${tree.name}`}
-            onClick={() => onDownload(tree)}
-          >
-            <Download size={12} /> Dữ liệu
-          </button>
+          <span className="text-[0.66rem] text-[var(--pat-muted)]">
+            Phả hệ, phả đồ, sao lưu và xoá nằm trong menu “…”
+          </span>
         </div>
       </div>
     </article>

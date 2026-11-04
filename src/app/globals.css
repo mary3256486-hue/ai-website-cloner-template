@@ -484,12 +484,44 @@
   width: min(100%, 210mm);
   aspect-ratio: 210 / 297;
   flex-direction: column;
-  padding: 11.9% 9.52% 11.9% 11.9%; /* lề 2,5cm, riêng lề phải 2,0cm khi khổ giấy rộng 210mm */
+  /* tỉ lệ lề khớp bản in (mm/210): mặc định trên 11,9% · phải 9,52% · dưới 11,9% · trái 11,9% */
+  padding: var(--chron-pt, 11.9%) var(--chron-pr, 9.52%) var(--chron-pb, 11.9%) var(--chron-pl, 11.9%);
+}
+
+.chronicle-book-title {
+  string-set: patbook content();
 }
 
 @page {
   size: A4 portrait;
   margin: 0;
+}
+
+@page chronicle {
+  size: A4 portrait;
+  margin: 25mm 20mm 25mm 25mm;
+  @top-center {
+    content: string(patbook);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 8pt;
+    letter-spacing: 0.08em;
+    color: #8a6a52;
+  }
+  @bottom-center {
+    content: counter(page);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 9pt;
+    color: #5a3a28;
+  }
+}
+
+@page chronicle:first {
+  @top-center {
+    content: none;
+  }
+  @bottom-center {
+    content: none;
+  }
 }
 
 @media print {
@@ -541,10 +573,11 @@
   .chronicle-page {
     display: flex !important;
     flex-direction: column !important;
-    width: 210mm !important;
-    height: 296.5mm !important;
+    page: chronicle;
+    width: calc(210mm - var(--chron-ml, 25mm) - var(--chron-mr, 20mm)) !important;
+    height: calc(297mm - var(--chron-mt, 25mm) - var(--chron-mb, 25mm)) !important;
     min-height: 0 !important;
-    padding: 25mm 20mm 25mm 25mm !important;
+    padding: 0 !important;
     max-width: none !important;
     aspect-ratio: auto !important;
     margin: 0 !important;
@@ -556,6 +589,10 @@
     page-break-after: always;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .chronicle-recto {
+    break-before: right;
+    page-break-before: right;
   }
   .chronicle-body {
     min-height: 0 !important;

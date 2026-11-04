@@ -1,4 +1,4 @@
-import type { FamilyTree, Person } from "./types";
+import type { FamilyTree, Person, PrivacySettings } from "./types";
 import {
   CALENDAR_LABELS,
   FAMILY_TREE_SCHEMA_VERSION,
@@ -12,7 +12,15 @@ import {
 import type { TreeLayout } from "./types";
 import { computeLayout } from "./layout";
 import { classifyClan, CLAN_ROLE_LABELS } from "./clan";
-import { byId, computeGenerations, ensurePersonCodes, lifeSpan, orderedSpouses, splitFullName } from "./utils";
+import {
+  applyPrivacyToPerson,
+  byId,
+  computeGenerations,
+  ensurePersonCodes,
+  lifeSpan,
+  orderedSpouses,
+  splitFullName,
+} from "./utils";
 import { ESSENTIAL_HEADERS, MEMBER_COLUMNS, MEMBER_HEADERS, type MemberColumnKey } from "./columns";
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -48,6 +56,8 @@ function csvCell(value: string | number | undefined) {
 export interface MemberExportOptions {
   essentialOnly?: boolean;
   scope?: "all" | "clan";
+  /** Chế độ riêng tư áp khi xuất; mặc định lấy theo cài đặt của gia phả. */
+  privacy?: PrivacySettings;
 }
 
 export function memberRows(
@@ -57,12 +67,15 @@ export function memberRows(
   const map = byId(tree);
   const gens = computeGenerations(tree.members, tree.founderId);
   const clan = classifyClan(tree.members, tree.founderId);
+  // Chế độ riêng tư: ẩn ngày sinh và liên hệ của thành viên còn sống khi xuất.
+  const privacy = options.privacy ?? tree.privacy;
   const rankLabel = (person: Person, spouses: Person[]) =>
     spouses
       .map((spouse) => (person.spouseRank?.[spouse.id] ? SPOUSE_RANK_LABELS[person.spouseRank[spouse.id]] : ""))
       .join("; ");
 
-  const values = (m: Person): Record<MemberColumnKey, string | number | undefined> => {
+  const values = (source: Person): Record<MemberColumnKey, string | number | undefined> => {
+    const m = privacy ? applyPrivacyToPerson(source, privacy) : source;
     const branch = tree.branches.find((b) => b.id === m.branchId)?.name;
     const generation = gens.get(m.id);
     const spouses = orderedSpouses(m, tree.members);
@@ -147,9 +160,35 @@ export function exportMembersCsv(tree: FamilyTree, options: MemberExportOptions 
   );
 }
 
+export const LAST_BACKUP_KEY = "phatue.lastBackupAt.v1";
+
+/** Ghi nhận thời điểm sao lưu gần nhất để nhắc sao lưu định kỳ. */
+export function markBackupExported() {
+  try {
+    localStorage.setItem(LAST_BACKUP_KEY, new Date().toISOString());
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export function exportBackup(tree: FamilyTree) {
   const content = JSON.stringify(tree, null, 2);
   downloadBlob(new Blob([content], { type: "application/json;charset=utf-8" }), `${safeName(tree.name)}-backup-${dateStamp()}.json`);
+  markBackupExported();
+}
+
+/** Tải tất cả gia phả trong một tệp JSON để chuyển máy hoặc cất giữ một lần. */
+export function exportAllBackup(trees: FamilyTree[]) {
+  const payload = {
+    app: "phatue-gia-pha",
+    kind: "full-backup",
+    exportedAt: new Date().toISOString(),
+    count: trees.length,
+    trees,
+  };
+  const content = JSON.stringify(payload, null, 2);
+  downloadBlob(new Blob([content], { type: "application/json;charset=utf-8" }), `gia-pha-tat-ca-${dateStamp()}.json`);
+  markBackupExported();
 }
 
 export interface BackupReadResult {
@@ -159,7 +198,14 @@ export interface BackupReadResult {
   schemaVersion: number;
 }
 
-export async function readBackup(file: File): Promise<BackupReadResult> {
+export interface FullBackupReadResult {
+  trees: FamilyTree[];
+  warnings: string[];
+  fileName: string;
+}
+
+/** Tệp sao lưu có thể chứa một gia phả hoặc nhiều gia phả (exportAllBackup). */
+export async function readAnyBackup(file: File): Promise<BackupReadResult | FullBackupReadResult> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(await file.text());
@@ -168,6 +214,40 @@ export async function readBackup(file: File): Promise<BackupReadResult> {
       `Tệp “${file.name}” không phải JSON hợp lệ. Hãy chọn đúng tệp sao lưu có đuôi .json đã xuất từ ứng dụng.`,
     );
   }
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    (parsed as { kind?: unknown }).kind === "full-backup" &&
+    Array.isArray((parsed as { trees?: unknown }).trees)
+  ) {
+    const list = (parsed as { trees: unknown[] }).trees;
+    const warnings: string[] = [];
+    const trees: FamilyTree[] = [];
+    for (const [index, item] of list.entries()) {
+      if (!item || typeof item !== "object" || !Array.isArray((item as FamilyTree).members)) {
+        warnings.push(`Bản ghi ${index + 1} không đúng định dạng gia phả nên bị bỏ qua.`);
+        continue;
+      }
+      const record = item as Partial<FamilyTree>;
+      const version = typeof record.schemaVersion === "number" ? record.schemaVersion : 1;
+      if (version > FAMILY_TREE_SCHEMA_VERSION) {
+        warnings.push(
+          `“${record.name ?? `Bản ghi ${index + 1}`}” có schema ${version}, cao hơn phiên bản ứng dụng đang hỗ trợ (${FAMILY_TREE_SCHEMA_VERSION}) nên bị bỏ qua.`,
+        );
+        continue;
+      }
+      trees.push({ ...(record as FamilyTree), schemaVersion: version });
+    }
+    if (!trees.length) {
+      throw new Error("Tệp sao lưu tổng không có gia phả nào hợp lệ để phục hồi.");
+    }
+    return { trees, warnings, fileName: file.name };
+  }
+  const single = await readBackupShape(parsed, file.name);
+  return single;
+}
+
+async function readBackupShape(parsed: unknown, fileName: string): Promise<BackupReadResult> {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Tệp sao lưu trống hoặc không đúng định dạng gia phả.");
   }
@@ -185,12 +265,13 @@ export async function readBackup(file: File): Promise<BackupReadResult> {
   const warnings: string[] = [];
   const schemaVersion = typeof value.schemaVersion === "number" ? value.schemaVersion : 1;
   if (schemaVersion > FAMILY_TREE_SCHEMA_VERSION) {
-    warnings.push(
-      `Tệp được tạo bởi phiên bản mới hơn (schema ${schemaVersion}); một số trường có thể chưa hiển thị đầy đủ. Nên cập nhật ứng dụng trước khi phục hồi.`,
+    // Chặn rõ ràng tệp từ phiên bản mới hơn thay vì đoán dữ liệu.
+    throw new Error(
+      `Tệp “${fileName}” được tạo bởi phiên bản mới hơn (schema ${schemaVersion}) trong khi ứng dụng đang hỗ trợ tới schema ${FAMILY_TREE_SCHEMA_VERSION}. Hãy cập nhật ứng dụng rồi mở lại tệp để tránh mất hoặc sai dữ liệu.`,
     );
   } else if (schemaVersion < FAMILY_TREE_SCHEMA_VERSION) {
     warnings.push(
-      `Tệp được tạo bởi phiên bản cũ (schema ${schemaVersion}); dữ liệu đã được chuẩn hoá sang schema ${FAMILY_TREE_SCHEMA_VERSION}.`,
+      `Tệp được tạo bởi phiên bản cũ (schema ${schemaVersion}); dữ liệu sẽ được chuẩn hoá sang schema ${FAMILY_TREE_SCHEMA_VERSION} và một bản sao tự động được giữ lại trước khi nâng cấp.`,
     );
   }
   if (!value.members.length) {
@@ -214,7 +295,7 @@ export async function readBackup(file: File): Promise<BackupReadResult> {
       ? value.founderId
       : undefined,
   };
-  return { tree, warnings, fileName: file.name, schemaVersion };
+  return { tree, warnings, fileName, schemaVersion };
 }
 
 export const AUTO_ROTATE_MIN_MEMBERS = 25;
@@ -282,8 +363,39 @@ async function inlineDecorationImages(clone: SVGSVGElement) {
   );
 }
 
-export async function printSvgDiagram(svg: SVGSVGElement, tree: FamilyTree) {
+export interface DiagramPrintOptions {
+  /** true: vừa khổ giấy đã chọn; false: in đúng kích thước thật (mm) ở tỉ lệ 100%. */
+  fitToPage?: boolean;
+  /** Chuyển bản in sang đen trắng để tiết kiệm mực hoặc in thử. */
+  grayscale?: boolean;
+  /** Vẽ dấu cắt góc để tiện cắt giấy sau in. */
+  cropMarks?: boolean;
+  /** Dùng font serif hệ thống (Times New Roman) thay font tải từ mạng — an toàn khi in offline. */
+  systemSerif?: boolean;
+}
+
+const CROP_MARK_CSS = `
+  .crop-mark { position: fixed; width: 14mm; height: 14mm; pointer-events: none; z-index: 9; }
+  .crop-mark::before, .crop-mark::after { content: ""; position: absolute; background: #000; }
+  .crop-mark::before { width: 100%; height: 0.2mm; }
+  .crop-mark::after { width: 0.2mm; height: 100%; }
+  .crop-tl { top: 2mm; left: 2mm; }
+  .crop-tl::before { top: 0; left: 0; } .crop-tl::after { top: 0; left: 0; }
+  .crop-tr { top: 2mm; right: 2mm; }
+  .crop-tr::before { top: 0; right: 0; } .crop-tr::after { top: 0; right: 0; }
+  .crop-bl { bottom: 2mm; left: 2mm; }
+  .crop-bl::before { bottom: 0; left: 0; } .crop-bl::after { bottom: 0; left: 0; }
+  .crop-br { bottom: 2mm; right: 2mm; }
+  .crop-br::before { bottom: 0; right: 0; } .crop-br::after { bottom: 0; right: 0; }
+`;
+
+export async function printSvgDiagram(
+  svg: SVGSVGElement,
+  tree: FamilyTree,
+  options: DiagramPrintOptions = {},
+) {
   const { widthMm, heightMm } = paperDimensions(tree);
+  const fit = options.fitToPage !== false;
   const win = window.open("", "_blank", "width=1280,height=960");
   if (!win) {
     printDiagram(tree);
@@ -293,6 +405,16 @@ export async function printSvgDiagram(svg: SVGSVGElement, tree: FamilyTree) {
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   await inlineDecorationImages(clone);
   const markup = new XMLSerializer().serializeToString(clone);
+  const svgCss = fit
+    ? "svg { display: block; width: 100%; height: 100%; }"
+    : `svg { display: block; width: ${widthMm}mm; height: ${heightMm}mm; }`;
+  const grayscaleCss = options.grayscale ? "svg { filter: grayscale(1) contrast(1.05); }" : "";
+  const serifCss = options.systemSerif
+    ? "text { font-family: \"Times New Roman\", \"Liberation Serif\", serif !important; }"
+    : "";
+  const cropHtml = options.cropMarks
+    ? `<span class="crop-mark crop-tl"></span><span class="crop-mark crop-tr"></span><span class="crop-mark crop-bl"></span><span class="crop-mark crop-br"></span>`
+    : "";
   win.document.open();
   win.document.write(`<!doctype html>
 <html lang="vi"><head><meta charset="utf-8" />
@@ -303,11 +425,14 @@ export async function printSvgDiagram(svg: SVGSVGElement, tree: FamilyTree) {
 <style>
   @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #fff; overflow: hidden; }
-  svg { display: block; width: 100%; height: 100%; }
+  ${svgCss}
+  ${grayscaleCss}
+  ${serifCss}
+  ${options.cropMarks ? CROP_MARK_CSS : ""}
   .hint { position: fixed; inset: auto 0 12px 0; text-align: center; font: 12px sans-serif; color: #8a6a52; }
   @media print { .hint { display: none; } }
 </style></head>
-<body>${markup}<p class="hint">Hộp thoại in sẽ mở. Chọn “Lưu thành PDF” nếu muốn tệp PDF.</p></body></html>`);
+<body>${markup}${cropHtml}<p class="hint">Hộp thoại in sẽ mở. Để lưu PDF: chọn máy in “Lưu thành PDF”/“Save as PDF”, bỏ tick “Vừa khổ trang” và giữ nguyên khổ ${widthMm}×${heightMm} mm.</p></body></html>`);
   win.document.close();
   win.setTimeout(() => {
     win.focus();

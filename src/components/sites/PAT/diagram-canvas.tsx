@@ -20,7 +20,7 @@ import {
   normalizeTuning,
   type ExtraFieldKey,
 } from "./types";
-import { computeGenerations, lifeSpan, sortPersons } from "./utils";
+import { computeGenerations, displayLifeSpan, sortPersons } from "./utils";
 
 const PALETTES: Record<DesignSettings["palette"], { accent: string; deep: string; gold: string; soft: string }> = {
   classic: { accent: "#8a1c15", deep: "#6a100c", gold: "#c9a227", soft: "#f6e9c8" },
@@ -697,7 +697,7 @@ export function DiagramCanvas({
                 person.title || (isGen(node) < 0 ? `TIỀN TỔ ${-isGen(node)}` : `ĐỜI ${isGen(node)}`);
               const meta: string[] = [];
               if (settings.showBirthOrder && person.birthOrder > 0) meta.push(`Con thứ ${person.birthOrder}`);
-              if (showDates) meta.push(lifeSpan(person));
+              if (showDates) meta.push(displayLifeSpan(person, tree.privacy));
               if (showAnniversary && anniversary) meta.push(`Giỗ: ${anniversary}`);
               const extraFields = genStyle?.extraFields ?? tuning.extraFields;
               for (const key of extraFields) {

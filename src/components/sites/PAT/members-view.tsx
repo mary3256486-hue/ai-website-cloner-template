@@ -77,6 +77,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
   const [kinOpen, setKinOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Person | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Person | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -449,9 +450,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                           <button
                             type="button"
                             className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[var(--pat-muted)]"
-                            onClick={() => {
-                              if (window.confirm(`Xoá "${person.name}" khỏi gia phả?`)) deleteMember(tree.id, person.id);
-                            }}
+                            onClick={() => setDeleteTarget(person)}
                           >
                             <Trash2 size={12} /> Xoá
                           </button>
@@ -803,6 +802,42 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           initialB={filtered[1]?.id}
         />
       ) : null}
+
+      <Sheet
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title={`Xoá ${deleteTarget?.name ?? ""}?`}
+        subtitle="Chuyển vào Thùng rác · giữ 30 ngày"
+        footer={
+          <div className="flex gap-2">
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={() => setDeleteTarget(null)}>
+              Giữ lại
+            </button>
+            <button
+              type="button"
+              className="pat-btn pat-btn-red h-11 flex-1 text-sm"
+              onClick={() => {
+                if (deleteTarget) deleteMember(tree.id, deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            >
+              Chuyển vào Thùng rác
+            </button>
+          </div>
+        }
+      >
+        {deleteTarget ? (
+          <div className="space-y-2">
+            <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
+              Hồ sơ của <strong>{deleteTarget.name}</strong> sẽ rời khỏi phả hệ cùng các liên kết. Các mối liên hệ
+              (con, vợ/chồng, chi phái) được lưu kèm nên khôi phục lại nguyên vẹn trong 30 ngày.
+            </p>
+            <p className="text-[0.7rem] text-[var(--pat-muted)]">
+              Số người còn sống trong danh sách sẽ giảm đi 1. Nếu chỉ muốn ẩn tạm, hãy chọn Giữ lại.
+            </p>
+          </div>
+        ) : null}
+      </Sheet>
     </TreeShell>
   );
 }

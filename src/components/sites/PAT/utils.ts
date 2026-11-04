@@ -1,5 +1,5 @@
-import type { FamilyTree, Person, SpouseRank } from "./types";
-import { generationTag, UNKNOWN_GENERATION } from "./types";
+import type { FamilyTree, Person, PrivacySettings, SpouseRank } from "./types";
+import { generationTag, lifeStatusOf, UNKNOWN_GENERATION } from "./types";
 import { classifyClan, computeClanGenerations, findClanCycles, type ClanIndex } from "./clan";
 
 export function uid(prefix = "id"): string {
@@ -391,6 +391,36 @@ export function lifeSpan(person: Person): string {
   if (person.lifeStatus === "unknown") return `${birth} — ?`;
   const death = person.deathDate?.trim() || "?";
   return `${birth} — ${death}`;
+}
+
+/** Dòng thời gian kiểu phả đồ/phả ký sau khi áp chế độ riêng tư: ẩn ngày sinh của thành viên còn sống, chỉ ghi năm mất nếu chọn. */
+export function displayLifeSpan(person: Person, privacy?: PrivacySettings): string {
+  if (!privacy?.hideLivingDetails) return lifeSpan(person);
+  if (lifeStatusOf(person) === "alive") return "Còn sống";
+  if (privacy.deathYearOnly) {
+    const year = (person.deathDate ?? "").trim().match(/\d{4}/)?.[0];
+    return year ? `Mất ${year}` : "Đã khuất";
+  }
+  return lifeSpan(person);
+}
+
+/** Bản sao thành viên đã ẩn thông tin nhạy cảm theo chế độ riêng tư, dùng khi xuất CSV/Excel/GEDCOM. */
+export function applyPrivacyToPerson(person: Person, privacy?: PrivacySettings): Person {
+  if (!privacy?.hideLivingDetails && !privacy?.deathYearOnly) return person;
+  if (privacy.hideLivingDetails && lifeStatusOf(person) === "alive") {
+    return {
+      ...person,
+      birthDate: undefined,
+      birthCalendar: undefined,
+      phone: undefined,
+      address: undefined,
+    };
+  }
+  if (privacy.deathYearOnly && lifeStatusOf(person) !== "alive") {
+    const year = (person.deathDate ?? "").trim().match(/\d{4}/)?.[0];
+    return { ...person, birthDate: undefined, deathDate: year ?? undefined };
+  }
+  return person;
 }
 
 export function birthYear(person: Person): string {

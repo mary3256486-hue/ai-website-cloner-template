@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Branch, Decoration, DesignSettings, FamilyTree, LinkConfidence, Person } from "./types";
+import type { Branch, Decoration, DesignSettings, FamilyTree, LinkConfidence, Person, TrashedBranch, TrashedMember } from "./types";
 import { DEFAULT_DESIGN, FAMILY_TREE_SCHEMA_VERSION } from "./types";
 import { ensurePersonCodes, nextPersonCode, uid } from "./utils";
 import { foldOutsideMembers } from "./clan";
@@ -17,9 +17,27 @@ import { createDemoTree } from "./seed";
 
 export const STORAGE_KEY = "phatue.familyTrees.v1";
 const TRASH_KEY = "phatue.familyTrees.trash.v1";
+const SNAPSHOT_KEY = "phatue.snapshots.v1";
 const SEED_VERSION_KEY = "phatue.seedVersion.v1";
 // Bump it whenever the demo tree changes so browsers stop showing the cached older sample.
 const SEED_VERSION = "2026-11-03c";
+/** Thời hạn giữ mục đã xoá (thùng rác thành viên/chi phái và mục Đã xóa của gia phả). */
+export const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+/** Số bản sao tự động giữ lại của mỗi gia phả. */
+const SNAPSHOT_LIMIT = 5;
+/** Bản sao quá lớn sẽ bị bỏ qua để không làm đầy bộ nhớ trình duyệt. */
+const SNAPSHOT_MAX_CHARS = 1_500_000;
+
+/** Bản sao lưu tự động của một gia phả, giữ tối đa SNAPSHOT_LIMIT bản gần nhất. */
+export interface TreeSnapshot {
+  id: string;
+  treeId: string;
+  treeName: string;
+  savedAt: string;
+  size: number;
+  reason: string;
+  tree: FamilyTree;
+}
 
 interface LegacyPerson extends Person {
   linkToId?: string;
@@ -55,6 +73,7 @@ interface MemberInput extends Partial<Person> {
 interface StoreValue {
   trees: FamilyTree[];
   archived: ArchivedTree[];
+  snapshots: TreeSnapshot[];
   hydrated: boolean;
   getTree: (id: string) => FamilyTree | undefined;
   createTree: (input: CreateTreeInput) => string;
@@ -62,12 +81,22 @@ interface StoreValue {
   archiveTree: (id: string) => boolean;
   restoreTree: (id: string) => boolean;
   purgeTree: (id: string) => void;
+  purgeAllArchived: () => void;
   addMember: (treeId: string, input: MemberInput) => string;
   updateMember: (treeId: string, memberId: string, patch: Partial<Person>) => void;
   deleteMember: (treeId: string, memberId: string) => void;
+  restoreTrashedMember: (treeId: string, personId: string) => void;
+  purgeTrashedMember: (treeId: string, personId: string) => void;
   addBranch: (treeId: string, input: { name: string; description?: string; headId?: string; color?: string; code?: string }) => string;
   updateBranch: (treeId: string, branchId: string, patch: Partial<Branch>) => void;
   deleteBranch: (treeId: string, branchId: string) => void;
+  restoreTrashedBranch: (treeId: string, branchId: string) => void;
+  purgeTrashedBranch: (treeId: string, branchId: string) => void;
+  restoreAllTrash: (treeId: string) => void;
+  emptyTrash: (treeId: string) => void;
+  createSnapshot: (treeId: string, reason: string) => boolean;
+  restoreSnapshot: (snapshotId: string) => boolean;
+  deleteSnapshot: (snapshotId: string) => void;
   setDesign: (treeId: string, patch: Partial<DesignSettings>) => void;
   setPositions: (treeId: string, positions: Record<string, { x: number; y: number }>) => void;
   setDecoration: (treeId: string, decoration: Decoration) => void;
@@ -142,7 +171,100 @@ function normalizeTree(tree: FamilyTree): FamilyTree {
     history: tree.history ?? "",
     documents: tree.documents ?? [],
     founderId,
+    trashMembers: purgeExpiredTrash(tree.trashMembers),
+    trashBranches: purgeExpiredTrash(tree.trashBranches),
   };
+}
+
+/** Gỡ mục thùng rác quá 30 ngày; trả về mảng rỗng thay vì để trống để dữ liệu cũ tự dọn. */
+function purgeExpiredTrash<T extends { deletedAt: string }>(items: T[] | undefined): T[] {
+  if (!items?.length) return [];
+  const now = Date.now();
+  return items.filter((item) => {
+    const deleted = new Date(item.deletedAt).getTime();
+    return Number.isFinite(deleted) && now - deleted <= TRASH_RETENTION_MS;
+  });
+}
+
+/** Số ngày còn lại trước khi mục đã xoá tự bị dọn; tối thiểu 0. */
+export function trashDaysLeft(deletedAt: string): number {
+  const elapsed = Date.now() - new Date(deletedAt).getTime();
+  return Math.max(0, Math.ceil((TRASH_RETENTION_MS - elapsed) / 86400000));
+}
+
+function loadSnapshots(): TreeSnapshot[] {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (item): item is TreeSnapshot => Boolean(item?.id && item?.tree?.id && item?.savedAt && item?.tree),
+        );
+      }
+    }
+  } catch {
+    // ignore corrupt storage
+  }
+  return [];
+}
+
+function persistSnapshots(items: TreeSnapshot[]): boolean {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(items));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Thêm bản sao mới và giữ tối đa SNAPSHOT_LIMIT bản gần nhất của mỗi gia phả. */
+function pushSnapshot(list: TreeSnapshot[], tree: FamilyTree, reason: string): TreeSnapshot[] {
+  let raw: string;
+  try {
+    raw = JSON.stringify(tree);
+  } catch {
+    return list;
+  }
+  if (raw.length > SNAPSHOT_MAX_CHARS) return list;
+  const entry: TreeSnapshot = {
+    id: uid("s"),
+    treeId: tree.id,
+    treeName: tree.name,
+    savedAt: nowIso(),
+    size: raw.length,
+    reason,
+    tree,
+  };
+  const kept: TreeSnapshot[] = [];
+  const perTree = new Map<string, number>();
+  for (const item of [entry, ...list]) {
+    const count = perTree.get(item.treeId) ?? 0;
+    if (count >= SNAPSHOT_LIMIT) continue;
+    perTree.set(item.treeId, count + 1);
+    kept.push(item);
+  }
+  return kept;
+}
+
+/** Tự sao lưu các gia phả sắp được nâng cấp để có bản phục hồi nếu chuẩn hoá gặp sự cố. */
+function snapshotUpgrades(trees: FamilyTree[]) {
+  try {
+    let snaps = loadSnapshots();
+    let changed = false;
+    for (const tree of trees) {
+      const version = tree.schemaVersion ?? 1;
+      if (version >= FAMILY_TREE_SCHEMA_VERSION) continue;
+      const next = pushSnapshot(snaps, tree, "Tự động trước khi nâng cấp dữ liệu");
+      if (next.length !== snaps.length || next[0]?.savedAt !== snaps[0]?.savedAt) {
+        snaps = next;
+        changed = true;
+      }
+    }
+    if (changed) persistSnapshots(snaps);
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function loadTrees(): FamilyTree[] {
@@ -151,6 +273,7 @@ function loadTrees(): FamilyTree[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length) {
+        snapshotUpgrades(parsed as FamilyTree[]);
         return (parsed as FamilyTree[]).map(normalizeTree);
       }
     }
@@ -197,8 +320,11 @@ function loadArchived(): ArchivedTree[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
+        // Mục Đã xóa chỉ giữ 30 ngày; quá hạn tự dọn ngay khi nạp.
         return parsed.filter(
-          (item): item is ArchivedTree => Boolean(item?.tree?.id && item?.deletedAt),
+          (item): item is ArchivedTree =>
+            Boolean(item?.tree?.id && item?.deletedAt) &&
+            Date.now() - new Date(item.deletedAt).getTime() <= TRASH_RETENTION_MS,
         );
       }
     }
@@ -220,6 +346,7 @@ function persistArchived(items: ArchivedTree[]): boolean {
 export function GenealogyProvider({ children }: { children: ReactNode }) {
   const [trees, setTrees] = useState<FamilyTree[]>([]);
   const [archived, setArchived] = useState<ArchivedTree[]>([]);
+  const [snapshots, setSnapshots] = useState<TreeSnapshot[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -229,10 +356,12 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       ? refreshSample(stored)
       : [createDemoTree(), ...stored];
     const loadedArchived = loadArchived();
+    const loadedSnapshots = loadSnapshots();
     // Persisted trees only exist in the browser, so hydration happens after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setTrees(loaded);
     setArchived(loadedArchived);
+    setSnapshots(loadedSnapshots);
     persist(loaded);
     persistArchived(loadedArchived);
     setHydrated(true);
@@ -343,6 +472,13 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const purgeAllArchived = useCallback(() => {
+    setArchived((prev) => {
+      persistArchived([]);
+      return prev.length ? [] : prev;
+    });
+  }, []);
+
   const addMember = useCallback(
     (treeId: string, input: MemberInput) => {
       const memberId = uid("p");
@@ -431,40 +567,123 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   const deleteMember = useCallback(
     (treeId: string, memberId: string) => {
       updateTreeIn(treeId, (tree) => {
+        const person = tree.members.find((m) => m.id === memberId);
+        if (!person) return tree;
+        const spouseOf: string[] = [];
+        const children: string[] = [];
+        const ancestorLinks: string[] = [];
+        const spouseRankOf: string[] = [];
+        const spouseOrderOf: string[] = [];
         const members = tree.members
           .filter((m) => m.id !== memberId)
           .map((m) => {
             let next = m;
             if (next.spouseIds.includes(memberId)) {
+              spouseOf.push(m.id);
               next = { ...next, spouseIds: next.spouseIds.filter((id) => id !== memberId) };
             }
-            if (next.fatherId === memberId) next = { ...next, fatherId: undefined };
-            if (next.motherId === memberId) next = { ...next, motherId: undefined };
-            if (next.ancestorLinkId === memberId) next = { ...next, ancestorLinkId: undefined };
+            if (next.fatherId === memberId) {
+              children.push(m.id);
+              next = { ...next, fatherId: undefined };
+            }
+            if (next.motherId === memberId) {
+              children.push(m.id);
+              next = { ...next, motherId: undefined };
+            }
+            if (next.ancestorLinkId === memberId) {
+              ancestorLinks.push(m.id);
+              next = { ...next, ancestorLinkId: undefined };
+            }
             if (next.spouseRank && memberId in next.spouseRank) {
+              spouseRankOf.push(m.id);
               const spouseRank = { ...next.spouseRank };
               delete spouseRank[memberId];
               next = { ...next, spouseRank };
             }
             if (next.spouseOrder?.includes(memberId)) {
+              spouseOrderOf.push(m.id);
               next = { ...next, spouseOrder: next.spouseOrder.filter((id) => id !== memberId) };
             }
             return next;
           });
-        const founder = tree.founderId === memberId;
+        const wasFounder = tree.founderId === memberId;
+        const branchHeadOf = tree.branches.filter((b) => b.headId === memberId).map((b) => b.id);
         const branches = tree.branches.map((b) =>
           b.headId === memberId ? { ...b, headId: undefined } : b,
         );
         const positions = { ...tree.positions };
         delete positions[memberId];
+        const trashed: TrashedMember = {
+          person,
+          deletedAt: nowIso(),
+          spouseOf,
+          children,
+          ancestorLinks,
+          spouseRankOf,
+          spouseOrderOf,
+          branchHeadOf,
+          wasFounder,
+        };
         return {
           ...tree,
           members,
           branches,
           positions,
-          founderId: founder ? undefined : tree.founderId,
+          founderId: wasFounder ? undefined : tree.founderId,
+          trashMembers: [trashed, ...(tree.trashMembers ?? [])],
         };
       });
+    },
+    [updateTreeIn],
+  );
+
+  const restoreTrashedMember = useCallback(
+    (treeId: string, personId: string) => {
+      updateTreeIn(treeId, (tree) => {
+        const entry = (tree.trashMembers ?? []).find((item) => item.person.id === personId);
+        if (!entry) return tree;
+        const remaining = (tree.trashMembers ?? []).filter((item) => item.person.id !== personId);
+        if (tree.members.some((m) => m.id === personId)) return { ...tree, trashMembers: remaining };
+        const spouseOf = new Set(entry.spouseOf);
+        const children = new Set(entry.children);
+        const ancestorLinks = new Set(entry.ancestorLinks);
+        const spouseOrderOf = new Set(entry.spouseOrderOf);
+        const members = tree.members.map((m) => {
+          let next = m;
+          if (spouseOf.has(m.id) && !next.spouseIds.includes(personId)) {
+            next = { ...next, spouseIds: [...next.spouseIds, personId] };
+          }
+          if (children.has(m.id)) {
+            if (entry.person.gender === "male" && !next.fatherId) next = { ...next, fatherId: personId };
+            else if (entry.person.gender === "female" && !next.motherId) next = { ...next, motherId: personId };
+          }
+          if (ancestorLinks.has(m.id) && !next.ancestorLinkId) next = { ...next, ancestorLinkId: personId };
+          if (spouseOrderOf.has(m.id) && !next.spouseOrder?.includes(personId)) {
+            next = { ...next, spouseOrder: [...(next.spouseOrder ?? []), personId] };
+          }
+          return next;
+        });
+        const branches = tree.branches.map((b) =>
+          entry.branchHeadOf.includes(b.id) && !b.headId ? { ...b, headId: personId } : b,
+        );
+        return {
+          ...tree,
+          members: [...members, entry.person],
+          branches,
+          founderId: entry.wasFounder && !tree.founderId ? personId : tree.founderId,
+          trashMembers: remaining,
+        };
+      });
+    },
+    [updateTreeIn],
+  );
+
+  const purgeTrashedMember = useCallback(
+    (treeId: string, personId: string) => {
+      updateTreeIn(treeId, (tree) => ({
+        ...tree,
+        trashMembers: (tree.trashMembers ?? []).filter((item) => item.person.id !== personId),
+      }));
     },
     [updateTreeIn],
   );
@@ -509,11 +728,119 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
 
   const deleteBranch = useCallback(
     (treeId: string, branchId: string) => {
+      updateTreeIn(treeId, (tree) => {
+        const branch = tree.branches.find((b) => b.id === branchId);
+        if (!branch) return tree;
+        const memberIds = tree.members
+          .filter((m) => m.branchId === branchId)
+          .map((m) => m.id);
+        const trashed: TrashedBranch = {
+          branch,
+          deletedAt: nowIso(),
+          memberIds,
+          index: tree.branches.findIndex((b) => b.id === branchId),
+        };
+        return {
+          ...tree,
+          branches: tree.branches.filter((b) => b.id !== branchId),
+          members: tree.members.map((m) => (m.branchId === branchId ? { ...m, branchId: undefined } : m)),
+          trashBranches: [trashed, ...(tree.trashBranches ?? [])],
+        };
+      });
+    },
+    [updateTreeIn],
+  );
+
+  const restoreTrashedBranch = useCallback(
+    (treeId: string, branchId: string) => {
+      updateTreeIn(treeId, (tree) => {
+        const entry = (tree.trashBranches ?? []).find((item) => item.branch.id === branchId);
+        if (!entry) return tree;
+        const remaining = (tree.trashBranches ?? []).filter((item) => item.branch.id !== branchId);
+        if (tree.branches.some((b) => b.id === branchId)) return { ...tree, trashBranches: remaining };
+        const branches = [...tree.branches];
+        branches.splice(Math.min(entry.index, branches.length), 0, entry.branch);
+        const restore = new Set(entry.memberIds);
+        return {
+          ...tree,
+          branches,
+          members: tree.members.map((m) =>
+            restore.has(m.id) && !m.branchId ? { ...m, branchId: branchId } : m,
+          ),
+          trashBranches: remaining,
+        };
+      });
+    },
+    [updateTreeIn],
+  );
+
+  const purgeTrashedBranch = useCallback(
+    (treeId: string, branchId: string) => {
       updateTreeIn(treeId, (tree) => ({
         ...tree,
-        branches: tree.branches.filter((b) => b.id !== branchId),
-        members: tree.members.map((m) => (m.branchId === branchId ? { ...m, branchId: undefined } : m)),
+        trashBranches: (tree.trashBranches ?? []).filter((item) => item.branch.id !== branchId),
       }));
+    },
+    [updateTreeIn],
+  );
+
+  const restoreAllTrash = useCallback(
+    (treeId: string) => {
+      updateTreeIn(treeId, (tree) => {
+        let next = tree;
+        for (const entry of [...(next.trashBranches ?? [])].reverse()) {
+          if (next.branches.some((b) => b.id === entry.branch.id)) continue;
+          const branches = [...next.branches];
+          branches.splice(Math.min(entry.index, branches.length), 0, entry.branch);
+          const restore = new Set(entry.memberIds);
+          next = {
+            ...next,
+            branches,
+            members: next.members.map((m) =>
+              restore.has(m.id) && !m.branchId ? { ...m, branchId: entry.branch.id } : m,
+            ),
+          };
+        }
+        for (const entry of [...(next.trashMembers ?? [])].reverse()) {
+          if (next.members.some((m) => m.id === entry.person.id)) continue;
+          const spouseOf = new Set(entry.spouseOf);
+          const children = new Set(entry.children);
+          const ancestorLinks = new Set(entry.ancestorLinks);
+          const spouseOrderOf = new Set(entry.spouseOrderOf);
+          const members = next.members.map((m) => {
+            let patched = m;
+            if (spouseOf.has(m.id) && !patched.spouseIds.includes(entry.person.id)) {
+              patched = { ...patched, spouseIds: [...patched.spouseIds, entry.person.id] };
+            }
+            if (children.has(m.id)) {
+              if (entry.person.gender === "male" && !patched.fatherId) patched = { ...patched, fatherId: entry.person.id };
+              else if (entry.person.gender === "female" && !patched.motherId) patched = { ...patched, motherId: entry.person.id };
+            }
+            if (ancestorLinks.has(m.id) && !patched.ancestorLinkId) patched = { ...patched, ancestorLinkId: entry.person.id };
+            if (spouseOrderOf.has(m.id) && !patched.spouseOrder?.includes(entry.person.id)) {
+              patched = { ...patched, spouseOrder: [...(patched.spouseOrder ?? []), entry.person.id] };
+            }
+            return patched;
+          });
+          const branches = next.branches.map((b) =>
+            entry.branchHeadOf.includes(b.id) && !b.headId ? { ...b, headId: entry.person.id } : b,
+          );
+          next = {
+            ...next,
+            members: [...members, entry.person],
+            branches,
+            founderId: entry.wasFounder && !next.founderId ? entry.person.id : next.founderId,
+          };
+        }
+        return { ...next, trashMembers: [], trashBranches: [] };
+      });
+    },
+    [updateTreeIn],
+  );
+
+  const emptyTrash = useCallback(
+    (treeId: string) => {
+      updateTreeIn(treeId, (tree) => ({ ...tree, trashMembers: [], trashBranches: [] }));
     },
     [updateTreeIn],
   );
@@ -557,6 +884,28 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     [updateTreeIn],
   );
 
+  const createSnapshot = useCallback(
+    (treeId: string, reason: string) => {
+      const tree = trees.find((item) => item.id === treeId);
+      if (!tree) return false;
+      setSnapshots((prev) => {
+        const next = pushSnapshot(prev, tree, reason);
+        persistSnapshots(next);
+        return next;
+      });
+      return true;
+    },
+    [trees],
+  );
+
+  const deleteSnapshot = useCallback((snapshotId: string) => {
+    setSnapshots((prev) => {
+      const next = prev.filter((item) => item.id !== snapshotId);
+      persistSnapshots(next);
+      return next;
+    });
+  }, []);
+
   const importTree = useCallback(
     (tree: FamilyTree, opts?: { suffix?: boolean }) => {
       const id = tree.id && !trees.some((t) => t.id === tree.id) ? tree.id : uid("g");
@@ -583,20 +932,39 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     [commit, trees],
   );
 
+  const restoreSnapshot = useCallback(
+    (snapshotId: string) => {
+      const entry = snapshots.find((item) => item.id === snapshotId);
+      if (!entry) return false;
+      importTree(entry.tree, { suffix: true });
+      return true;
+    },
+    [snapshots, importTree],
+  );
+
   const replaceTree = useCallback(
     (treeId: string, tree: FamilyTree) => {
-      updateTreeIn(treeId, (current) =>
+      // Tự sao lưu bản hiện tại trước khi ghi đè từ tệp nhập để có thể quay lại.
+      const current = trees.find((item) => item.id === treeId);
+      if (current) {
+        setSnapshots((prev) => {
+          const next = pushSnapshot(prev, current, "Tự động trước khi ghi đè từ tệp nhập");
+          persistSnapshots(next);
+          return next;
+        });
+      }
+      updateTreeIn(treeId, (existing) =>
         normalizeTree({
           ...tree,
           id: treeId,
-          name: tree.name || current.name,
-          createdAt: current.createdAt,
-          sample: current.sample,
+          name: tree.name || existing.name,
+          createdAt: existing.createdAt,
+          sample: existing.sample,
           updatedAt: nowIso(),
         }),
       );
     },
-    [updateTreeIn],
+    [trees, updateTreeIn],
   );
 
   const getTree = useCallback((id: string) => trees.find((tree) => tree.id === id), [trees]);
@@ -605,6 +973,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     () => ({
       trees,
       archived,
+      snapshots,
       hydrated,
       getTree,
       createTree,
@@ -612,12 +981,22 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       archiveTree,
       restoreTree,
       purgeTree,
+      purgeAllArchived,
       addMember,
       updateMember,
       deleteMember,
+      restoreTrashedMember,
+      purgeTrashedMember,
       addBranch,
       updateBranch,
       deleteBranch,
+      restoreTrashedBranch,
+      purgeTrashedBranch,
+      restoreAllTrash,
+      emptyTrash,
+      createSnapshot,
+      restoreSnapshot,
+      deleteSnapshot,
       setDesign,
       setPositions,
       setDecoration,
@@ -628,6 +1007,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
     [
       trees,
       archived,
+      snapshots,
       hydrated,
       getTree,
       createTree,
@@ -635,12 +1015,22 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
       archiveTree,
       restoreTree,
       purgeTree,
+      purgeAllArchived,
       addMember,
       updateMember,
       deleteMember,
+      restoreTrashedMember,
+      purgeTrashedMember,
       addBranch,
       updateBranch,
       deleteBranch,
+      restoreTrashedBranch,
+      purgeTrashedBranch,
+      restoreAllTrash,
+      emptyTrash,
+      createSnapshot,
+      restoreSnapshot,
+      deleteSnapshot,
       setDesign,
       setPositions,
       setDecoration,

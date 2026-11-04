@@ -1286,21 +1286,20 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
               Giữ lại
             </button>
             <button type="button" className="pat-btn pat-btn-red h-10 flex-1 text-sm" onClick={confirmDelete}>
-              <Trash2 size={14} /> Xoá khỏi gia phả
+              <Trash2 size={14} /> Chuyển vào Thùng rác
             </button>
           </div>
         }
       >
         <div className="space-y-3 text-sm leading-relaxed text-[var(--pat-ink)]">
           <p>
-            Hồ sơ <strong>{member.name}</strong> sẽ bị gỡ khỏi gia phả và các liên kết cha mẹ, vợ/chồng, liên kết tiền
-            tổ.
+            Hồ sơ <strong>{member.name}</strong> sẽ rồi khỏi gia phả cùng các liên kết cha mẹ, vợ/chồng, liên kết tiền tổ, và nằm trong <strong>Thùng rác</strong> của gia phả.
           </p>
           <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-xs text-[var(--pat-muted)]">
             {children.length
               ? `${children.length} người con vẫn ở lại gia phả nhưng mất liên kết cha/mẹ với người này.`
               : "Người này không có con trong gia phả."}{" "}
-            Thao tác này không thể hoàn tác; hãy xuất sao lưu trước nếu chưa chắc.
+            Thùng rác giữ 30 ngày, sau đó tự động dọn; có thể khôi phục hàng loạt từ trang chủ gia phả.
           </p>
           <p className="text-xs text-[var(--pat-muted)]">
             Nếu chỉ muốn ẩn khỏi phả đồ, hãy sửa hồ sơ và đánh dấu “Hồ sơ tham khảo” thay vì xoá.

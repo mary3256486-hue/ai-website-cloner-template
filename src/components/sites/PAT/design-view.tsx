@@ -133,6 +133,10 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
   const [presets, setPresets] = useState<DesignPreset[]>([]);
   const [presetName, setPresetName] = useState("");
   const [confirm, setConfirm] = useState<{ title: string; message: string; action: () => void } | null>(null);
+  const [printFit, setPrintFit] = useState(true);
+  const [printGrayscale, setPrintGrayscale] = useState(false);
+  const [printCropMarks, setPrintCropMarks] = useState(false);
+  const [printSystemSerif, setPrintSystemSerif] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
   const [comparePalette, setComparePalette] = useState<PaletteName>("jade");
   const scale = Math.min(3, Math.max(0.12, fitScale * zoom));
@@ -189,6 +193,17 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
   };
 
   const findSvg = () => document.getElementById("pat-design-svg") as SVGSVGElement | null;
+
+  const printDiagram = () => {
+    const svg = findSvg();
+    if (!svg) return;
+    printSvgDiagram(svg, tree, {
+      fitToPage: printFit,
+      grayscale: printGrayscale,
+      cropMarks: printCropMarks,
+      systemSerif: printSystemSerif,
+    });
+  };
 
   const updateTuning = (patch: Partial<typeof tuning>) =>
     setDesign(tree.id, { tuning: { ...tuning, ...patch } });
@@ -307,10 +322,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
         <>
           <button
             type="button"
-            onClick={() => {
-              const svg = findSvg();
-              if (svg) void printSvgDiagram(svg, tree);
-            }}
+            onClick={printDiagram}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
             aria-label="In phả đồ"
           >
@@ -386,10 +398,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             <button
               type="button"
               className="pat-btn pat-btn-red h-9 px-4 text-xs"
-              onClick={() => {
-                const svg = findSvg();
-                if (svg) void printSvgDiagram(svg, tree);
-              }}
+              onClick={printDiagram}
             >
               <Printer size={14} /> In / Lưu PDF
             </button>
@@ -444,6 +453,52 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
           <p className="border-t border-[var(--pat-line)] px-4 py-2 text-[0.68rem] text-[var(--pat-muted)]">
             Đường đứt ngoài là mép giấy cần cắt; khung đứt bên trong là vùng an toàn để chữ không bị xén. Thay đổi được
             lưu tự động.
+          </p>
+        </section>
+
+        <section className="pat-card px-4 py-4">
+          <SectionTitle icon={<Printer size={13} />} title="Tuỳ chọn in / Lưu PDF" />
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <label className="flex items-center gap-1.5 text-xs text-[var(--pat-ink)]">
+              <input
+                type="checkbox"
+                checked={printFit}
+                onChange={(event) => setPrintFit(event.target.checked)}
+                className="h-4 w-4 shrink-0 accent-[var(--pat-red)]"
+              />
+              Vừa trang (co giãn theo khổ giấy)
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--pat-ink)]">
+              <input
+                type="checkbox"
+                checked={printGrayscale}
+                onChange={(event) => setPrintGrayscale(event.target.checked)}
+                className="h-4 w-4 shrink-0 accent-[var(--pat-red)]"
+              />
+              In đen trắng
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--pat-ink)]">
+              <input
+                type="checkbox"
+                checked={printCropMarks}
+                onChange={(event) => setPrintCropMarks(event.target.checked)}
+                className="h-4 w-4 shrink-0 accent-[var(--pat-red)]"
+              />
+              Dấu cắt 4 góc
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-[var(--pat-ink)]">
+              <input
+                type="checkbox"
+                checked={printSystemSerif}
+                onChange={(event) => setPrintSystemSerif(event.target.checked)}
+                className="h-4 w-4 shrink-0 accent-[var(--pat-red)]"
+              />
+              Font serif hệ thống (mở offline vẫn đúng chữ)
+            </label>
+          </div>
+          <p className="mt-2.5 text-[0.68rem] text-[var(--pat-muted)]">
+            Bỏ tick “Vừa trang” để in đúng 100% kích thước thiết kế ({paperCm}). Khi lưu PDF, chọn máy in “Lưu thành
+            PDF” và giữ nguyên khổ giấy đã chọn ở trên.
           </p>
         </section>
 

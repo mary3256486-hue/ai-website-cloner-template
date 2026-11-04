@@ -469,7 +469,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
       .filter((member): member is Person => Boolean(member));
     setConfirmAction({
       title: `Xoá ${person.name}?`,
-      message: "Hồ sơ sẽ được gỡ khỏi phả đồ cùng các liên kết. Bạn có thể hoàn tác ngay sau khi xoá.",
+      message: "Hồ sơ sẽ rồi khỏi phả đồ cùng các liên kết, và nằm trong Thùng rác 30 ngày. Bạn có thể hoàn tác ngay sau khi xoá.",
       details: [
         children.length ? `Con (${children.length}): ${children.map((child) => child.name).join(", ")}` : "",
         spouses.length

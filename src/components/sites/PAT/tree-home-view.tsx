@@ -21,7 +21,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { useGenealogy } from "./store";
+import { useGenealogy, trashDaysLeft } from "./store";
 import type { FamilyTree } from "./types";
 import { generationTag, UNKNOWN_GENERATION } from "./types";
 import {
@@ -84,10 +84,21 @@ const features = [
 
 export function TreeHomeView({ tree }: { tree: FamilyTree }) {
   const router = useRouter();
-  const { updateTree, archiveTree } = useGenealogy();
+  const {
+    updateTree,
+    archiveTree,
+    restoreTrashedMember,
+    purgeTrashedMember,
+    restoreTrashedBranch,
+    purgeTrashedBranch,
+    restoreAllTrash,
+    emptyTrash,
+  } = useGenealogy();
   const [menuOpen, setMenuOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [emptyTrashOpen, setEmptyTrashOpen] = useState(false);
   const [issueKind, setIssueKind] = useState<"all" | "cycle" | "conflict" | "unknown">("all");
   const [dismissedIssues, setDismissedIssues] = useState<string[]>([]);
   const [form, setForm] = useState({
@@ -99,6 +110,8 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
   });
 
   const stats = getStats(tree);
+  const trashCount = (tree.trashMembers?.length ?? 0) + (tree.trashBranches?.length ?? 0);
+  const privacy = tree.privacy;
   const generationStats = getGenerationStats(tree);
   const clan = classifyClan(tree.members, tree.founderId);
   const gens = computeGenerations(tree.members, tree.founderId);
@@ -597,6 +610,19 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           <SheetRow icon={<BookOpen size={18} />} title="Phả ký" onClick={() => open("pha-ky")} />
           <SheetRow icon={<GitBranch size={18} />} title="Chi phái" onClick={() => open("danh-sach-nhanh")} />
           <SheetRow
+            icon={<Trash2 size={18} />}
+            title="Thùng rác"
+            subtitle={
+              trashCount
+                ? `${trashCount} mục · giữ 30 ngày · có thể khôi phục`
+                : "Trống · thành viên và chi phái đã xóa nằm ở đây"
+            }
+            onClick={() => {
+              setMenuOpen(false);
+              setTrashOpen(true);
+            }}
+          />
+          <SheetRow
             icon={<Download size={18} />}
             title="Sao lưu JSON"
             subtitle="Tệp dự phòng toàn bộ gia phả"
@@ -694,6 +720,41 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               đúng danh xưng.
             </p>
           ) : null}
+          <div className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2.5">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--pat-ink)]">
+              <AlertTriangle size={13} className="text-[var(--pat-gold)]" /> Riêng tư khi in và xuất
+            </p>
+            <label className="mt-1.5 flex items-start gap-2 text-xs text-[var(--pat-ink)]">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--pat-red)]"
+                checked={privacy?.hideLivingDetails === true}
+                onChange={(event) =>
+                  updateTree(tree.id, {
+                    privacy: { ...privacy, hideLivingDetails: event.target.checked },
+                  })
+                }
+              />
+              Ẩn ngày sinh và thông tin liên hệ của thành viên còn sống khi in phả đồ, phả ký và xuất
+              CSV/Excel/GEDCOM
+            </label>
+            <label className="mt-1.5 flex items-start gap-2 text-xs text-[var(--pat-ink)]">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--pat-red)]"
+                checked={privacy?.deathYearOnly === true}
+                onChange={(event) =>
+                  updateTree(tree.id, {
+                    privacy: { ...privacy, deathYearOnly: event.target.checked },
+                  })
+                }
+              />
+              Chỉ ghi năm mất của người đã khuất
+            </label>
+            <p className="mt-1.5 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
+              Lưu ý: tệp sao lưu JSON luôn chứa toàn bộ dữ liệu gốc. Hãy cân nhắc trước khi chia sẻ tệp sao lưu.
+            </p>
+          </div>
           <div className="grid grid-cols-3 divide-x divide-[var(--pat-line)] rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 py-2">
             <div className="flex justify-center">
               <Stat value={stats.total} label="Thành viên" />
@@ -753,6 +814,145 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
         >
           <Download size={14} /> Sao lưu JSON trước khi xóa
         </button>
+      </Sheet>
+
+      <Sheet
+        open={trashOpen}
+        onClose={() => setTrashOpen(false)}
+        title="Thùng rác"
+        subtitle="Thành viên và chi phái đã xóa · giữ 30 ngày"
+        footer={
+          trashCount ? (
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="pat-btn pat-btn-outline h-11 flex-1 text-sm"
+                onClick={() => setEmptyTrashOpen(true)}
+              >
+                Dọn thùng rác
+              </button>
+              <button
+                type="button"
+                className="pat-btn pat-btn-red h-11 flex-1 text-sm"
+                onClick={() => restoreAllTrash(tree.id)}
+              >
+                Khôi phục tất cả
+              </button>
+            </div>
+          ) : undefined
+        }
+      >
+        {trashCount === 0 ? (
+          <p className="text-sm leading-relaxed text-[var(--pat-muted)]">
+            Thùng rác trống. Khi xóa thành viên hoặc chi phái, dữ liệu nằm ở đây 30 ngày trước khi tự động dọn, và có
+            thể khôi phục cùng các liên kết ban đầu.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {(tree.trashBranches ?? []).map((entry) => {
+              const daysLeft = trashDaysLeft(entry.deletedAt);
+              return (
+                <div
+                  key={`b-${entry.branch.id}`}
+                  className="flex items-center gap-2 rounded-xl border border-dashed border-[var(--pat-line)] bg-[#f7efe0]/80 px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[var(--pat-ink)]">
+                      Chi phái {entry.branch.name}
+                    </p>
+                    <p className="text-[0.7rem] text-[var(--pat-muted)]">
+                      {entry.memberIds.length} thành viên · {daysLeft > 0 ? `còn ${daysLeft} ngày` : "sắp tự động dọn"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="pat-btn pat-btn-outline h-8 shrink-0 px-2.5 text-[0.68rem]"
+                    onClick={() => restoreTrashedBranch(tree.id, entry.branch.id)}
+                  >
+                    Khôi phục
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] text-[#a3271d]"
+                    aria-label={`Xóa vĩnh viễn chi phái ${entry.branch.name}`}
+                    onClick={() => purgeTrashedBranch(tree.id, entry.branch.id)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              );
+            })}
+            {(tree.trashMembers ?? []).map((entry) => {
+              const daysLeft = trashDaysLeft(entry.deletedAt);
+              const impact = [
+                entry.children.length ? `${entry.children.length} con` : "",
+                entry.spouseOf.length ? `${entry.spouseOf.length} vợ/chồng` : "",
+                entry.branchHeadOf.length ? "trưởng chi phái" : "",
+                entry.wasFounder ? "Khởi Tổ" : "",
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <div
+                  key={`m-${entry.person.id}`}
+                  className="flex items-center gap-2 rounded-xl border border-dashed border-[var(--pat-line)] bg-[#f7efe0]/80 px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[var(--pat-ink)]">{entry.person.name}</p>
+                    <p className="text-[0.7rem] text-[var(--pat-muted)]">
+                      {impact ? `Liên quan: ${impact} · ` : ""}
+                      {daysLeft > 0 ? `còn ${daysLeft} ngày` : "sắp tự động dọn"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="pat-btn pat-btn-outline h-8 shrink-0 px-2.5 text-[0.68rem]"
+                    onClick={() => restoreTrashedMember(tree.id, entry.person.id)}
+                  >
+                    Khôi phục
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--pat-line)] text-[#a3271d]"
+                    aria-label={`Xóa vĩnh viễn ${entry.person.name}`}
+                    onClick={() => purgeTrashedMember(tree.id, entry.person.id)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet
+        open={emptyTrashOpen}
+        onClose={() => setEmptyTrashOpen(false)}
+        title="Dọn thùng rác?"
+        subtitle="Xóa vĩnh viễn mọi mục đã xóa"
+        footer={
+          <div className="flex gap-2">
+            <button type="button" className="pat-btn h-11 flex-1 text-sm" onClick={() => setEmptyTrashOpen(false)}>
+              Hủy
+            </button>
+            <button
+              type="button"
+              className="pat-btn pat-btn-red h-11 flex-1 text-sm"
+              onClick={() => {
+                emptyTrash(tree.id);
+                setEmptyTrashOpen(false);
+              }}
+            >
+              Dọn vĩnh viễn
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm leading-relaxed text-[var(--pat-ink)]">
+          {trashCount} mục trong thùng rác sẽ bị xóa vĩnh viễn khỏi gia phả này. Thao tác không thể hoàn tác — nếu chưa
+          chắc, hãy khôi phục trước.
+        </p>
       </Sheet>
     </TreeShell>
   );
