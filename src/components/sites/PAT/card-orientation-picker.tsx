@@ -48,7 +48,7 @@ export function CardOrientationPicker({
             <button
               type="button"
               onClick={() => onChange({ cardOrientations: {} })}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--pat-line)] bg-white/70 px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--pat-line)] bg-white/70 px-2 py-0.5 text-[0.72rem] font-semibold text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
             >
               <RotateCcw size={11} /> Theo mặc định
             </button>
@@ -65,7 +65,7 @@ export function CardOrientationPicker({
                   <span className="ml-1 font-normal text-[var(--pat-muted)]">· {row.count} người</span>
                 </span>
                 {isOverride ? (
-                  <span className="rounded-full bg-[#f6e9c8] px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-[#7a5a10]">
+                  <span className="rounded-full bg-[#f6e9c8] px-1.5 py-0.5 text-[0.68rem] font-bold uppercase tracking-wide text-[#7a5a10]">
                     riêng
                   </span>
                 ) : null}
@@ -76,7 +76,7 @@ export function CardOrientationPicker({
                       type="button"
                       onClick={() => setGeneration(row.generation, option, row.count)}
                       aria-pressed={value === option}
-                      className={`px-2.5 py-1 text-[0.65rem] font-semibold transition ${
+                      className={`px-2.5 py-1 text-[0.72rem] font-semibold transition ${
                         value === option
                           ? "bg-[var(--pat-red)] text-[#fff4df]"
                           : "bg-white/70 text-[var(--pat-muted)] hover:text-[var(--pat-red)]"

@@ -20,13 +20,13 @@ import type { FamilyTree } from "./types";
 import { Sheet, SheetRow } from "./ui";
 
 const sections = [
-  { key: "trang-chu", label: "Tổng quan", icon: Home },
-  { key: "danh-sach-thanh-vien", label: "Phả hệ", icon: Users },
-  { key: "danh-sach-nhanh", label: "Chi phái", icon: GitBranch },
-  { key: "chinh-sua-voi-cay-gia-pha", label: "Cây phả hệ", icon: Network },
-  { key: "ve-pha-do", label: "Phả đồ", icon: PenTool },
-  { key: "giao-dien", label: "Thiết kế", icon: Palette },
-  { key: "pha-ky", label: "Phả ký", icon: BookOpen },
+  { key: "trang-chu", label: "Tổng quan", icon: Home, short: "Tổng quan" },
+  { key: "danh-sach-thanh-vien", label: "Phả hệ", icon: Users, short: "Phả hệ" },
+  { key: "danh-sach-nhanh", label: "Chi phái", icon: GitBranch, short: "Chi phái" },
+  { key: "chinh-sua-voi-cay-gia-pha", label: "Cây gia phả", icon: Network, short: "Cây gia phả" },
+  { key: "ve-pha-do", label: "Vẽ phả đồ", icon: PenTool, short: "Vẽ phả đồ" },
+  { key: "giao-dien", label: "Thiết kế bản in", icon: Palette, short: "Bản in" },
+  { key: "pha-ky", label: "Phả ký", icon: BookOpen, short: "Phả ký" },
 ];
 
 export function TreeShell({
@@ -50,34 +50,42 @@ export function TreeShell({
   const pathname = usePathname();
   const router = useRouter();
   const home = `/gia-pha/${tree.id}/trang-chu`;
+  const go = (key: string) => {
+    setMoreOpen(false);
+    router.push(`/gia-pha/${tree.id}/${key}`);
+  };
 
   return (
     <div className="pat-shell flex min-h-dvh flex-col">
       <header className="pat-header sticky top-0 z-30 no-print">
-        <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 pb-3 pt-3">
+        <div className="mx-auto flex min-h-[76px] w-full max-w-6xl items-center gap-3 px-4 py-3">
           <Link
             href="/"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
+            className="pat-tip flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
             aria-label="Về trang chủ"
+            data-tip="Về trang chủ"
           >
             <ArrowLeft size={18} />
           </Link>
           <div className="min-w-0 flex-1">
-            <p className="truncate pat-serif text-lg font-semibold leading-tight text-[#fff7e8]">{title}</p>
-            {subtitle ? <p className="truncate text-[0.68rem] text-[#f0d9bd]/85">{subtitle}</p> : null}
+            <h1 className="pat-serif line-clamp-2 text-base font-semibold leading-snug text-[#fff7e8] sm:text-lg md:line-clamp-1">
+              {title}
+            </h1>
+            {subtitle ? <p className="truncate text-[0.72rem] text-[#f0d9bd]/90">{subtitle}</p> : null}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {actions}
             <Link
               href="/"
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
-              aria-label="Trang chủ"
+              className="pat-tip flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
+              aria-label="Về danh sách gia phả"
+              data-tip="Danh sách gia phả"
             >
               <Home size={17} />
             </Link>
           </div>
         </div>
-        <nav className="mx-auto hidden w-full max-w-6xl gap-1 overflow-x-auto px-4 pb-1 md:flex">
+        <nav className="mx-auto hidden w-full max-w-6xl gap-1 overflow-x-auto px-3 pb-1 md:flex xl:gap-1.5">
           {sections.map((item) => {
             const active = pathname?.includes(`/${item.key}`) || section === item.key;
             const Icon = item.icon;
@@ -85,15 +93,17 @@ export function TreeShell({
               <Link
                 key={item.key}
                 href={`/gia-pha/${tree.id}/${item.key}`}
+                title={item.label}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-t-lg border-b-2 px-3 py-2 text-xs font-semibold transition",
+                  "flex shrink-0 items-center gap-1 rounded-t-lg border-b-2 px-2 py-2 text-[0.7rem] font-semibold transition xl:gap-1.5 xl:px-2.5 xl:text-xs",
                   active
                     ? "border-[var(--pat-gold)] bg-white/10 text-white"
-                    : "border-transparent text-[#f3ddc2]/75 hover:bg-white/10 hover:text-white",
+                    : "border-transparent text-[#f3ddc2]/80 hover:bg-white/10 hover:text-white",
                 )}
               >
-                <Icon size={14} />
-                {item.label}
+                <Icon size={14} className="hidden xl:block" />
+                <span className="xl:hidden">{item.short}</span>
+                <span className="hidden xl:inline">{item.label}</span>
               </Link>
             );
           })}
@@ -122,26 +132,33 @@ export function TreeShell({
           <BottomLink
             href={`/gia-pha/${tree.id}/ve-pha-do`}
             icon={<PenTool size={19} />}
-            label="Phả đồ"
+            label="Vẽ phả đồ"
             active={section === "ve-pha-do"}
           />
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.62rem] font-semibold text-[var(--pat-muted)]"
+            className="flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[0.68rem] font-semibold text-[var(--pat-muted)]"
           >
             <Menu size={19} />
-            Thêm
+            Công cụ
           </button>
         </div>
       </nav>
 
       <Sheet open={moreOpen} onClose={() => setMoreOpen(false)} title="Công cụ gia phả" subtitle={tree.name}>
-        <div className="grid gap-1">
-          <SheetRow icon={<Network size={18} />} title="Cây phả hệ" subtitle="Xem và chỉnh sửa trực tiếp trên cây" onClick={() => { setMoreOpen(false); router.push(`/gia-pha/${tree.id}/chinh-sua-voi-cay-gia-pha`); }} />
-          <SheetRow icon={<Palette size={18} />} title="Thiết kế phả đồ" subtitle="Khổ giấy, giao diện, hoa văn, xuất in" onClick={() => { setMoreOpen(false); router.push(`/gia-pha/${tree.id}/giao-dien`); }} />
-          <SheetRow icon={<BookOpen size={18} />} title="Phả ký" subtitle="Viết lịch sử dòng họ" onClick={() => { setMoreOpen(false); router.push(`/gia-pha/${tree.id}/pha-ky`); }} />
-          <SheetRow icon={<Download size={18} />} title="Xuất dữ liệu" subtitle="Excel, JSON, PDF, PNG" onClick={() => { setMoreOpen(false); router.push(`/gia-pha/${tree.id}/ve-pha-do`); }} />
+        <div className="grid gap-3">
+          <SheetGroup label="Dựng cây">
+            <SheetRow icon={<Network size={18} />} title="Cây gia phả" subtitle="Xem và chỉnh sửa trực tiếp trên cây" onClick={() => go("chinh-sua-voi-cay-gia-pha")} />
+            <SheetRow icon={<PenTool size={18} />} title="Vẽ phả đồ" subtitle="Kéo thả bố cục, xuất PNG/PDF" onClick={() => go("ve-pha-do")} />
+          </SheetGroup>
+          <SheetGroup label="Bản in">
+            <SheetRow icon={<Palette size={18} />} title="Thiết kế bản in" subtitle="Khổ giấy, lề, màu sắc, xem trước in" onClick={() => go("giao-dien")} />
+            <SheetRow icon={<BookOpen size={18} />} title="Phả ký" subtitle="Viết lịch sử dòng họ" onClick={() => go("pha-ky")} />
+          </SheetGroup>
+          <SheetGroup label="Dữ liệu">
+            <SheetRow icon={<Download size={18} />} title="Xuất dữ liệu" subtitle="Excel (CSV), JSON, GEDCOM" onClick={() => go("danh-sach-thanh-vien")} />
+          </SheetGroup>
         </div>
       </Sheet>
     </div>
@@ -153,12 +170,21 @@ function BottomLink({ href, icon, label, active }: { href: string; icon: ReactNo
     <Link
       href={href}
       className={cn(
-        "flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.62rem] font-semibold transition",
+        "flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[0.68rem] font-semibold transition",
         active ? "text-[var(--pat-red)]" : "text-[var(--pat-muted)]",
       )}
     >
       {icon}
       {label}
     </Link>
+  );
+}
+
+function SheetGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section>
+      <p className="pat-overline mb-1 px-1">{label}</p>
+      <div className="grid gap-1">{children}</div>
+    </section>
   );
 }

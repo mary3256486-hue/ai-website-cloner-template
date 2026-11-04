@@ -162,6 +162,8 @@ interface DiagramCanvasProps {
   idPrefix?: string;
   visibleIds?: Set<string> | null;
   focusId?: string | null;
+  selectedIds?: string[];
+  guides?: { x?: number; y?: number }[];
   selectedDecorationId?: string | null;
   showGrid?: boolean;
   interactive?: boolean;
@@ -183,6 +185,8 @@ export function DiagramCanvas({
   idPrefix = "d",
   visibleIds,
   focusId,
+  selectedIds,
+  guides,
   selectedDecorationId,
   showGrid = false,
   interactive = false,
@@ -199,6 +203,7 @@ export function DiagramCanvas({
   const palette = PALETTES[settings.palette];
   const generations = computeGenerations(tree.members, tree.founderId);
   const branchColor = new Map(tree.branches.map((branch) => [branch.id, branch.color]));
+  const branchCode = new Map(tree.branches.map((branch) => [branch.id, branch.code]));
   const { width, height, contentW, offsetX, offsetY } = diagramDimensions(
     layout,
     settings,
@@ -208,6 +213,13 @@ export function DiagramCanvas({
   const banner = normalizeBanner(settings.banner);
   const bannerH = banner.enabled ? banner.width / BANNER_ASPECT : 0;
   const bgArt = normalizeBackgroundImage(settings.backgroundImage);
+  const busyPattern = settings.background === "dragon" || settings.background === "ornament";
+  const inkSaver = settings.theme === "ink";
+  const patternOpacity = Math.max(
+    0.02,
+    (tuning.patternOpacity ?? 1) * (busyPattern ? 0.6 : 1) * (inkSaver ? 0.3 : 1),
+  );
+  const patternScale = tuning.patternScale ?? 1;
   const generationCounts = new Map<number, number>();
   for (const gen of generations.values()) {
     generationCounts.set(gen, (generationCounts.get(gen) ?? 0) + 1);
@@ -254,25 +266,25 @@ export function DiagramCanvas({
       aria-label={`Phả đồ ${tree.name}`}
     >
       <defs>
-        <pattern id={patternId} width="56" height="56" patternUnits="userSpaceOnUse">
+        <pattern id={patternId} width="56" height="56" patternUnits="userSpaceOnUse" patternTransform={`scale(${patternScale})`}>
           {settings.background === "lotus" ? (
-            <g fill="none" stroke={palette.gold} strokeOpacity="0.13" strokeWidth="1">
+            <g fill="none" stroke={palette.gold} strokeOpacity={0.13 * patternOpacity} strokeWidth="1">
               <path d="M28 14c-5 6-5 12 0 17 5-5 5-11 0-17Z" />
               <path d="M17 24c6-1 10 2 11 7-6 1-10-2-11-7Z" />
               <path d="M39 24c-6-1-10 2-11 7 6 1 10-2 11-7Z" />
             </g>
           ) : settings.background === "dragon" ? (
-            <g fill="none" stroke={palette.accent} strokeOpacity="0.07" strokeWidth="1">
+            <g fill="none" stroke={palette.accent} strokeOpacity={0.07 * patternOpacity} strokeWidth="1">
               <path d="M4 42c10-18 22-18 28-4 4 10 14 10 20-2" />
               <circle cx="46" cy="16" r="3" />
             </g>
           ) : settings.background === "scroll" ? (
-            <g fill="none" stroke={palette.accent} strokeOpacity="0.07" strokeWidth="1">
+            <g fill="none" stroke={palette.accent} strokeOpacity={0.07 * patternOpacity} strokeWidth="1">
               <path d="M0 18c9-8 18 8 28 0s19 8 28 0" />
               <path d="M0 42c9-8 18 8 28 0s19 8 28 0" />
             </g>
           ) : (
-            <g fill={palette.accent} fillOpacity="0.045">
+            <g fill={palette.accent} fillOpacity={0.045 * patternOpacity}>
               <circle cx="14" cy="14" r="9" />
               <circle cx="30" cy="20" r="6" />
               <circle cx="20" cy="32" r="5" />
@@ -300,7 +312,7 @@ export function DiagramCanvas({
         </filter>
       </defs>
 
-      <rect width={width} height={height} fill={`url(#${idPrefix}-paper)`} />
+      <rect width={width} height={height} fill={inkSaver ? "#ffffff" : `url(#${idPrefix}-paper)`} />
       {settings.background === "ornament" ? (
         <image
           href={bgArt.src}
@@ -309,7 +321,7 @@ export function DiagramCanvas({
           width={width * bgArt.scale}
           height={width * bgArt.scale * 0.62}
           preserveAspectRatio="xMidYMid meet"
-          opacity={bgArt.opacity}
+          opacity={bgArt.opacity * patternOpacity}
           filter={`url(#${tintId})`}
         />
       ) : settings.background !== "none" ? (
@@ -487,6 +499,40 @@ export function DiagramCanvas({
       ) : null}
 
       <g transform={`translate(${offsetX}, ${top + offsetY})`}>
+        {guides?.length ? (
+          <g pointerEvents="none">
+            {guides.map((guide, index) =>
+              guide.x !== undefined ? (
+                <line
+                  key={`guide-x-${index}`}
+                  x1={guide.x}
+                  x2={guide.x}
+                  y1={0}
+                  y2={layout.height}
+                  stroke="#b3261e"
+                  strokeOpacity="0.55"
+                  strokeWidth="0.8"
+                  strokeDasharray="5 4"
+                />
+              ) : null,
+            )}
+            {guides.map((guide, index) =>
+              guide.y !== undefined ? (
+                <line
+                  key={`guide-y-${index}`}
+                  x1={0}
+                  x2={contentW}
+                  y1={guide.y}
+                  y2={guide.y}
+                  stroke="#b3261e"
+                  strokeOpacity="0.55"
+                  strokeWidth="0.8"
+                  strokeDasharray="5 4"
+                />
+              ) : null,
+            )}
+          </g>
+        ) : null}
         {settings.showGenerationLabels
           ? layout.generations.map((row) => {
               const label = row.label ?? bandLabelFor(tuning.generationBandLabel, row.generation);
@@ -630,9 +676,10 @@ export function DiagramCanvas({
               const personStyle = tuning.personStyles?.[person.id];
               const color =
                 personStyle?.color ||
-                (person.branchId && branchColor.get(person.branchId)) ||
-                (person.gender === "male" ? palette.accent : "#9a4a6b");
+                (!inkSaver && person.branchId ? branchColor.get(person.branchId) : undefined) ||
+                (inkSaver ? "#3f3a34" : person.gender === "male" ? palette.accent : "#9a4a6b");
               const focused = focusId === person.id;
+              const selected = selectedIds?.includes(person.id) === true;
               const clip = `${idPrefix}-clip-${node.id}`;
               const clipText = `${idPrefix}-clip-text-${node.id}`;
               const vertical =
@@ -649,6 +696,7 @@ export function DiagramCanvas({
               const title =
                 person.title || (isGen(node) < 0 ? `TIỀN TỔ ${-isGen(node)}` : `ĐỜI ${isGen(node)}`);
               const meta: string[] = [];
+              if (settings.showBirthOrder && person.birthOrder > 0) meta.push(`Con thứ ${person.birthOrder}`);
               if (showDates) meta.push(lifeSpan(person));
               if (showAnniversary && anniversary) meta.push(`Giỗ: ${anniversary}`);
               const extraFields = genStyle?.extraFields ?? tuning.extraFields;
@@ -688,7 +736,13 @@ export function DiagramCanvas({
               );
               const cardFill =
                 genStyle?.cardColor ||
-                (node.isSpouse ? "#fffdf7" : settings.theme === "generations" ? palette.soft : "#fff9e4");
+                (inkSaver
+                  ? "#ffffff"
+                  : node.isSpouse
+                    ? "#fffdf7"
+                    : settings.theme === "generations"
+                      ? palette.soft
+                      : "#fff9e4");
 
               return (
                 <g
@@ -703,10 +757,12 @@ export function DiagramCanvas({
                     height={node.height}
                     rx="7"
                     fill={cardFill}
-                    fillOpacity={node.isSpouse ? 0.86 : 0.96}
+                    fillOpacity={inkSaver ? 1 : node.isSpouse ? 0.86 : 0.96}
                     stroke={focused ? palette.accent : color}
-                    strokeWidth={focused ? 2.6 : 1}
-                    strokeDasharray={node.maternal ? "2 3" : node.isSpouse ? "5 3" : undefined}
+                    strokeWidth={focused ? 2.6 : selected ? 2.2 : inkSaver ? 0.7 : 1}
+                    strokeDasharray={
+                      selected && !focused ? "4 2" : node.maternal ? "2 3" : node.isSpouse ? "5 3" : undefined
+                    }
                   />
                   <rect
                     x="0"
@@ -715,7 +771,7 @@ export function DiagramCanvas({
                     height={vertical ? 4 : node.height}
                     rx="2"
                     fill={color}
-                    opacity="0.85"
+                    opacity={inkSaver ? 0.3 : 0.85}
                   />
                   <defs>
                     <clipPath id={clip}>
@@ -737,7 +793,7 @@ export function DiagramCanvas({
                     />
                   ) : (
                     <>
-                      <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} fill={color} opacity="0.92" />
+                      <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} fill={color} opacity={inkSaver ? 0.5 : 0.92} />
                       <text
                         x={avatar.cx}
                         y={avatar.initialsY}
@@ -800,6 +856,20 @@ export function DiagramCanvas({
                         ))}
                       </text>
                     ) : null}
+                    {branchCode.get(person.branchId ?? "") ? (
+                      <text
+                        x={6}
+                        y={node.height - 5.5}
+                        textAnchor="start"
+                        fontSize={Math.max(5.4, nameSize * 0.54)}
+                        fontWeight="700"
+                        fill={inkSaver ? "#3f3a34" : color}
+                        opacity={inkSaver ? 0.9 : 0.75}
+                        fontFamily="'Be Vietnam Pro', sans-serif"
+                      >
+                        {branchCode.get(person.branchId ?? "")}
+                      </text>
+                    ) : null}
                     {node.maternal ? (
                       <text
                         x={node.width - 6}
@@ -811,6 +881,20 @@ export function DiagramCanvas({
                         fontFamily={fontFamily}
                       >
                         ngoại tộc
+                      </text>
+                    ) : null}
+                    {settings.showGenderSymbol ? (
+                      <text
+                        x={node.width - 6}
+                        y={vertical ? 11 : 12}
+                        textAnchor="end"
+                        fontSize={Math.max(9, nameSize * 0.86)}
+                        fontWeight="700"
+                        fill={color}
+                        opacity="0.85"
+                        fontFamily={fontFamily}
+                      >
+                        {person.gender === "male" ? "♂" : "♀"}
                       </text>
                     ) : null}
                   </g>
@@ -830,10 +914,17 @@ export function DiagramCanvas({
                     ? (event) => onDecorationPointerDown(event, decoration)
                     : undefined
                 }
-                style={interactive ? { touchAction: "none", cursor: "grab" } : undefined}
+                style={interactive ? { touchAction: "none", cursor: decoration.locked ? "not-allowed" : "grab" } : undefined}
               >
                 {selectedDecorationId === decoration.id ? (
                   <rect x="-6" y="-16" width={Math.max(80, decoration.content.length * 8)} height="26" fill="none" stroke={palette.accent} strokeDasharray="4 3" rx="4" />
+                ) : null}
+                {decoration.locked ? (
+                  <g transform="translate(-8 -18)" pointerEvents="none">
+                    <circle r="6" fill={palette.gold} opacity="0.9" />
+                    <rect x="-2.6" y="-0.6" width="5.2" height="4" rx="0.8" fill="#fff8e9" />
+                    <path d="M-1.6 -0.8v-1.3a1.6 1.6 0 0 1 3.2 0v1.3" fill="none" stroke="#fff8e9" strokeWidth="1" />
+                  </g>
                 ) : null}
                 <text
                   fontSize={decoration.fontSize ?? 16}
@@ -857,7 +948,7 @@ export function DiagramCanvas({
                   ? (event) => onDecorationPointerDown(event, decoration)
                   : undefined
               }
-              style={interactive ? { touchAction: "none", cursor: "grab" } : undefined}
+              style={interactive ? { touchAction: "none", cursor: decoration.locked ? "not-allowed" : "grab" } : undefined}
             >
               <image
                 href={decoration.content}
@@ -866,6 +957,13 @@ export function DiagramCanvas({
                 preserveAspectRatio="xMidYMid meet"
                 transform={decoration.flip ? `translate(${w} 0) scale(-1 1)` : undefined}
               />
+              {decoration.locked ? (
+                <g transform="translate(-8 -8)" pointerEvents="none">
+                  <circle r="6" fill={palette.gold} opacity="0.9" />
+                  <rect x="-2.6" y="-0.6" width="5.2" height="4" rx="0.8" fill="#fff8e9" />
+                  <path d="M-1.6 -0.8v-1.3a1.6 1.6 0 0 1 3.2 0v1.3" fill="none" stroke="#fff8e9" strokeWidth="1" />
+                </g>
+              ) : null}
               {selectedDecorationId === decoration.id ? (
                 <rect width={w} height={h} rx="6" fill="none" stroke={palette.accent} strokeDasharray="4 3" />
               ) : null}

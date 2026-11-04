@@ -15,10 +15,22 @@ export function useTreeFromRoute(): { tree?: FamilyTree; hydrated: boolean; id: 
 
 export function LoadingTree() {
   return (
-    <div className="pat-shell flex min-h-dvh items-center justify-center px-6">
-      <div className="text-center">
-        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[var(--pat-line)] border-t-[var(--pat-red)]" />
-        <p className="mt-3 text-sm text-[var(--pat-muted)]">Đang mở gia phả…</p>
+    <div className="pat-shell min-h-dvh">
+      <div className="pat-header flex min-h-[76px] items-center gap-3 px-4">
+        <div className="h-11 w-11 animate-pulse rounded-full bg-white/20" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="h-4 w-2/3 animate-pulse rounded bg-white/25" />
+          <div className="h-3 w-1/3 animate-pulse rounded bg-white/15" />
+        </div>
+      </div>
+      <div className="mx-auto w-full max-w-6xl space-y-4 px-4 pb-10 pt-5" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Đang mở gia phả…</span>
+        <div className="pat-card h-28 animate-pulse bg-[#f6ecd8]" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="pat-card h-40 animate-pulse bg-[#f6ecd8]" />
+          <div className="pat-card h-40 animate-pulse bg-[#f6ecd8]" />
+        </div>
+        <div className="pat-card h-52 animate-pulse bg-[#f6ecd8]" />
       </div>
     </div>
   );

@@ -19,29 +19,108 @@ import {
 } from "./utils";
 import {
   columnKeyFor,
+  MEMBER_COLUMN_COUNT,
   MEMBER_COLUMNS,
   MEMBER_HEADERS,
   normalizeHeader,
+  TEMPLATE_VERSION,
   type MemberColumnKey,
 } from "./columns";
 import { classifyClan, foldOutsideMembers } from "./clan";
+import { memberRows, safeName } from "./export";
+
+/** Giới hạn đọc tệp để trình duyệt trên thiết bị yếu vẫn xử lý được. */
+export const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
+export const IMPORT_MAX_ROWS = 20_000;
+
+export type ImportIssueSeverity = "error" | "warning";
+
+export interface ImportRowIssue {
+  line: number;
+  column?: string;
+  value?: string;
+  message: string;
+  severity: ImportIssueSeverity;
+  personName?: string;
+}
+
+export interface ImportPreviewRow {
+  line: number;
+  code: string;
+  name: string;
+  gender: string;
+  birthDate: string;
+  generation: string;
+  father: string;
+  mother: string;
+  issues: string[];
+}
+
+export interface SpreadsheetInfo {
+  fileName: string;
+  fileSize: number;
+  format: "xlsx" | "csv" | "other";
+  sheetNames: string[];
+  sheetName: string;
+  /** Dòng tiêu đề, tính từ 1 như người dùng thấy trong Excel. */
+  headerLine: number;
+  dataStartLine: number;
+  headers: string[];
+  mappedHeaders: { header: string; key: MemberColumnKey }[];
+  unmappedHeaders: string[];
+  delimiter?: string;
+  rows: Record<string, unknown>[];
+  totalRows: number;
+  preview: ImportPreviewRow[];
+  rowIssues: ImportRowIssue[];
+}
 
 export interface ImportResult {
   tree: FamilyTree;
   warnings: string[];
+  rowIssues: ImportRowIssue[];
   /** Tổng số thành viên trong cây sau khi nhập. */
   memberCount: number;
   /** Số dòng dữ liệu đọc được từ tệp. */
   importedCount: number;
   matchedCount: number;
+  changedCount: number;
   createdCount: number;
+  absentCount?: number;
   /** Có giá trị khi nhập vào một cây đang có. */
   baseTreeId?: string;
+  /** Thông tin đọc tệp để hiển thị lại trong báo cáo. */
+  fileName?: string;
+  sheetName?: string;
+  headerLine?: number;
+  unmappedHeaders?: string[];
 }
 
 export interface ImportOptions {
   /** Cây đích; nếu có thì tệp được hiểu là bản cập nhật, không phải cây mới. */
   baseTree?: FamilyTree;
+  /** Dòng tiêu đề (1-based) khi tệp không bắt đầu ở dòng 1. */
+  headerLine?: number;
+}
+
+export interface ImportParseOptions {
+  sheet?: string;
+  onStage?: (label: string) => void;
+  isCancelled?: () => boolean;
+}
+
+export type ImportFileErrorKind = "size" | "format" | "empty" | "rows" | "cancelled";
+
+export class ImportFileError extends Error {
+  readonly kind: ImportFileErrorKind;
+  readonly hint?: string;
+
+  constructor(kind: ImportFileErrorKind, message: string, hint?: string) {
+    super(message);
+    this.name = "ImportFileError";
+    this.kind = kind;
+    this.hint = hint;
+  }
 }
 
 type RowValues = Partial<Record<MemberColumnKey, string>>;
@@ -152,7 +231,7 @@ function valueOf(row: RowValues, key: MemberColumnKey): string {
   return row[key] ?? "";
 }
 
-function readRows(rows: Record<string, unknown>[]): { row: RowValues; line: number }[] {
+function readRows(rows: Record<string, unknown>[], firstDataLine = 2): { row: RowValues; line: number }[] {
   return rows.map((source, index) => {
     const row: RowValues = {};
     for (const [header, value] of Object.entries(source)) {
@@ -160,7 +239,7 @@ function readRows(rows: Record<string, unknown>[]): { row: RowValues; line: numb
       if (!key) continue;
       if (row[key] === undefined || row[key] === "") row[key] = text(value);
     }
-    return { row, line: index + 2 };
+    return { row, line: firstDataLine + index };
   });
 }
 
@@ -289,6 +368,10 @@ function exampleRow(values: Partial<Record<MemberColumnKey, string>>): string[] 
 }
 
 const TEMPLATE_GUIDE: string[][] = [
+  [
+    "Mẫu gia phả",
+    `Phiên bản ${TEMPLATE_VERSION} · ${MEMBER_COLUMN_COUNT} cột · dùng cho cả tạo mới và cập nhật gia phả.`,
+  ],
   ["Cách dùng", ""],
   ["1.", "Mỗi dòng là một thành viên. Cột “Mã” là khóa ổn định (P0001, P0002…): giữ nguyên khi cập nhật, có thể để trống khi tạo mới."],
   ["2.", "Cột “Họ tên” bắt buộc. Có thể tách thành Họ / Đệm / Tên; nếu điền cả hai, ứng dụng đối chiếu và cảnh báo khi khác nhau."],
@@ -304,6 +387,7 @@ const TEMPLATE_GUIDE: string[][] = [
   ["12.", "Cha mẹ của dâu/rể chỉ là thông tin tham khảo: nhập thành người riêng và đánh dấu phạm vi “Tham khảo”. Hồ sơ tham khảo không hiện trên phả đồ và không tham gia tính đời."],
   ["13.", "Con của con gái thuộc dòng họ bên chồng: chỉ nhập một đời con (con gái đời n, con ở đời n+1). Người từ đời n+2 trở đi cùng vợ/chồng của họ không hiển thị trên trang; khi nhập, thông tin được ẩn khỏi danh sách và chuyển vào ghi chú của người thân gần nhất."],
   ["14.", "Lưu file rồi quay lại ứng dụng, chọn “Nhập file Excel đã điền”. Có thể tạo cây mới hoặc cập nhật cây hiện có; nhập cập nhật không tự xóa người vắng mặt."],
+  ["15.", "Mỗi tệp tối đa 10 MB và 20.000 dòng. Tệp được dò dòng tiêu đề trong 15 dòng đầu; có thể chọn trang tính khi nhập. Trước khi ghi đè, ứng dụng lưu bản cũ vào Lịch sử nhập để quay lại."],
 ];
 
 const TEMPLATE_EXAMPLE: string[][] = [
@@ -364,28 +448,506 @@ const TEMPLATE_EXAMPLE: string[][] = [
   }),
 ];
 
-export function downloadExcelTemplate() {
-  const sheet = XLSX.utils.aoa_to_sheet([MEMBER_HEADERS, ...TEMPLATE_EXAMPLE]);
+export function downloadExcelTemplate(tree?: FamilyTree) {
+  const dataRows = tree
+    ? memberRows(tree).map((row) => MEMBER_COLUMNS.map((column) => String(row[column.key] ?? "")))
+    : TEMPLATE_EXAMPLE;
+  const sheet = XLSX.utils.aoa_to_sheet([MEMBER_HEADERS, ...dataRows]);
   sheet["!cols"] = MEMBER_COLUMNS.map((column) => ({
     wch: Math.max(12, column.header.length + 6),
   }));
+  sheet["!autofilter"] = {
+    ref: XLSX.utils.encode_range({
+      s: { r: 0, c: 0 },
+      e: { r: dataRows.length, c: MEMBER_COLUMNS.length - 1 },
+    }),
+  };
   const guide = XLSX.utils.aoa_to_sheet(TEMPLATE_GUIDE);
   guide["!cols"] = [{ wch: 6 }, { wch: 110 }];
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "Gia phả");
   XLSX.utils.book_append_sheet(workbook, guide, "Hướng dẫn");
-  XLSX.writeFile(workbook, "mau-gia-pha.xlsx");
+  const suffix = tree ? `-${safeName(tree.name)}` : "";
+  XLSX.writeFile(
+    workbook,
+    `mau-gia-pha-v${TEMPLATE_VERSION}-${MEMBER_COLUMN_COUNT}-cot${suffix}.xlsx`,
+  );
+}
+
+function tick() {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+function formatBytes(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+function decodeCsvText(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+  }
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
+    return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+  }
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return new TextDecoder("utf-8").decode(bytes.subarray(3));
+  }
+  const utf8 = new TextDecoder("utf-8").decode(bytes);
+  if (!utf8.includes("\uFFFD")) return utf8;
+  try {
+    return new TextDecoder("windows-1252").decode(bytes);
+  } catch {
+    return utf8;
+  }
+}
+
+function detectDelimiter(text: string): string {
+  const line = text.split(/\r?\n/).find((entry) => entry.trim()) ?? "";
+  const options = [",", ";", "\t", "|"].map((delimiter) => ({
+    delimiter,
+    count: line.split(delimiter).length - 1,
+  }));
+  options.sort((a, b) => b.count - a.count);
+  return options[0]?.count > 0 ? options[0].delimiter : ",";
+}
+
+function isKnownGender(raw: string) {
+  const value = normalizeHeader(raw);
+  return [
+    "nam",
+    "male",
+    "m",
+    "1",
+    "nữ",
+    "nu",
+    "female",
+    "f",
+    "0",
+    "đàn bà",
+    "phụ nữ",
+  ].includes(value);
+}
+
+function futureYear(value: string, limit: number): number | undefined {
+  const years = value.match(/\b(\d{4})\b/g);
+  if (!years?.length) return undefined;
+  const latest = Math.max(...years.map(Number));
+  return latest > limit ? latest : undefined;
+}
+
+/** Kiểm tra từng dòng để hiện bảng xem trước và danh sách lỗi có dòng/cột/giá trị. */
+export function analyzeImportRows(
+  rows: Record<string, unknown>[],
+  firstDataLine = 2,
+): { preview: ImportPreviewRow[]; issues: ImportRowIssue[] } {
+  const parsed = readRows(rows, firstDataLine);
+  const issues: ImportRowIssue[] = [];
+  const preview: ImportPreviewRow[] = [];
+  const codeCount = new Map<string, number>();
+  const nameLines = new Map<string, number[]>();
+
+  for (const { row } of parsed) {
+    const code = normCode(valueOf(row, "code"));
+    if (code) codeCount.set(code, (codeCount.get(code) ?? 0) + 1);
+    const nameKey = normName(fullNameOf(row));
+    if (nameKey) {
+      const list = nameLines.get(nameKey) ?? [];
+      list.push(1);
+      nameLines.set(nameKey, list);
+    }
+  }
+
+  const nextYear = new Date().getFullYear() + 1;
+
+  for (const { row, line } of parsed) {
+    const name = cleanName(fullNameOf(row));
+    const lineIssues: ImportRowIssue[] = [];
+    const push = (
+      severity: ImportIssueSeverity,
+      message: string,
+      column?: string,
+      value?: string,
+    ) => {
+      const issue: ImportRowIssue = {
+        line,
+        column,
+        value,
+        message,
+        severity,
+        personName: name || undefined,
+      };
+      issues.push(issue);
+      lineIssues.push(issue);
+    };
+
+    if (!name) {
+      push("error", "Thiếu họ tên nên dòng này sẽ bị bỏ qua.", "Họ tên");
+    }
+    const code = normCode(valueOf(row, "code"));
+    if (code && (codeCount.get(code) ?? 0) > 1) {
+      push(
+        "error",
+        `Mã “${code}” xuất hiện ${codeCount.get(code)} lần; hệ thống chỉ ghép một hồ sơ và cấp mã mới cho dòng thêm sau.`,
+        "Mã",
+        code,
+      );
+    }
+    const genderRaw = valueOf(row, "gender");
+    if (genderRaw && !isKnownGender(genderRaw)) {
+      push("warning", `Giới tính “${genderRaw}” chưa rõ; tạm ghi Nam.`, "Giới tính", genderRaw);
+    }
+    const birthYear = futureYear(valueOf(row, "birthDate"), nextYear);
+    if (birthYear) {
+      push(
+        "warning",
+        `Năm sinh ${birthYear} ở tương lai; hãy kiểm tra lại.`,
+        "Sinh",
+        valueOf(row, "birthDate"),
+      );
+    }
+    const deathYear = futureYear(valueOf(row, "deathDate"), nextYear);
+    if (deathYear) {
+      push(
+        "warning",
+        `Năm mất ${deathYear} ở tương lai; hãy kiểm tra lại.`,
+        "Mất",
+        valueOf(row, "deathDate"),
+      );
+    }
+    const generationRaw = valueOf(row, "generation");
+    if (generationRaw && parseNumber(generationRaw) === undefined) {
+      push("warning", `Đời “${generationRaw}” không phải số; sẽ bỏ trống và tự tính.`, "Đời", generationRaw);
+    }
+    const ancestorRaw = valueOf(row, "ancestorOrder");
+    if (ancestorRaw && parseNumber(ancestorRaw) === undefined) {
+      push(
+        "warning",
+        `Bậc tiền tổ “${ancestorRaw}” không phải số; sẽ bỏ trống.`,
+        "Bậc tiền tổ",
+        ancestorRaw,
+      );
+    }
+    const nameKey = normName(name);
+    const sameName = nameKey ? (nameLines.get(nameKey)?.length ?? 0) : 0;
+    if (name && sameName > 1) {
+      push(
+        "warning",
+        `Tên “${name}” trùng ${sameName} dòng trong tệp; dùng cột Mã để phân biệt.`,
+        "Họ tên",
+        name,
+      );
+    }
+
+    preview.push({
+      line,
+      code,
+      name,
+      gender: valueOf(row, "gender"),
+      birthDate: valueOf(row, "birthDate"),
+      generation: generationRaw,
+      father: valueOf(row, "father"),
+      mother: valueOf(row, "mother"),
+      issues: lineIssues.map((issue) => issue.message),
+    });
+  }
+
+  return { preview, issues };
+}
+
+export async function parseSpreadsheetFile(
+  file: File,
+  options: ImportParseOptions = {},
+): Promise<SpreadsheetInfo> {
+  if (options.isCancelled?.()) {
+    throw new ImportFileError("cancelled", "Đã huỷ đọc tệp.");
+  }
+  if (file.size > IMPORT_MAX_BYTES) {
+    throw new ImportFileError(
+      "size",
+      `Tệp “${file.name}” nặng ${formatBytes(file.size)}, vượt giới hạn 10 MB.`,
+      "Chia tệp thành nhiều phần nhỏ hơn hoặc lưu sang CSV rồi nhập lại.",
+    );
+  }
+
+  options.onStage?.("Đang đọc tệp…");
+  await tick();
+  if (options.isCancelled?.()) throw new ImportFileError("cancelled", "Đã huỷ đọc tệp.");
+
+  const buffer = await file.arrayBuffer();
+  const format: SpreadsheetInfo["format"] = /\.csv$/i.test(file.name)
+    ? "csv"
+    : /\.xlsx?$/i.test(file.name)
+      ? "xlsx"
+      : "other";
+  const csvText = format === "csv" ? decodeCsvText(buffer) : undefined;
+  const delimiter = csvText ? detectDelimiter(csvText) : undefined;
+
+  options.onStage?.("Đang mở trang tính…");
+  await tick();
+  let workbook: XLSX.WorkBook;
+  try {
+    workbook =
+      csvText !== undefined
+        ? XLSX.read(csvText, { type: "string", cellDates: false, FS: delimiter })
+        : XLSX.read(buffer, { type: "array", cellDates: false });
+  } catch {
+    throw new ImportFileError(
+      "format",
+      `Không đọc được “${file.name}”.`,
+      "Tệp có thể bị hỏng hoặc không phải Excel/CSV. Hãy mở bằng Excel rồi lưu lại, hoặc tải tệp mẫu để nhập lại.",
+    );
+  }
+
+  const sheetNames = workbook.SheetNames.filter(Boolean);
+  if (!sheetNames.length) {
+    throw new ImportFileError("empty", "Tệp không có trang tính nào.", "Hãy lưu lại tệp từ Excel và thử lại.");
+  }
+  const sheetName =
+    options.sheet && sheetNames.includes(options.sheet) ? options.sheet : sheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) {
+    throw new ImportFileError("empty", `Không mở được trang “${sheetName}”.`);
+  }
+
+  options.onStage?.(`Đang dò dòng tiêu đề trang “${sheetName}”…`);
+  await tick();
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: "",
+    blankrows: false,
+    raw: false,
+  }) as unknown[][];
+  if (!matrix.length) {
+    throw new ImportFileError(
+      "empty",
+      `Trang “${sheetName}” không có dữ liệu.`,
+      "Chọn trang tính khác ở bước xem trước hoặc kiểm tra lại tệp.",
+    );
+  }
+
+  let headerIndex = -1;
+  let bestScore = 0;
+  let bestHasName = false;
+  for (let index = 0; index < Math.min(matrix.length, 15); index += 1) {
+    const cells = matrix[index] ?? [];
+    let score = 0;
+    let hasName = false;
+    for (const cell of cells) {
+      const key = columnKeyFor(String(cell ?? "").trim());
+      if (!key) continue;
+      score += key === "name" ? 3 : 1;
+      if (key === "name") hasName = true;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestHasName = hasName;
+      headerIndex = index;
+    }
+  }
+  if (headerIndex < 0 || bestScore < 2 || !bestHasName) {
+    throw new ImportFileError(
+      "format",
+      "Không tìm thấy dòng tiêu đề có cột “Họ tên”.",
+      `Cần ít nhất cột “Họ tên” và một cột dữ liệu. Tải tệp mẫu v${TEMPLATE_VERSION} (${MEMBER_COLUMN_COUNT} cột) để đối chiếu.`,
+    );
+  }
+
+  const headers = (matrix[headerIndex] ?? []).map((cell, index) => {
+    const label = String(cell ?? "").trim();
+    return label || `Cột ${index + 1}`;
+  });
+  const rows: Record<string, unknown>[] = [];
+  for (const cells of matrix.slice(headerIndex + 1)) {
+    if (!cells.some((cell) => String(cell ?? "").trim())) continue;
+    const record: Record<string, unknown> = {};
+    headers.forEach((header, index) => {
+      record[header] = cells[index] ?? "";
+    });
+    rows.push(record);
+  }
+  if (!rows.length) {
+    throw new ImportFileError(
+      "empty",
+      `Trang “${sheetName}” chỉ có tiêu đề, chưa có dòng dữ liệu.`,
+      "Điền ít nhất một thành viên rồi lưu tệp và nhập lại.",
+    );
+  }
+  if (rows.length > IMPORT_MAX_ROWS) {
+    throw new ImportFileError(
+      "rows",
+      `Tệp có ${rows.length.toLocaleString("vi-VN")} dòng, vượt giới hạn ${IMPORT_MAX_ROWS.toLocaleString("vi-VN")} dòng.`,
+      "Chia tệp thành nhiều phần nhỏ hơn rồi nhập lần lượt.",
+    );
+  }
+
+  const mappedHeaders = headers
+    .map((header) => ({ header, key: columnKeyFor(header) }))
+    .filter((item): item is { header: string; key: MemberColumnKey } => Boolean(item.key));
+  const unmappedHeaders = headers.filter((header) => !columnKeyFor(header));
+  const firstDataLine = headerIndex + 2;
+  const { preview, issues } = analyzeImportRows(rows, firstDataLine);
+
+  options.onStage?.(`Đã ghép ${mappedHeaders.length} cột và ${rows.length} dòng.`);
+  await tick();
+
+  return {
+    fileName: file.name,
+    fileSize: file.size,
+    format,
+    sheetNames,
+    sheetName,
+    headerLine: headerIndex + 1,
+    dataStartLine: firstDataLine,
+    headers,
+    mappedHeaders,
+    unmappedHeaders,
+    delimiter,
+    rows,
+    totalRows: rows.length,
+    preview,
+    rowIssues: issues,
+  };
 }
 
 export function parseSpreadsheet(file: File): Promise<Record<string, unknown>[]> {
-  return file.arrayBuffer().then((buffer) => {
-    const workbook = XLSX.read(buffer, { type: "array" });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new Error("Tệp không có trang tính nào.");
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: "" });
-    if (!rows.length) throw new Error("Trang tính đầu tiên không có dữ liệu.");
-    return rows;
-  });
+  return parseSpreadsheetFile(file).then((info) => info.rows);
+}
+
+export interface WarningGroup {
+  key: string;
+  label: string;
+  items: string[];
+}
+
+const WARNING_GROUPS: { key: string; label: string; match: RegExp }[] = [
+  { key: "rows", label: "Dòng bỏ qua & cập nhật", match: /bỏ qua|vắng mặt|không có trong tệp|mã chưa có/i },
+  { key: "duplicates", label: "Trùng tên & trùng Mã", match: /trùng|mã .*đã có/i },
+  { key: "cycles", label: "Vòng lặp quan hệ", match: /vòng lặp/i },
+  { key: "generation", label: "Đời & thế thứ", match: /đời|xung đột đời|thế thứ/i },
+  { key: "relations", label: "Cha mẹ, vợ/chồng & liên kết", match: /cha\/mẹ|vợ\/chồng|liên kết tiền tổ|quan hệ/i },
+  { key: "founder", label: "Khởi Tổ", match: /khởi tổ/i },
+  { key: "scope", label: "Phạm vi dòng họ", match: /ngoài phả đồ|ẩn khỏi trang|tham khảo/i },
+];
+
+export function groupImportWarnings(warnings: string[]): WarningGroup[] {
+  const groups = new Map<string, string[]>();
+  for (const warning of warnings) {
+    const matched =
+      WARNING_GROUPS.find((group) => group.match.test(warning))?.key ?? "other";
+    const list = groups.get(matched) ?? [];
+    list.push(warning);
+    groups.set(matched, list);
+  }
+  return [...groups.entries()].map(([key, items]) => ({
+    key,
+    label: WARNING_GROUPS.find((group) => group.key === key)?.label ?? "Khác",
+    items,
+  }));
+}
+
+function csvEscape(value: unknown) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function stamp(date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
+}
+
+export interface ImportReportInput {
+  fileName?: string;
+  tool?: string;
+  treeName?: string;
+  sheetName?: string;
+  headerLine?: number;
+  rows?: number;
+  warnings: string[];
+  rowIssues?: ImportRowIssue[];
+  unmappedHeaders?: string[];
+}
+
+export function downloadImportReport(
+  report: ImportReportInput,
+  prefix = "bao-cao-nhap",
+) {
+  const lines: string[][] = [["Loại", "Nhóm", "Dòng", "Cột", "Giá trị", "Nội dung"]];
+  const location = [report.fileName, report.sheetName ? `trang ${report.sheetName}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  lines.push([
+    "Thông tin",
+    "Tệp",
+    "",
+    "",
+    location,
+    [
+      report.tool,
+      report.treeName,
+      report.headerLine ? `tiêu đề dòng ${report.headerLine}` : "",
+      report.rows ? `${report.rows} dòng` : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  ]);
+  for (const issue of report.rowIssues ?? []) {
+    lines.push([
+      issue.severity === "error" ? "Lỗi" : "Lưu ý",
+      "Dòng dữ liệu",
+      String(issue.line),
+      issue.column ?? "",
+      issue.value ?? "",
+      issue.message,
+    ]);
+  }
+  for (const group of groupImportWarnings(report.warnings)) {
+    for (const item of group.items) {
+      lines.push(["Lưu ý", group.label, "", "", "", item]);
+    }
+  }
+  for (const header of report.unmappedHeaders ?? []) {
+    lines.push([
+      "Lưu ý",
+      "Cột chưa dùng",
+      "",
+      header,
+      "",
+      "Cột này không có trong mẫu nên được bỏ qua khi nhập.",
+    ]);
+  }
+  const content = `\uFEFF${lines.map((line) => line.map(csvEscape).join(",")).join("\n")}`;
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${prefix}-${stamp()}.csv`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+export function downloadImportIssuesCsv(
+  info: SpreadsheetInfo,
+  issues: ImportRowIssue[],
+  warnings: string[] = [],
+) {
+  downloadImportReport(
+    {
+      fileName: info.fileName,
+      sheetName: info.sheetName,
+      headerLine: info.headerLine,
+      rows: info.totalRows,
+      warnings,
+      rowIssues: issues,
+      unmappedHeaders: info.unmappedHeaders,
+    },
+    "loi-nhap",
+  );
 }
 
 interface Index {
@@ -464,8 +1026,14 @@ export function buildTreeFromRows(
   options: ImportOptions = {},
 ): ImportResult {
   const base = options.baseTree;
+  const firstDataLine = (options.headerLine ?? 1) + 1;
   const warnings: string[] = [];
-  const parsed = readRows(rows);
+  const parsed = readRows(rows, firstDataLine);
+  const analyzed = analyzeImportRows(rows, firstDataLine);
+  const beforeById = new Map(
+    (base?.members ?? []).map((person) => [person.id, JSON.stringify(person)]),
+  );
+  const matchedIds = new Set<string>();
   const persons: Person[] = base
     ? base.members.map((person) => ({
         ...person,
@@ -482,6 +1050,7 @@ export function buildTreeFromRows(
   let createdCount = 0;
   const unmatchedCodes: string[] = [];
   const rowTargets: { row: RowValues; person: Person; line: number }[] = [];
+  const codesInFile = new Set<string>();
 
   for (const { row, line } of parsed) {
     const name = normName(fullNameOf(row));
@@ -490,8 +1059,11 @@ export function buildTreeFromRows(
       continue;
     }
     const code = normCode(valueOf(row, "code"));
+    const firstUseOfCode = Boolean(code) && !codesInFile.has(code);
+    if (code) codesInFile.add(code);
     // Chỉ ghép vào người đã có khi nhập cập nhật; tạo cây mới thì mỗi dòng là một người mới.
-    let target = base && code ? index.code.get(code) : undefined;
+    // Dòng trùng Mã trong cùng tệp không được ghi đè hồ sơ đã ghép ở dòng trước.
+    let target = base && code && firstUseOfCode ? index.code.get(code) : undefined;
     if (base && !target) {
       const byName = index.name.get(name);
       if (byName?.length === 1) target = byName[0];
@@ -509,6 +1081,7 @@ export function buildTreeFromRows(
     let person: Person;
     if (target) {
       matchedCount += 1;
+      matchedIds.add(target.id);
       person = target;
       const oldName = normName(person.name);
       const oldCode = person.code ? normCode(person.code) : "";
@@ -758,14 +1331,23 @@ export function buildTreeFromRows(
     sample: base?.sample ?? false,
   };
 
+  const changedCount = keptPersons.filter((person) => {
+    const before = beforeById.get(person.id);
+    return before !== undefined && before !== JSON.stringify(person);
+  }).length;
+
   return {
     tree,
     warnings,
+    rowIssues: analyzed.issues,
     memberCount: keptPersons.length,
     importedCount: rowTargets.length,
     matchedCount,
+    changedCount,
     createdCount,
+    absentCount: base ? Math.max(0, base.members.length - matchedIds.size) : undefined,
     baseTreeId: base?.id,
+    headerLine: options.headerLine,
   };
 }
 

@@ -15,7 +15,7 @@ import { ensurePersonCodes, nextPersonCode, uid } from "./utils";
 import { foldOutsideMembers } from "./clan";
 import { createDemoTree } from "./seed";
 
-const STORAGE_KEY = "phatue.familyTrees.v1";
+export const STORAGE_KEY = "phatue.familyTrees.v1";
 const TRASH_KEY = "phatue.familyTrees.trash.v1";
 const SEED_VERSION_KEY = "phatue.seedVersion.v1";
 // Bump it whenever the demo tree changes so browsers stop showing the cached older sample.
@@ -65,14 +65,14 @@ interface StoreValue {
   addMember: (treeId: string, input: MemberInput) => string;
   updateMember: (treeId: string, memberId: string, patch: Partial<Person>) => void;
   deleteMember: (treeId: string, memberId: string) => void;
-  addBranch: (treeId: string, input: { name: string; description?: string; headId?: string }) => string;
+  addBranch: (treeId: string, input: { name: string; description?: string; headId?: string; color?: string; code?: string }) => string;
   updateBranch: (treeId: string, branchId: string, patch: Partial<Branch>) => void;
   deleteBranch: (treeId: string, branchId: string) => void;
   setDesign: (treeId: string, patch: Partial<DesignSettings>) => void;
   setPositions: (treeId: string, positions: Record<string, { x: number; y: number }>) => void;
   setDecoration: (treeId: string, decoration: Decoration) => void;
   removeDecoration: (treeId: string, decorationId: string) => void;
-  importTree: (tree: FamilyTree, opts?: { suffix?: boolean }) => string;
+  importTree: (tree: FamilyTree, opts?: { suffix?: boolean }) => FamilyTree;
   /** Ghi đè nội dung một cây đang mở, dùng cho chế độ nhập cập nhật. */
   replaceTree: (treeId: string, tree: FamilyTree) => void;
 }
@@ -162,7 +162,9 @@ function loadTrees(): FamilyTree[] {
 
 function persist(trees: FamilyTree[]) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(trees));
+    // Bản mẫu chỉ sống trong phiên hiện tại: chỉnh sửa trên mẫu không ghi xuống localStorage.
+    const owned = trees.filter((tree) => !tree.sample);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(owned));
   } catch {
     // storage might be full with photo data; ignore
   }
@@ -221,7 +223,11 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    const loaded = refreshSample(loadTrees());
+    const stored = loadTrees();
+    // Bản mẫu không được lưu xuống máy: nạp lại bản mới mỗi phiên để chỉnh sửa tự hoàn nguyên.
+    const loaded = stored.some((tree) => tree.sample)
+      ? refreshSample(stored)
+      : [createDemoTree(), ...stored];
     const loadedArchived = loadArchived();
     // Persisted trees only exist in the browser, so hydration happens after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -464,16 +470,25 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   );
 
   const addBranch = useCallback(
-    (treeId: string, input: { name: string; description?: string; headId?: string }) => {
+    (treeId: string, input: { name: string; description?: string; headId?: string; color?: string; code?: string }) => {
       const branchId = uid("b");
       const colors = ["#8a1c15", "#b7791f", "#2f6f5e", "#6b4c9a", "#1f6b7a", "#9a4a1f"];
       updateTreeIn(treeId, (tree) => {
+        const usedCodes = new Set(tree.branches.map((item) => item.code).filter(Boolean));
+        let nextCode = "";
+        for (let index = 1; index <= 99; index += 1) {
+          if (!usedCodes.has(`C${index}`)) {
+            nextCode = `C${index}`;
+            break;
+          }
+        }
         const branch: Branch = {
           id: branchId,
           name: input.name.trim(),
           description: input.description?.trim(),
           headId: input.headId || undefined,
-          color: colors[tree.branches.length % colors.length],
+          color: input.color || colors[tree.branches.length % colors.length],
+          code: input.code?.trim() || nextCode || undefined,
         };
         return { ...tree, branches: [...tree.branches, branch] };
       });
@@ -545,16 +560,25 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   const importTree = useCallback(
     (tree: FamilyTree, opts?: { suffix?: boolean }) => {
       const id = tree.id && !trees.some((t) => t.id === tree.id) ? tree.id : uid("g");
-      const withSuffix = opts?.suffix !== false;
+      const baseName = tree.name.trim() || "Gia phả";
+      let name = baseName;
+      if (opts?.suffix !== false) {
+        const taken = new Set(trees.map((item) => item.name.trim().toLocaleLowerCase("vi")));
+        if (taken.has(name.toLocaleLowerCase("vi"))) {
+          let index = 2;
+          while (taken.has(`${baseName} (${index})`.toLocaleLowerCase("vi"))) index += 1;
+          name = `${baseName} (${index})`;
+        }
+      }
       const imported: FamilyTree = normalizeTree({
         ...tree,
         id,
-        name: withSuffix ? `${tree.name} (bản nhập)` : tree.name,
+        name,
         sample: false,
         updatedAt: nowIso(),
       });
       commit((prev) => [...prev, imported]);
-      return id;
+      return imported;
     },
     [commit, trees],
   );

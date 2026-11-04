@@ -65,7 +65,7 @@ export function KinshipSheet({
                 <Avatar person={a} size={34} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{a.name}</p>
-                  <p className="text-[0.66rem] text-[var(--pat-muted)]">
+                  <p className="text-[0.72rem] text-[var(--pat-muted)]">
                     {generationTag(generations.get(a.id) ?? 1)} · {a.gender === "male" ? "Nam" : "Nữ"}
                   </p>
                 </div>
@@ -101,7 +101,7 @@ export function KinshipSheet({
                 <Avatar person={b} size={34} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{b.name}</p>
-                  <p className="text-[0.66rem] text-[var(--pat-muted)]">
+                  <p className="text-[0.72rem] text-[var(--pat-muted)]">
                     {generationTag(generations.get(b.id) ?? 1)} · {b.gender === "male" ? "Nam" : "Nữ"}
                   </p>
                 </div>
@@ -133,7 +133,7 @@ export function KinshipSheet({
           <div className="space-y-3">
             <div className="grid gap-2 rounded-2xl border border-[var(--pat-gold)]/50 bg-[#fbf1d8] p-3 sm:grid-cols-2">
               <div className="rounded-xl bg-white/70 px-3 py-3 text-center">
-                <p className="text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
+                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
                   {a.name} gọi {b.name} là
                 </p>
                 <p className="pat-serif mt-1 text-2xl font-bold text-[var(--pat-red)]">
@@ -141,7 +141,7 @@ export function KinshipSheet({
                 </p>
               </div>
               <div className="rounded-xl bg-white/70 px-3 py-3 text-center">
-                <p className="text-[0.66rem] font-semibold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
+                <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-[var(--pat-muted)]">
                   {b.name} gọi {a.name} là
                 </p>
                 <p className="pat-serif mt-1 text-2xl font-bold text-[var(--pat-red)]">

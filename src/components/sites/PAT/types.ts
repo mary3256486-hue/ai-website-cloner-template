@@ -2,7 +2,7 @@ export type Gender = "male" | "female";
 
 export type PaperSize = "A4" | "A3" | "A2" | "A1" | "A0";
 
-export type DiagramTheme = "borderless" | "tree" | "generations";
+export type DiagramTheme = "borderless" | "tree" | "generations" | "ink";
 
 export type BackgroundPattern = "none" | "clouds" | "dragon" | "lotus" | "scroll" | "ornament";
 
@@ -136,6 +136,12 @@ export interface DiagramTuning {
   fontSize: number;
   lineCount: number;
   extraFields: ExtraFieldKey[];
+  /** Độ đậm hoa văn nền (1 = mặc định, thấp hơn để tiết kiệm mực). */
+  patternOpacity?: number;
+  /** Cỡ hoa văn nền (1 = mặc định). */
+  patternScale?: number;
+  /** Phóng to/thu nhỏ toàn bộ thẻ thành viên (1 = mặc định). */
+  cardScale?: number;
   generationStyles?: Record<string, GenerationStyle>;
   personStyles?: Record<string, PersonStyle>;
 }
@@ -240,6 +246,8 @@ export interface Branch {
   description?: string;
   headId?: string;
   color: string;
+  /** Mã ngắn in kèm trên phả đồ, ví dụ C1, C2 (dùng được cả bản in đen trắng). */
+  code?: string;
 }
 
 export interface Decoration {
@@ -254,6 +262,8 @@ export interface Decoration {
   color?: string;
   rotate?: number;
   flip?: boolean;
+  /** Khoá vị trí để tránh kéo nhầm khi đang căn bố cục. */
+  locked?: boolean;
 }
 
 export interface DesignSettings {
@@ -275,6 +285,12 @@ export interface DesignSettings {
   borderStyle: "none" | "simple" | "ornate";
   banner?: BannerSettings;
   customPaper?: CustomPaper | null;
+  /** Hiện thứ tự con (Con thứ n) trên thẻ thành viên. */
+  showBirthOrder?: boolean;
+  /** Hiện ký hiệu giới tính (♂/♀) trên thẻ thành viên. */
+  showGenderSymbol?: boolean;
+  /** Lề an toàn quanh bản in, tính bằng mm. */
+  printSafeMarginMm?: number;
   tuning?: DiagramTuning;
 }
 
@@ -371,10 +387,14 @@ export function cardDimsFor(
   design: Partial<DesignSettings> | null | undefined,
   generation: number,
   memberCount?: number,
+  scale = 1,
 ) {
-  return cardOrientationFor(design, generation, memberCount) === "vertical"
-    ? { width: CARD_VERTICAL_W, height: CARD_VERTICAL_H }
-    : { width: CARD_W, height: CARD_H };
+  const base =
+    cardOrientationFor(design, generation, memberCount) === "vertical"
+      ? { width: CARD_VERTICAL_W, height: CARD_VERTICAL_H }
+      : { width: CARD_W, height: CARD_H };
+  const factor = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  return { width: Math.round(base.width * factor), height: Math.round(base.height * factor) };
 }
 
 export const ANCESTOR_TITLES = [
@@ -494,6 +514,9 @@ export const DEFAULT_DESIGN: DesignSettings = {
   showAvatar: true,
   borderStyle: "ornate",
   banner: DEFAULT_BANNER,
+  showBirthOrder: false,
+  showGenderSymbol: false,
+  printSafeMarginMm: 10,
 };
 
 export function normalizeBanner(banner?: Partial<BannerSettings> | null): BannerSettings {
@@ -547,6 +570,9 @@ export const DEFAULT_TUNING: DiagramTuning = {
   fontSize: 10.5,
   lineCount: 2,
   extraFields: [],
+  patternOpacity: 1,
+  patternScale: 1,
+  cardScale: 1,
   generationStyles: {},
   personStyles: {},
 };
@@ -574,6 +600,9 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
     fontSize: clampNumber(tuning?.fontSize, DEFAULT_TUNING.fontSize, 7, 24),
     lineCount: Math.round(clampNumber(tuning?.lineCount, DEFAULT_TUNING.lineCount, 1, 5)),
     extraFields: Array.isArray(tuning?.extraFields) ? tuning.extraFields : [],
+    patternOpacity: clampNumber(tuning?.patternOpacity, DEFAULT_TUNING.patternOpacity ?? 1, 0.2, 2),
+    patternScale: clampNumber(tuning?.patternScale, DEFAULT_TUNING.patternScale ?? 1, 0.5, 2.5),
+    cardScale: clampNumber(tuning?.cardScale, DEFAULT_TUNING.cardScale ?? 1, 0.7, 1.5),
     generationStyles: tuning?.generationStyles ?? {},
     personStyles: tuning?.personStyles ?? {},
   };

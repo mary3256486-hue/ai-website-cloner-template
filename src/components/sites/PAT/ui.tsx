@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Maximize2, Minus, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Person } from "./types";
@@ -67,7 +67,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold tracking-wide",
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.72rem] font-semibold tracking-wide",
         tones[tone],
         className,
       )}
@@ -94,6 +94,7 @@ export function Sheet({
   footer?: ReactNode;
   wide?: boolean;
 }) {
+  const touchStartY = useRef<number | null>(null);
   useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
@@ -117,6 +118,20 @@ export function Sheet({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        onTouchStart={(event) => {
+          touchStartY.current = event.touches[0]?.clientY ?? null;
+        }}
+        onTouchMove={(event) => {
+          const start = touchStartY.current;
+          const current = event.touches[0]?.clientY;
+          if (start != null && current != null && current - start > 90) {
+            touchStartY.current = null;
+            onClose();
+          }
+        }}
+        onTouchEnd={() => {
+          touchStartY.current = null;
+        }}
       >
         <div className="sticky top-0 z-10 rounded-t-[1.4rem] border-b border-[var(--pat-line)] bg-[var(--pat-cream)]/95 px-5 pb-3 pt-2 backdrop-blur">
           <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-[var(--pat-line)] md:hidden" />
@@ -128,7 +143,7 @@ export function Sheet({
             <button
               type="button"
               onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pat-line)] bg-white/70 text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
+              className="pat-tip flex h-11 w-11 items-center justify-center rounded-full border border-[var(--pat-line)] bg-white/70 text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
               aria-label="Đóng"
             >
               <X size={16} />
@@ -179,7 +194,7 @@ export function SectionTitle({
 }) {
   return (
     <div className={cn("mb-3 flex items-center justify-between gap-3", className)}>
-      <h3 className="flex items-center gap-2 text-[0.72rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)]">
+      <h3 className="flex items-center gap-2 text-[0.8rem] font-bold text-[var(--pat-red)]">
         {icon}
         {title}
       </h3>
@@ -274,7 +289,7 @@ export function ZoomBar({
       >
         <Minus size={14} />
       </button>
-      <span className="min-w-[2.6rem] text-center text-[0.65rem] font-semibold tabular-nums">{percent}%</span>
+      <span className="min-w-[2.6rem] text-center text-[0.72rem] font-semibold tabular-nums">{percent}%</span>
       <button
         type="button"
         onClick={onZoomIn}

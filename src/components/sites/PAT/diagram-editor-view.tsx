@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
+  Columns3,
+  Copy,
   Download,
   FileJson,
   FileSpreadsheet,
@@ -11,17 +13,26 @@ import {
   Grid3x3,
   ImagePlus,
   Info,
+  Loader2,
+  Magnet,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRight,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Printer,
   Redo2,
+  Rows3,
   Save,
   Search,
   Trash2,
   Type,
   Undo2,
+  UploadCloud,
   Wand2,
+  X,
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type {
@@ -41,6 +52,7 @@ import { DiagramCanvas, contentTop, diagramDimensions } from "./diagram-canvas";
 import { DECOR_CATEGORIES, DECOR_ITEMS, type DecorSlot } from "./decor-library";
 import { customToDecorItem, useCustomDecor } from "./decor-library-store";
 import {
+  dateStamp,
   exportBackup,
   exportDiagramPng,
   exportMembersCsv,
@@ -59,6 +71,41 @@ import { Avatar, Field, Segmented, Sheet, SheetRow, ZoomBar } from "./ui";
 import { MemberFormSheet } from "./member-form-sheet";
 
 type Positions = Record<string, { x: number; y: number }>;
+
+const SNAP_SIZE = 24;
+const ALIGN_THRESHOLD = 6;
+const DRAFT_INTERVAL_MS = 15_000;
+
+function readFlag(key: string, fallback: boolean) {
+  if (typeof window === "undefined") return fallback;
+  const value = window.localStorage.getItem(key);
+  return value === null ? fallback : value === "1";
+}
+
+function readText(key: string) {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(key);
+}
+
+function timeLabel(iso: string | null) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Không đọc được tệp"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function snapAxis(value: number, target: number) {
+  return Math.abs(value - target) <= ALIGN_THRESHOLD ? target : value;
+}
 
 type EditorScope =
   | { kind: "diagram" }
@@ -106,9 +153,10 @@ function descendantIds(rootId: string, members: Person[]) {
 
 export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const router = useRouter();
-  const { setPositions, setDecoration, removeDecoration, setDesign } = useGenealogy();
+  const { setPositions, setDecoration, removeDecoration, setDesign, updateTree } = useGenealogy();
   const viewportRef = useRef<HTMLDivElement>(null);
   const decorationsRef = useRef<Decoration[]>(tree.decorations);
+  const overridesRef = useRef<Positions>(tree.positions);
 
   const [overrides, setOverrides] = useState<Positions>(tree.positions);
   const [past, setPast] = useState<Positions[]>([]);
@@ -137,6 +185,16 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [decorOpen, setDecorOpen] = useState(false);
   const [decorMode, setDecorMode] = useState<"library" | "text" | "image">("library");
   const [editMember, setEditMember] = useState<Person | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([]);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [sideCollapsed, setSideCollapsed] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [exportScope, setExportScope] = useState<"visible" | "all">("visible");
+  const [pngScale, setPngScale] = useState(2);
+  const [exporting, setExporting] = useState<{ step: number; label: string } | null>(null);
+  const [dropActive, setDropActive] = useState(false);
 
   const tuning = useMemo(() => normalizeTuning(tree.design.tuning), [tree.design.tuning]);
   const baseLayout = useMemo(() => computeLayout({ ...tree, positions: {} }), [tree]);
@@ -170,6 +228,37 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   useEffect(() => {
     decorationsRef.current = decorations;
   }, [decorations]);
+
+  useEffect(() => {
+    overridesRef.current = overrides;
+  }, [overrides]);
+
+  useEffect(() => {
+    if (saved) return;
+    if (JSON.stringify(overrides) === JSON.stringify(tree.positions)) setSaved(true);
+  }, [overrides, tree.positions, saved]);
+
+  useEffect(() => {
+    setSnapToGrid(readFlag(`phatue.diagramSnap.${tree.id}`, true));
+    setSideCollapsed(readFlag(`phatue.diagramSide.${tree.id}`, false));
+    setInspectorCollapsed(readFlag(`phatue.diagramInspector.${tree.id}`, false));
+    setLastSavedAt(readText(`phatue.diagramSavedAt.${tree.id}`));
+  }, [tree.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(`phatue.diagramSnap.${tree.id}`, snapToGrid ? "1" : "0");
+  }, [snapToGrid, tree.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(`phatue.diagramSide.${tree.id}`, sideCollapsed ? "1" : "0");
+  }, [sideCollapsed, tree.id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(`phatue.diagramInspector.${tree.id}`, inspectorCollapsed ? "1" : "0");
+  }, [inspectorCollapsed, tree.id]);
 
   const previousAspectRef = useRef(paperAspect);
   useEffect(() => {
@@ -218,6 +307,54 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     window.setTimeout(() => setToast(""), 2400);
   }, []);
 
+  useEffect(() => {
+    const raw = readText(`phatue.diagramDraft.${tree.id}`);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { positions?: Positions; at?: string };
+      if (!parsed?.positions || !Object.keys(parsed.positions).length) return;
+      if (JSON.stringify(parsed.positions) === JSON.stringify(tree.positions)) return;
+      setOverrides(parsed.positions);
+      setSaved(false);
+      showToast(`Đã khôi phục bản nháp lúc ${timeLabel(parsed.at ?? null)}`);
+    } catch {
+      window.localStorage.removeItem(`phatue.diagramDraft.${tree.id}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree.id]);
+
+  useEffect(() => {
+    if (saved) return;
+    const writeDraft = () => {
+      window.localStorage.setItem(
+        `phatue.diagramDraft.${tree.id}`,
+        JSON.stringify({ positions: overridesRef.current, at: new Date().toISOString() }),
+      );
+    };
+    const flush = () => {
+      if (document.visibilityState !== "hidden") return;
+      writeDraft();
+    };
+    const timer = window.setInterval(writeDraft, DRAFT_INTERVAL_MS);
+    window.addEventListener("pagehide", writeDraft);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("pagehide", writeDraft);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [saved, tree.id]);
+
+  useEffect(() => {
+    if (saved) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [saved]);
+
   const selectScope = useCallback((next: EditorScope, reveal = false) => {
     setScope(next);
     if (reveal && window.matchMedia("(max-width: 1279px)").matches) setInspectorOpen(true);
@@ -248,9 +385,47 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
 
   const save = () => {
     setPositions(tree.id, overrides);
+    const now = new Date().toISOString();
+    setLastSavedAt(now);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(`phatue.diagramSavedAt.${tree.id}`, now);
+      window.localStorage.removeItem(`phatue.diagramDraft.${tree.id}`);
+    }
     setSaved(true);
     showToast("Đã lưu bố cục phả đồ");
   };
+
+  const shortcutsRef = useRef({ undo: () => {}, redo: () => {}, save: () => {} });
+  shortcutsRef.current = { undo, redo, save };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        shortcutsRef.current.undo();
+      } else if (key === "y" || (key === "z" && event.shiftKey)) {
+        event.preventDefault();
+        shortcutsRef.current.redo();
+      } else if (key === "s") {
+        event.preventDefault();
+        shortcutsRef.current.save();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const autoArrange = () => {
     pushHistory(overrides);
@@ -345,6 +520,13 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     if (event.button !== 0) return;
     event.stopPropagation();
     event.preventDefault();
+    if (event.shiftKey) {
+      setSelectedIds((prev) =>
+        prev.includes(node.id) ? prev.filter((id) => id !== node.id) : [...prev, node.id],
+      );
+      return;
+    }
+    setSelectedIds([]);
     movedRef.current = false;
     setFocusId(node.id);
     selectScope({ kind: "person", memberId: node.id }, true);
@@ -363,6 +545,11 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     if (event.button !== 0) return;
     event.stopPropagation();
     event.preventDefault();
+    if (decoration.locked) {
+      selectScope({ kind: "decoration", decorationId: decoration.id }, true);
+      showToast("Trang trí đang khoá — mở khoá trong bảng chỉnh để di chuyển");
+      return;
+    }
     movedRef.current = false;
     selectScope({ kind: "decoration", decorationId: decoration.id }, true);
     setDrag({
@@ -433,8 +620,52 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       const dy = (event.clientY - drag.startY) / scale;
       if (Math.abs(dx) + Math.abs(dy) > 2) movedRef.current = true;
       if (drag.kind === "node") {
-        const x = Math.max(6, Math.round(drag.origX + dx));
-        const y = Math.max(6, Math.round(drag.origY + dy));
+        const node = layout.nodes.find((entry) => entry.id === drag.id);
+        let x = Math.max(6, Math.round(drag.origX + dx));
+        let y = Math.max(6, Math.round(drag.origY + dy));
+        const nextGuides: { x?: number; y?: number }[] = [];
+        if (snapToGrid) {
+          x = Math.round(x / SNAP_SIZE) * SNAP_SIZE;
+          y = Math.round(y / SNAP_SIZE) * SNAP_SIZE;
+          if (node) {
+            let bestX: { delta: number; guide: number } | null = null;
+            let bestY: { delta: number; guide: number } | null = null;
+            for (const other of layout.nodes) {
+              if (other.id === drag.id) continue;
+              const xTargets = [
+                { self: x, guide: other.x },
+                { self: x + node.width / 2, guide: other.x + other.width / 2 },
+                { self: x + node.width, guide: other.x + other.width },
+              ];
+              for (const target of xTargets) {
+                const delta = snapAxis(target.self, target.guide) - target.self;
+                if (Math.abs(delta) <= ALIGN_THRESHOLD && (!bestX || Math.abs(delta) < Math.abs(bestX.delta))) {
+                  bestX = { delta, guide: target.guide };
+                }
+              }
+              const yTargets = [
+                { self: y, guide: other.y },
+                { self: y + node.height / 2, guide: other.y + other.height / 2 },
+                { self: y + node.height, guide: other.y + other.height },
+              ];
+              for (const target of yTargets) {
+                const delta = snapAxis(target.self, target.guide) - target.self;
+                if (Math.abs(delta) <= ALIGN_THRESHOLD && (!bestY || Math.abs(delta) < Math.abs(bestY.delta))) {
+                  bestY = { delta, guide: target.guide };
+                }
+              }
+            }
+            if (bestX) {
+              x += bestX.delta;
+              nextGuides.push({ x: bestX.guide });
+            }
+            if (bestY) {
+              y += bestY.delta;
+              nextGuides.push({ y: bestY.guide });
+            }
+          }
+        }
+        setGuides(nextGuides);
         setOverrides((prev) => ({ ...prev, [drag.id]: { x, y } }));
       } else if (drag.kind === "resize") {
         const width = Math.max(24, Math.min(640, Math.round((drag.origW ?? 120) + dx)));
@@ -444,17 +675,23 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           prev.map((item) => (item.id === drag.id ? { ...item, width, height } : item)),
         );
       } else {
-        const x = Math.max(6, Math.round(drag.origX + dx));
-        const y = Math.max(6, Math.round(drag.origY + dy));
+        let x = Math.max(6, Math.round(drag.origX + dx));
+        let y = Math.max(6, Math.round(drag.origY + dy));
+        if (snapToGrid) {
+          x = Math.round(x / SNAP_SIZE) * SNAP_SIZE;
+          y = Math.round(y / SNAP_SIZE) * SNAP_SIZE;
+        }
         setDecorations((prev) => prev.map((item) => (item.id === drag.id ? { ...item, x, y } : item)));
       }
     };
     const onUp = (event: PointerEvent) => {
+      setGuides([]);
       if (drag.kind === "pan") {
         setPanning(false);
         if (!movedRef.current) {
           selectScope({ kind: "diagram" });
           setFocusId(null);
+          setSelectedIds([]);
         }
         setDrag(null);
         return;
@@ -489,7 +726,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [drag, scale, pushHistory, selectScope, tree.id, setDecoration]);
+  }, [drag, scale, pushHistory, selectScope, tree.id, setDecoration, snapToGrid, layout.nodes]);
 
   const visibleIds = useMemo(() => {
     const all = Array.from(gens.values());
@@ -497,6 +734,12 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     if (every) return null;
     return new Set(tree.members.filter((member) => genFilter.has(gens.get(member.id) ?? 1)).map((member) => member.id));
   }, [tree.members, gens, genFilter]);
+
+  const hiddenRows = useMemo(
+    () => layout.generations.filter((row) => !genFilter.has(row.generation)),
+    [layout.generations, genFilter],
+  );
+  const hiddenMembers = Math.max(0, displayedCount - (visibleIds?.size ?? displayedCount));
 
   const searchResults = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -532,7 +775,58 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree.id]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("grid") === "1") setShowGrid(true);
+  }, []);
+
   const findSvg = () => document.getElementById("pat-diagram-svg") as SVGSVGElement | null;
+
+  const exportWithScope = async (mode: "visible" | "all", action: () => Promise<void> | void) => {
+    const snapshot = new Set(genFilter);
+    if (mode === "all" && visibleIds) {
+      setGenFilter(new Set(layout.generations.map((row) => row.generation)));
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+    }
+    try {
+      await action();
+    } finally {
+      if (mode === "all" && visibleIds) setGenFilter(snapshot);
+    }
+  };
+
+  const scopeSuffix = visibleIds ? (exportScope === "all" ? "day-du" : "dang-xem") : "pha-do";
+
+  const downloadPng = async () => {
+    if (exporting) return;
+    setExporting({ step: 0.02, label: "Đang chuẩn bị phả đồ" });
+    try {
+      await exportWithScope(exportScope, async () => {
+        await exportDiagramPng(
+          "pat-diagram-svg",
+          `${safeName(tree.name)}-${scopeSuffix}-${dateStamp()}.png`,
+          "#fdf6e7",
+          { scale: pngScale, onProgress: (step, label) => setExporting({ step, label }) },
+        );
+      });
+      setExportOpen(false);
+      showToast(
+        `Đã tải PNG ${Math.round(dims.width * pngScale)} × ${Math.round(dims.height * pngScale)} px`,
+      );
+    } catch {
+      showToast("Không tạo được PNG, thử in thành PDF");
+    } finally {
+      window.setTimeout(() => setExporting(null), 500);
+    }
+  };
+
+  const printDiagram = async () => {
+    await exportWithScope(exportScope, () => {
+      const svg = findSvg();
+      if (svg) void printSvgDiagram(svg, tree);
+    });
+    setExportOpen(false);
+  };
 
   const openDecor = (mode: "library" | "text" | "image") => {
     setDecorMode(mode);
@@ -580,6 +874,29 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     showToast(input.type === "text" ? "Đã thêm chữ trang trí" : "Đã thêm ảnh trang trí");
   };
 
+  const addDroppedFiles = async (files: FileList | File[]) => {
+    const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    if (!images.length) {
+      showToast("Chỉ hỗ trợ tệp ảnh PNG, JPG hoặc SVG");
+      return;
+    }
+    let added = 0;
+    for (const file of images) {
+      if (file.size > 2_500_000) {
+        showToast(`${file.name} lớn hơn 2,5 MB`);
+        continue;
+      }
+      try {
+        const src = await readFileAsDataUrl(file);
+        addDecoration({ type: "image", content: src, width: 160, height: 120 });
+        added += 1;
+      } catch {
+        showToast(`Không đọc được ${file.name}`);
+      }
+    }
+    if (added) showToast(`Đã thêm ${added} ảnh trang trí từ tệp`);
+  };
+
   const updateDecoration = (decoration: Decoration) => {
     setDecorations((prev) => prev.map((item) => (item.id === decoration.id ? decoration : item)));
     setDecoration(tree.id, decoration);
@@ -602,6 +919,77 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     const width = Math.max(24, Math.min(640, Math.round(currentW * factor)));
     const height = Math.max(12, Math.round(currentH * (width / currentW)));
     updateDecoration({ ...decoration, width, height });
+  };
+
+  const duplicateDecoration = (decoration: Decoration) => {
+    const copy: Decoration = {
+      ...decoration,
+      id: uid("dec"),
+      x: decoration.x + 24,
+      y: decoration.y + 24,
+      locked: false,
+    };
+    const next = [...decorations, copy];
+    setDecorations(next);
+    updateTree(tree.id, { decorations: next });
+    selectScope({ kind: "decoration", decorationId: copy.id }, true);
+    showToast("Đã nhân bản trang trí");
+  };
+
+  const moveDecorationLayer = (decoration: Decoration, direction: "up" | "down") => {
+    const index = decorations.findIndex((item) => item.id === decoration.id);
+    if (index < 0) return;
+    const target = direction === "up" ? index + 1 : index - 1;
+    if (target < 0 || target >= decorations.length) return;
+    const next = [...decorations];
+    const [item] = next.splice(index, 1);
+    next.splice(target, 0, item);
+    setDecorations(next);
+    updateTree(tree.id, { decorations: next });
+    showToast(direction === "up" ? "Đã đưa trang trí lên trên" : "Đã đưa trang trí xuống dưới");
+  };
+
+  const toggleDecorationLock = (decoration: Decoration) => {
+    updateDecoration({ ...decoration, locked: !decoration.locked });
+    showToast(decoration.locked ? "Đã mở khoá trang trí" : "Đã khoá vị trí trang trí");
+  };
+
+  const alignSelected = (axis: "x" | "y") => {
+    if (selectedIds.length < 2) return;
+    const anchorId = selectedIds[0];
+    const anchorNode = baseLayout.nodes.find((node) => node.id === anchorId);
+    if (!anchorNode) return;
+    const anchor = overrides[anchorId] ?? { x: anchorNode.x, y: anchorNode.y };
+    const next = { ...overrides };
+    for (const node of baseLayout.nodes) {
+      if (!selectedIds.includes(node.id)) continue;
+      const current = next[node.id] ?? { x: node.x, y: node.y };
+      next[node.id] = {
+        x: axis === "x" ? anchor.x : current.x,
+        y: axis === "y" ? anchor.y : current.y,
+      };
+    }
+    pushHistory(overrides);
+    setOverrides(next);
+    setSaved(false);
+    showToast(axis === "x" ? "Đã căn cột theo thẻ đầu tiên" : "Đã căn hàng theo thẻ đầu tiên");
+  };
+
+  const copyStyleToSelection = () => {
+    if (selectedIds.length < 2) return;
+    const [sourceId, ...rest] = selectedIds;
+    const styles = { ...(tuning.personStyles ?? {}) };
+    const source = styles[sourceId] ?? {};
+    for (const id of rest) styles[id] = { ...source };
+    updateTuning({ personStyles: styles });
+    showToast(`Đã sao chép kiểu sang ${rest.length} thẻ`);
+  };
+
+  const resetPersonStyle = (memberId: string) => {
+    const styles = { ...(tuning.personStyles ?? {}) };
+    delete styles[memberId];
+    updateTuning({ personStyles: styles });
+    showToast("Đã trả kiểu thẻ về mặc định");
   };
 
   const toggleGen = (generation: number) => {
@@ -650,12 +1038,16 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       const generation = scope.generation;
       const row = layout.generations.find((entry) => entry.generation === generation);
       const style = tuning.generationStyles?.[String(generation)];
+      const sample = tree.members.find(
+        (member) => gens.get(member.id) === generation && clan.isDisplayed(member.id),
+      );
       return (
         <GenerationInspector
           generation={generation}
           count={row?.count ?? 0}
           resolved={resolveGeneration(generation)}
           extraFields={style?.extraFields ?? tuning.extraFields}
+          sample={sample}
           onStyle={(patch) => updateGenerationStyle(generation, patch)}
           onReset={() => resetGenerationStyle(generation)}
           onClose={onClose}
@@ -690,6 +1082,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             onApplyBranch={() => applyBranch(member.id, offsetX, offsetY)}
             onResetPosition={() => resetPosition(member.id)}
             onStyle={(patch) => updatePersonStyle(member.id, patch)}
+            onResetStyle={() => resetPersonStyle(member.id)}
             onEdit={() => setEditMember(member)}
             onFocus={() => focusMember(member)}
             onClose={onClose}
@@ -698,7 +1091,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       }
     }
     if (scope.kind === "decoration") {
-      const decoration = decorations.find((entry) => entry.id === scope.decorationId);
+      const index = decorations.findIndex((entry) => entry.id === scope.decorationId);
+      const decoration = index >= 0 ? decorations[index] : undefined;
       if (decoration) {
         return (
           <DecorationInspector
@@ -706,6 +1100,11 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             onUpdate={updateDecoration}
             onDelete={() => deleteDecoration(decoration.id)}
             onScale={(factor) => scaleDecoration(decoration, factor)}
+            onDuplicate={() => duplicateDecoration(decoration)}
+            onToggleLock={() => toggleDecorationLock(decoration)}
+            onLayer={(direction) => moveDecorationLayer(decoration, direction)}
+            canMoveUp={index < decorations.length - 1}
+            canMoveDown={index > 0}
             onClose={onClose}
           />
         );
@@ -762,7 +1161,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               <Avatar person={member} size={26} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-semibold">{member.name}</span>
-                <span className="block text-[0.62rem] text-[var(--pat-muted)]">{generationTag(gens.get(member.id) ?? 1)}</span>
+                <span className="block text-[0.68rem] text-[var(--pat-muted)]">{generationTag(gens.get(member.id) ?? 1)}</span>
               </span>
             </button>
           ))}
@@ -774,7 +1173,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           <p className="pat-form-section mb-0 flex-1">Đời & bố cục</p>
           <button
             type="button"
-            className="ml-2 text-[0.65rem] font-semibold text-[var(--pat-red)]"
+            className="ml-2 text-[0.72rem] font-semibold text-[var(--pat-red)]"
             onClick={() => setGenFilter(new Set(layout.generations.map((row) => row.generation)))}
           >
             Hiện tất cả
@@ -819,7 +1218,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                   >
                     {row.label ?? generationTag(row.generation)}
                   </span>
-                  <span className="text-[0.62rem] text-[var(--pat-muted)]">{row.count}</span>
+                  <span className="text-[0.68rem] text-[var(--pat-muted)]">{row.count}</span>
                   <PanelRight size={11} className="text-[var(--pat-muted)]" />
                 </button>
               </div>
@@ -852,7 +1251,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     <TreeShell
       tree={tree}
       section="ve-pha-do"
-      title="Tạo phả đồ"
+      title="Vẽ phả đồ"
       subtitle={`${paperLabel} · ${displayedCount} thành viên`}
       wide
       actions={
@@ -876,67 +1275,152 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           <button
             type="button"
             onClick={() => setExportOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
-            aria-label="Xuất phả đồ"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
+            aria-label={
+              hiddenRows.length ? `Xuất phả đồ (đang ẩn ${hiddenRows.length} đời)` : "Xuất phả đồ"
+            }
+            title={hiddenRows.length ? `Đang ẩn ${hiddenRows.length} đời · ${hiddenMembers} thành viên` : "Xuất phả đồ"}
           >
             <Download size={17} />
+            {hiddenRows.length ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f6e9c8] px-1 text-[0.55rem] font-bold text-[#7a5a10]">
+                {hiddenRows.length}
+              </span>
+            ) : null}
           </button>
         </>
       }
     >
-      <div className="grid gap-3 xl:grid-cols-[250px_minmax(0,1fr)_340px]">
-        <aside className="pat-card hidden self-start px-3 py-3 no-print xl:block">{sidebar}</aside>
+      <div
+        className={`grid gap-3 ${
+          sideCollapsed && inspectorCollapsed
+            ? "xl:grid-cols-1"
+            : sideCollapsed
+              ? "xl:grid-cols-[minmax(0,1fr)_340px]"
+              : inspectorCollapsed
+                ? "xl:grid-cols-[250px_minmax(0,1fr)]"
+                : "xl:grid-cols-[250px_minmax(0,1fr)_340px]"
+        }`}
+      >
+        {sideCollapsed ? null : (
+          <aside className="pat-card hidden self-start px-3 py-3 no-print xl:block">{sidebar}</aside>
+        )}
 
         <div className="min-w-0 space-y-2">
           <div className="pat-card flex flex-wrap items-center gap-1 px-1.5 py-1.5 no-print">
-            <ToolButton label="Hoàn tác" onClick={undo} disabled={!past.length}>
+            <span className="rounded-full bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-bold uppercase tracking-[0.1em] text-[#7a5a10]">
+              Sửa
+            </span>
+            <ToolButton label="Hoàn tác (Ctrl+Z)" onClick={undo} disabled={!past.length}>
               <Undo2 size={16} />
             </ToolButton>
-            <ToolButton label="Làm lại" onClick={redo} disabled={!future.length}>
+            <ToolButton label="Làm lại (Ctrl+Shift+Z)" onClick={redo} disabled={!future.length}>
               <Redo2 size={16} />
             </ToolButton>
-            <span className="mx-1 h-5 w-px bg-[var(--pat-line)]" />
-            <ToolButton label="Lưới" onClick={() => setShowGrid((prev) => !prev)} active={showGrid}>
-              <Grid3x3 size={16} />
-            </ToolButton>
-            <ToolButton label="Tự sắp xếp" onClick={autoArrange}>
+            <ToolButton
+              label="Tự sắp xếp — xoá mọi vị trí kéo tay"
+              onClick={autoArrange}
+            >
               <Wand2 size={16} />
+            </ToolButton>
+            <ToolButton
+              label={snapToGrid ? "Hít lưới 24 px (đang bật)" : "Hít lưới 24 px (đang tắt)"}
+              onClick={() => setSnapToGrid((prev) => !prev)}
+              active={snapToGrid}
+            >
+              <Magnet size={16} />
             </ToolButton>
             <ToolButton label="Thêm trang trí" onClick={() => openDecor("library")}>
               <Plus size={16} />
             </ToolButton>
+
+            <span className="mx-1 h-5 w-px bg-[var(--pat-line)]" />
+            <span className="rounded-full bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-bold uppercase tracking-[0.1em] text-[#7a5a10]">
+              Xem
+            </span>
+            <ToolButton label="Lưới nền" onClick={() => setShowGrid((prev) => !prev)} active={showGrid}>
+              <Grid3x3 size={16} />
+            </ToolButton>
+            <span className="hidden xl:inline-flex">
+              <ToolButton
+                label={sideCollapsed ? "Mở cột trái" : "Thu cột trái"}
+                onClick={() => setSideCollapsed((prev) => !prev)}
+                active={!sideCollapsed}
+              >
+                {sideCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+              </ToolButton>
+            </span>
+            <span className="hidden xl:inline-flex">
+              <ToolButton
+                label={inspectorCollapsed ? "Mở bảng chỉnh" : "Thu bảng chỉnh"}
+                onClick={() => setInspectorCollapsed((prev) => !prev)}
+                active={!inspectorCollapsed}
+              >
+                {inspectorCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+              </ToolButton>
+            </span>
             <span className="xl:hidden">
               <ToolButton label="Bảng chỉnh" onClick={() => setInspectorOpen(true)} active={scope.kind !== "diagram"}>
                 <PanelRight size={16} />
               </ToolButton>
             </span>
-            <span className="mx-1 h-5 w-px bg-[var(--pat-line)]" />
-            <button type="button" onClick={save} className="pat-btn pat-btn-red h-8 px-3 text-[0.7rem]">
-              <Save size={14} /> Lưu
-            </button>
-            <span
-              className={`ml-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6rem] font-semibold ${
-                saved ? "bg-[#e2f1e8] text-[#1f6b4a]" : "bg-[#f9e3df] text-[#8a1c15]"
-              }`}
-            >
-              {saved ? "Đã lưu" : "Chưa lưu"}
-            </span>
             <span className="hidden items-center gap-1 rounded-full bg-[#f6e9c8] px-2 py-0.5 text-[0.6rem] font-bold text-[#7a5a10] sm:inline-flex">
               {scopeLabel}
             </span>
-            <button
-              type="button"
-              onClick={() => setExportOpen(true)}
-              className="ml-auto inline-flex items-center gap-1 text-[0.65rem] font-semibold text-[var(--pat-red)]"
-            >
-              <Download size={12} /> {paperLabel}
-            </button>
+
+            <span className="ml-auto inline-flex items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6rem] font-semibold ${
+                  saved ? "bg-[#e2f1e8] text-[#1f6b4a]" : "bg-[#f9e3df] text-[#8a1c15]"
+                }`}
+                title="Phả đồ tự lưu bản nháp mỗi 15 giây; bấm Lưu để ghi hẳn"
+              >
+                {saved
+                  ? lastSavedAt
+                    ? `Đã lưu lúc ${timeLabel(lastSavedAt)}`
+                    : "Đã lưu"
+                  : "Chưa lưu"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setExportOpen(true)}
+                className="inline-flex items-center gap-1 text-[0.72rem] font-semibold text-[var(--pat-red)]"
+              >
+                <Download size={12} /> {paperLabel}
+              </button>
+              <button
+                type="button"
+                onClick={save}
+                title="Lưu bố cục (Ctrl+S)"
+                className="pat-btn pat-btn-red h-8 px-3 text-[0.7rem]"
+              >
+                <Save size={14} /> Lưu
+              </button>
+            </span>
           </div>
 
           <div
             ref={viewportRef}
             onPointerDown={panDown}
-            className="pat-scroll relative max-h-[calc(100dvh-13rem)] min-h-[460px] select-none overflow-auto rounded-2xl border border-[var(--pat-line)] bg-[#eadfc8] p-2 shadow-inner"
+            onDragOver={(event) => {
+              if (!event.dataTransfer.types.includes("Files")) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+              setDropActive(true);
+            }}
+            onDragLeave={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+              setDropActive(false);
+            }}
+            onDrop={(event) => {
+              if (!event.dataTransfer.files.length) return;
+              event.preventDefault();
+              setDropActive(false);
+              void addDroppedFiles(event.dataTransfer.files);
+            }}
+            className={`pat-scroll relative max-h-[calc(100dvh-13rem)] min-h-[460px] select-none overflow-auto rounded-2xl border bg-[#eadfc8] p-2 shadow-inner ${
+              dropActive ? "border-[var(--pat-red)]" : "border-[var(--pat-line)]"
+            }`}
             style={{ touchAction: "none" }}
           >
             <div
@@ -963,6 +1447,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                     idPrefix="editor"
                     visibleIds={visibleIds}
                     focusId={focusId}
+                    selectedIds={selectedIds}
+                    guides={guides}
                     selectedDecorationId={scope.kind === "decoration" ? scope.decorationId : null}
                     showGrid={showGrid}
                     interactive
@@ -981,10 +1467,57 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                 Đang di chuyển khung
               </span>
             ) : null}
+            {dropActive ? (
+              <div className="pointer-events-none absolute inset-2 z-20 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[var(--pat-red)] bg-[#fdf4e0]/90 text-center">
+                <UploadCloud size={30} className="text-[var(--pat-red)]" />
+                <p className="text-sm font-semibold text-[var(--pat-red)]">Thả ảnh để thêm trang trí</p>
+                <p className="text-[0.7rem] text-[var(--pat-muted)]">PNG, JPG hoặc SVG · tối đa 2,5 MB mỗi tệp</p>
+              </div>
+            ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[0.66rem] text-[var(--pat-muted)] no-print">
-            <span className="min-w-0 flex-1 truncate">{hintText}</span>
+          {selectedIds.length >= 2 ? (
+            <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-[var(--pat-red)]/40 bg-[#fffaf0] px-2 py-1.5 text-[0.7rem] no-print">
+              <span className="font-semibold text-[var(--pat-red)]">Đã chọn {selectedIds.length} thẻ</span>
+              <span className="text-[var(--pat-muted)]">· căn theo thẻ chọn đầu tiên</span>
+              <button
+                type="button"
+                className="pat-btn pat-btn-outline h-7 px-2 text-[0.68rem]"
+                onClick={() => alignSelected("x")}
+              >
+                <Columns3 size={12} /> Căn cột
+              </button>
+              <button
+                type="button"
+                className="pat-btn pat-btn-outline h-7 px-2 text-[0.68rem]"
+                onClick={() => alignSelected("y")}
+              >
+                <Rows3 size={12} /> Căn hàng
+              </button>
+              <button
+                type="button"
+                className="pat-btn pat-btn-outline h-7 px-2 text-[0.68rem]"
+                onClick={copyStyleToSelection}
+              >
+                <Copy size={12} /> Sao chép kiểu
+              </button>
+              <button
+                type="button"
+                className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-[0.68rem] font-semibold text-[var(--pat-muted)] hover:text-[var(--pat-red)]"
+                onClick={() => setSelectedIds([])}
+              >
+                <X size={12} /> Bỏ chọn
+              </button>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[0.72rem] text-[var(--pat-muted)] no-print">
+            <div className="min-w-0 flex-1">
+              <p className="truncate">{hintText}</p>
+              <p className="truncate text-[0.66rem] opacity-80">
+                Giữ Shift bấm thẻ để chọn nhiều · Ctrl+Z hoàn tác · Ctrl+S lưu
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               <span className="hidden items-center gap-1 sm:inline-flex">
                 <Info size={12} /> In đúng khổ {paperLabel}
@@ -999,9 +1532,11 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           </div>
         </div>
 
-        <aside className="pat-card hidden max-h-[calc(100dvh-8rem)] self-start overflow-y-auto no-print xl:block">
-          {inspectorContent}
-        </aside>
+        {inspectorCollapsed ? null : (
+          <aside className="pat-card hidden max-h-[calc(100dvh-8rem)] self-start overflow-y-auto no-print xl:block">
+            {inspectorContent}
+          </aside>
+        )}
       </div>
 
       <Sheet
@@ -1029,51 +1564,79 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         title="Xuất phả đồ"
         subtitle="Miễn phí, không cần đăng nhập hay mua xu"
       >
-        <div className="mb-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2">
+        <div className="mb-3 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2">
           <p className="text-[0.72rem] font-semibold text-[var(--pat-red)]">
             {paperLabel} · {displayedCount} thành viên · {nonAncestorRows.length} đời
             {ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""}
           </p>
           {paper.widthMm > 1500 || paper.heightMm > 1500 ? (
-            <p className="mt-1 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
+            <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
               Khổ lớn hơn 1500 mm có thể bị nhà in tự thu nhỏ. Nên xem trước bản PDF trước khi gửi in.
             </p>
           ) : null}
           {displayedCount > 120 ? (
-            <p className="mt-1 text-[0.66rem] leading-relaxed text-[var(--pat-muted)]">
+            <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
               Phả đồ nhiều thành viên: nên chọn khổ lớn hơn hoặc giảm số dòng tên để chữ còn đọc được khi in.
             </p>
           ) : null}
+          {hiddenRows.length ? (
+            <p className="mt-1 rounded-lg bg-[#f9e3df] px-2 py-1 text-[0.72rem] font-semibold text-[#8a1c15]">
+              Đang ẩn {hiddenRows.length} đời · {hiddenMembers} thành viên. Chọn phạm vi xuất bên dưới.
+            </p>
+          ) : null}
         </div>
+
+        {visibleIds ? (
+          <div className="mb-3">
+            <p className="pat-form-section">Phạm vi xuất</p>
+            <Segmented<"visible" | "all">
+              value={exportScope}
+              onChange={setExportScope}
+              options={[
+                { value: "visible", label: `Đang xem (${visibleIds.size})` },
+                { value: "all", label: `Toàn bộ (${displayedCount})` },
+              ]}
+            />
+            <p className="mt-1 text-[0.68rem] text-[var(--pat-muted)]">
+              Tên tệp ghi rõ “dang-xem” hoặc “day-du” để tránh lẫn bản in.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="mb-3">
+          <p className="pat-form-section">Độ phân giải PNG</p>
+          <Segmented<"1" | "2" | "3">
+            value={String(pngScale) as "1" | "2" | "3"}
+            onChange={(value) => setPngScale(Number(value))}
+            options={[
+              { value: "1", label: "1×" },
+              { value: "2", label: "2×" },
+              { value: "3", label: "3×" },
+            ]}
+          />
+          <p className="mt-1 text-[0.68rem] text-[var(--pat-muted)]">
+            Kích thước ảnh khoảng {Math.round(dims.width * pngScale)} × {Math.round(dims.height * pngScale)} px.
+            Phả đồ lớn nên dùng 2× để in rõ.
+          </p>
+        </div>
+
         <div className="grid gap-1">
           <SheetRow
             icon={<Download size={18} />}
             title="Tải ảnh PNG"
-            subtitle="Ảnh phả đồ độ phân giải cao"
-            onClick={async () => {
-              try {
-                await exportDiagramPng("pat-diagram-svg", `${safeName(tree.name)}-pha-do.png`, "#fdf6e7");
-                setExportOpen(false);
-                showToast("Đã tải ảnh PNG");
-              } catch {
-                showToast("Không tạo được PNG, thử in thành PDF");
-              }
-            }}
+            subtitle={`${pngScale}× · ảnh độ phân giải cao`}
+            onClick={() => void downloadPng()}
           />
           <SheetRow
             icon={<Printer size={18} />}
             title="In / Lưu PDF"
             subtitle={`In đúng ${paperLabel}`}
-            onClick={() => {
-              const svg = findSvg();
-              if (svg) void printSvgDiagram(svg, tree);
-              setExportOpen(false);
-            }}
+            onClick={() => void printDiagram()}
           />
           <SheetRow
             icon={<FileSpreadsheet size={18} />}
-            title="Excel (CSV)"
-            subtitle="Danh sách thành viên và quan hệ"
+            title="CSV danh sách thành viên"
+            subtitle="Bảng phẳng mở bằng Excel — không phải bản vẽ phả đồ"
             onClick={() => {
               exportMembersCsv(tree);
               setExportOpen(false);
@@ -1082,7 +1645,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           <SheetRow
             icon={<FileJson size={18} />}
             title="Sao lưu JSON"
-            subtitle="Toàn bộ gia phả để khôi phục"
+            subtitle="Tệp khôi phục đầy đủ — không mở bằng Excel"
             onClick={() => {
               exportBackup(tree);
               setExportOpen(false);
@@ -1091,13 +1654,33 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           <SheetRow
             icon={<Palette size={18} />}
             title="Thiết kế bản in"
-            subtitle="Khổ giấy, nền, hoa văn, câu đối"
+            subtitle="Khổ giấy, nền, hoa văn, hoành phi"
             onClick={() => {
               setExportOpen(false);
               router.push(`/gia-pha/${tree.id}/giao-dien`);
             }}
           />
         </div>
+
+        {exporting ? (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/30 p-4">
+            <div className="w-full max-w-xs rounded-2xl border border-[var(--pat-line)] bg-[#fffaf0] p-4 shadow-xl">
+              <div className="flex items-center gap-2 text-sm font-semibold text-[var(--pat-red)]">
+                <Loader2 size={16} className="animate-spin" /> Đang xuất PNG
+              </div>
+              <p className="mt-1 text-[0.72rem] text-[var(--pat-muted)]">{exporting.label}</p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#eadfc8]">
+                <div
+                  className="h-full rounded-full bg-[var(--pat-red)] transition-all"
+                  style={{ width: `${Math.round(exporting.step * 100)}%` }}
+                />
+              </div>
+              <p className="mt-1 text-right text-[0.66rem] text-[var(--pat-muted)]">
+                {Math.round(exporting.step * 100)}%
+              </p>
+            </div>
+          </div>
+        ) : null}
       </Sheet>
 
       {decorOpen ? (
@@ -1303,7 +1886,7 @@ function DecorationSheet({
               >
                 Của tôi
                 {customItems.length ? (
-                  <span className="ml-1 rounded-full bg-[#7a5a10] px-1.5 text-[0.55rem] font-bold text-[#fff4df]">
+                  <span className="ml-1 rounded-full bg-[#7a5a10] px-1.5 text-[0.68rem] font-bold text-[#fff4df]">
                     {customItems.length}
                   </span>
                 ) : null}
@@ -1326,10 +1909,10 @@ function DecorationSheet({
                       Kích thước gốc {item.nativeWidth} × {item.nativeHeight}
                     </p>
                     {item.credit ? (
-                      <p className="text-[0.62rem] text-[var(--pat-muted)]/80">{item.credit}</p>
+                      <p className="text-[0.68rem] text-[var(--pat-muted)]/80">{item.credit}</p>
                     ) : null}
                   </div>
-                  <span className="rounded-full border border-[var(--pat-line)] px-2 py-0.5 text-[0.65rem] font-semibold text-[var(--pat-muted)]">
+                  <span className="rounded-full border border-[var(--pat-line)] px-2 py-0.5 text-[0.72rem] font-semibold text-[var(--pat-muted)]">
                     {item.slot === "left" ? "Đặt bên trái" : "Đặt bên phải"}
                   </span>
                 </div>
@@ -1369,7 +1952,7 @@ function DecorationSheet({
                           alt={entry.label}
                           className="mx-auto h-16 w-full object-contain"
                         />
-                        <span className="mt-1 block truncate text-[0.62rem] font-semibold">{entry.label}</span>
+                        <span className="mt-1 block truncate text-[0.68rem] font-semibold">{entry.label}</span>
                       </button>
                       <button
                         type="button"
@@ -1385,7 +1968,7 @@ function DecorationSheet({
                       </button>
                     </div>
                   ))}
-                  <label className="flex h-full min-h-[92px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[var(--pat-line)] bg-white/50 px-1 text-center text-[0.62rem] font-semibold text-[var(--pat-muted)] transition hover:border-[var(--pat-red)] hover:text-[var(--pat-red)]">
+                  <label className="flex h-full min-h-[92px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-[var(--pat-line)] bg-white/50 px-1 text-center text-[0.68rem] font-semibold text-[var(--pat-muted)] transition hover:border-[var(--pat-red)] hover:text-[var(--pat-red)]">
                     <ImagePlus size={18} />
                     Tải ảnh lên
                     <input type="file" accept="image/*" className="hidden" onChange={uploadCustom} />
@@ -1411,7 +1994,7 @@ function DecorationSheet({
                         className="mx-auto h-16 w-full object-contain"
                         style={entry.flip ? { transform: "scaleX(-1)" } : undefined}
                       />
-                      <span className="mt-1 block truncate text-[0.62rem] font-semibold">{entry.label}</span>
+                      <span className="mt-1 block truncate text-[0.68rem] font-semibold">{entry.label}</span>
                     </button>
                   ))}
                 </div>

@@ -447,9 +447,65 @@ function number(raw: string): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
+export interface GedcomUnsupportedTag {
+  tag: string;
+  label: string;
+  count: number;
+}
+
 export interface GedcomParseResult {
   tree: FamilyTree;
   warnings: string[];
+  stats: {
+    individuals: number;
+    families: number;
+    unsupported: GedcomUnsupportedTag[];
+  };
+}
+
+const UNSUPPORTED_LABELS: Record<string, string> = {
+  OBJE: "ảnh/tệp đính kèm",
+  SOUR: "nguồn trích dẫn",
+  ALIA: "bí danh",
+  ANCI: "liên kết tổ tiên",
+  DESI: "dòng dõi",
+  ASSO: "liên kết người",
+  _UID: "mã định danh",
+  RIN: "mã nội bộ",
+  CHAN: "lịch sử sửa đổi",
+  EMAIL: "email",
+  WWW: "trang web",
+  DIV: "ly hôn",
+  DIVF: "ly hôn (đệ trình)",
+  ENGA: "hứa hôn",
+  MARB: "đăng ký kết hôn",
+  MARC: "kết hôn dân sự",
+  MARL: "giấy phép kết hôn",
+  MARS: "hôn ước",
+  CENS: "điều tra dân số",
+  PROB: "di chúc (xác nhận)",
+  WILL: "di chúc",
+  GRAD: "tốt nghiệp",
+  RETI: "nghỉ hưu",
+  EMIG: "di cư",
+  IMMI: "nhập cư",
+  NATU: "nhập tịch",
+  ADOP: "nhận nuôi",
+  BAPM: "rửa tội",
+  CONF: "thêm sức",
+};
+
+function collectUnsupported(nodes: GNode[]): GedcomUnsupportedTag[] {
+  const counts = new Map<string, number>();
+  for (const node of nodes) {
+    for (const child of node.children) {
+      if (!UNSUPPORTED_LABELS[child.tag]) continue;
+      counts.set(child.tag, (counts.get(child.tag) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([tag, count]) => ({ tag, label: UNSUPPORTED_LABELS[tag], count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 export function parseGedcom(textValue: string, fallbackName = ""): GedcomParseResult {
@@ -687,6 +743,18 @@ export function parseGedcom(textValue: string, fallbackName = ""): GedcomParseRe
     }
   }
 
+  const unsupported = collectUnsupported([...indiNodes, ...famNodes]);
+  if (unsupported.length) {
+    const total = unsupported.reduce((sum, item) => sum + item.count, 0);
+    const detail = unsupported
+      .slice(0, 6)
+      .map((item) => `${item.tag} (${item.label}) ×${item.count}`)
+      .join(", ");
+    warnings.push(
+      `Bỏ qua ${total} trường ngoài mô hình: ${detail}${unsupported.length > 6 ? "…" : ""}. Ghi chú, ảnh đính kèm và nguồn trích dẫn không được chuyển vào gia phả.`,
+    );
+  }
+
   const members = ensurePersonCodes(persons);
   const now = new Date().toISOString();
   const tree: FamilyTree = {
@@ -709,5 +777,13 @@ export function parseGedcom(textValue: string, fallbackName = ""): GedcomParseRe
     sample: false,
   };
 
-  return { tree, warnings };
+  return {
+    tree,
+    warnings,
+    stats: {
+      individuals: indiNodes.length,
+      families: famNodes.length,
+      unsupported,
+    },
+  };
 }

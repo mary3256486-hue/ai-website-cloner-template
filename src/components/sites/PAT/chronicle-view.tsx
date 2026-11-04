@@ -100,7 +100,7 @@ function MemberLine({
         <span className="font-semibold text-[var(--pat-ink)]">{person.name}</span>
         {person.title ? <span className="ml-1.5 text-[0.68rem] text-[#8a6a52]">({person.title})</span> : null}
         {nameAliases(person) ? (
-          <span className="ml-1.5 text-[0.64rem] italic text-[#8a6a52]">{nameAliases(person)}</span>
+          <span className="ml-1.5 text-[0.72rem] italic text-[#8a6a52]">{nameAliases(person)}</span>
         ) : null}
       </span>
       <span className="shrink-0 text-[0.7rem] text-[var(--pat-muted)]">
@@ -412,7 +412,7 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
           <Page>
             <div className="flex min-h-[480px] flex-col items-center justify-center text-center sm:min-h-[560px]">
               {tree.sample ? <Badge tone="red">BẢN MẪU</Badge> : null}
-              <p className="mt-3 text-[0.62rem] font-semibold uppercase tracking-[0.4em] text-[#8a6a52]">
+              <p className="mt-3 text-[0.68rem] font-semibold uppercase tracking-[0.4em] text-[#8a6a52]">
                 Gia phả dòng họ
               </p>
               <h1 className="pat-serif mt-3 text-4xl font-bold leading-tight text-[var(--pat-red)] sm:text-5xl">

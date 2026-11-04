@@ -141,7 +141,7 @@
   --pat-gold: #c9a227;
   --pat-gold-light: #e7ce8b;
   --pat-ink: #3d2a1e;
-  --pat-muted: #8a6a52;
+  --pat-muted: #6f5440;
   --pat-line: #e6d4b4;
   --pat-card: #fffdf7;
 }
@@ -171,6 +171,61 @@
   box-shadow: 0 10px 30px -18px rgba(90, 15, 10, 0.65);
 }
 
+.pat-overline {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pat-red);
+}
+
+.pat-tip {
+  position: relative;
+}
+.pat-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  z-index: 70;
+  transform: translateX(-50%) translateY(-4px);
+  border-radius: 0.45rem;
+  background: #3e3226;
+  padding: 0.3rem 0.55rem;
+  color: #fff7e8;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.pat-tip:hover::after,
+.pat-tip:focus-visible::after {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+.pat-tip-up::after {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.pat-tip-wrap::after {
+  width: max-content;
+  max-width: min(16rem, 72vw);
+  white-space: normal;
+  line-height: 1.35;
+}
+@media (hover: none) {
+  .pat-tip::after {
+    display: none;
+  }
+}
+
+.pat-shell :is(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--pat-gold);
+  outline-offset: 2px;
+}
+
 .pat-card {
   background: var(--pat-card);
   border: 1px solid var(--pat-line);
@@ -198,6 +253,11 @@
 }
 .pat-btn:active {
   transform: translateY(1px);
+}
+@media (max-width: 767px) {
+  .pat-btn {
+    min-height: 2.75rem;
+  }
 }
 .pat-btn-red {
   background-image: linear-gradient(135deg, #9c251c, #7d1712);
@@ -259,9 +319,7 @@
 
 .pat-label {
   display: block;
-  font-size: 0.68rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 0.7rem;
   color: var(--pat-muted);
   font-weight: 600;
   margin-bottom: 0.35rem;

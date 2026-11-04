@@ -40,6 +40,8 @@ import {
 } from "./utils";
 import { exportBackup, exportMembersCsv } from "./export";
 import { exportGedcom } from "./gedcom";
+import { downloadExcelTemplate } from "./import";
+import { ESSENTIAL_HEADERS, MEMBER_COLUMN_COUNT } from "./columns";
 import { TreeShell } from "./app-shell";
 import { Avatar, Badge, EmptyState, Field, Segmented, Sheet, SheetRow, Stat } from "./ui";
 import { MemberFormSheet } from "./member-form-sheet";
@@ -69,6 +71,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
   const [expanded, setExpanded] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [exportScope, setExportScope] = useState<"all" | "clan">("all");
+  const [exportColumns, setExportColumns] = useState<"full" | "essential">("full");
   const [moreOpen, setMoreOpen] = useState(false);
   const [kinOpen, setKinOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -77,11 +81,14 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const doi = Number(params.get("doi"));
-    // Deep links (?doi=, ?nh=) are client-only and applied after mount.
+    // Deep links (?doi=, ?nh=, ?q=, ?add=1) are client-only and applied after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (Number.isFinite(doi) && doi > 0) setGen(doi);
     const nh = params.get("nh");
     if (nh) setBranch(nh);
+    const q = params.get("q");
+    if (q) setQuery(q);
+    if (params.get("add") === "1") setFormOpen(true);
   }, []);
 
   const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
@@ -153,22 +160,24 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="danh-sach-thanh-vien"
       title="Phả hệ"
-      subtitle={`${tree.name} · ${stats.total} hồ sơ`}
+      subtitle={`${tree.name} · ${stats.total} thành viên`}
       actions={
         <>
           <button
             type="button"
             onClick={() => setExportOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
+            className="pat-tip flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
             aria-label="Xuất dữ liệu"
+            data-tip="Xuất dữ liệu"
           >
             <Download size={17} />
           </button>
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
+            className="pat-tip flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
             aria-label="Thêm thao tác"
+            data-tip="Thêm thao tác"
           >
             <MoreHorizontal size={18} />
           </button>
@@ -185,12 +194,12 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       <div className="no-print space-y-4">
         <section className="pat-card px-4 py-3">
           <div className="grid grid-cols-4 divide-x divide-[var(--pat-line)]">
-            <Stat value={stats.total} label="Trong phả đồ" tone="red" />
+            <Stat value={stats.total} label="Trong gia phả" tone="red" />
             <Stat value={stats.male} label="Nam" />
             <Stat value={stats.female} label="Nữ" />
             <Stat
-              value={stats.ancestorTiers ? `${stats.generations}+${stats.ancestorTiers}` : stats.generations}
-              label={stats.ancestorTiers ? "Đời · bậc tổ" : "Đời"}
+              value={`${stats.generations} đời`}
+              label={stats.ancestorTiers ? `+${stats.ancestorTiers} bậc tổ` : "Đời 0 · Khởi Tổ"}
             />
           </div>
         </section>
@@ -214,7 +223,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           >
             <SlidersHorizontal size={17} />
             {activeFilters ? (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--pat-red)] text-[0.55rem] font-bold text-white">
+              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--pat-red)] text-[0.68rem] font-bold text-white">
                 {activeFilters}
               </span>
             ) : null}
@@ -329,7 +338,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                           {ageText(person) ? ` · ${ageText(person)}` : ""}
                           {person.hometown ? ` · ${person.hometown}` : ""}
                         </p>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[0.65rem]">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[0.72rem]">
                           <span className="inline-flex items-center gap-1 rounded-full bg-[#f6e9c8] px-2 py-0.5 font-semibold text-[#7a5a10]">
                             {generationTag(gens.get(person.id) ?? 1)}
                           </span>
@@ -362,7 +371,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                     {expanded ? (
                       <div className="space-y-1.5 border-t border-dashed border-[var(--pat-line)] px-3 py-2.5 text-[0.7rem]">
                         {role === "inLaw" || role === "reference" ? (
-                          <p className="rounded-lg bg-[#fbf3e2] px-2 py-1 text-[0.65rem] leading-relaxed text-[#7a5a10]">
+                          <p className="rounded-lg bg-[#fbf3e2] px-2 py-1 text-[0.72rem] leading-relaxed text-[#7a5a10]">
                             {CLAN_ROLE_HINTS[role]}
                           </p>
                         ) : null}
@@ -623,60 +632,109 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
         open={exportOpen}
         onClose={() => setExportOpen(false)}
         title="Xuất dữ liệu"
-        subtitle="Không cần đăng nhập, tệp tải trực tiếp về máy"
+        subtitle={`${tree.name} · tệp tải trực tiếp, không cần đăng nhập`}
       >
-        <div className="grid gap-1">
-          <SheetRow
-            icon={<FileSpreadsheet size={18} />}
-            title="Xuất Excel (CSV) đầy đủ"
-            subtitle="Toàn bộ 55 cột: Mã, quan hệ, tên cổ, bản đồ, tiểu sử"
-            onClick={() => {
-              exportMembersCsv(tree);
-              setExportOpen(false);
-            }}
-          />
-          <SheetRow
-            icon={<FileSpreadsheet size={18} />}
-            title="Excel cột thiết yếu"
-            subtitle="Mã, họ tên, giới tính, tình trạng, cha mẹ, vợ/chồng, đời"
-            onClick={() => {
-              exportMembersCsv(tree, { essentialOnly: true });
-              setExportOpen(false);
-            }}
-          />
-          <SheetRow
-            icon={<FileText size={18} />}
-            title="Xuất GEDCOM (.ged)"
-            subtitle="Tệp chuẩn 5.5.1 để trao đổi với phần mềm gia phả khác"
-            onClick={() => {
-              exportGedcom(tree);
-              setExportOpen(false);
-            }}
-          />
-          <SheetRow
-            icon={<FileJson size={18} />}
-            title="Sao lưu JSON"
-            subtitle="Tệp đầy đủ để khôi phục hoặc chuyển máy"
-            onClick={() => {
-              exportBackup(tree);
-              setExportOpen(false);
-            }}
-          />
-          <SheetRow
-            icon={<Printer size={18} />}
-            title="In danh sách"
-            subtitle="Mở hộp thoại in, chọn Save as PDF nếu cần"
-            onClick={printList}
-          />
-          <SheetRow
-            icon={<Network size={18} />}
-            title="Xuất phả đồ"
-            subtitle="Thiết kế và in phả đồ khổ lớn"
-            onClick={() => {
-              setExportOpen(false);
-              router.push(`/gia-pha/${tree.id}/ve-pha-do`);
-            }}
-          />
+        <div className="space-y-3">
+          <div className="rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-2.5">
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--pat-muted)]">Phạm vi</p>
+            <div className="mt-1.5">
+              <Segmented<"all" | "clan">
+                value={exportScope}
+                onChange={setExportScope}
+                options={[
+                  { value: "all", label: `Tất cả (${tree.members.length})` },
+                  { value: "clan", label: `Trong dòng họ (${clan.clanIds.size})` },
+                ]}
+              />
+            </div>
+            <p className="mt-1.5 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+              {exportScope === "clan"
+                ? "Chỉ người thuộc dòng họ: Khởi Tổ, con cháu nội tộc và dâu/rể của các đời hiển thị."
+                : "Mọi hồ sơ đang lưu trong gia phả, gồm cả người tham khảo và hồ sơ đã ẩn khỏi phả đồ."}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[var(--pat-line)] bg-white/60 px-3 py-2.5">
+            <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--pat-muted)]">Cột dữ liệu</p>
+            <div className="mt-1.5">
+              <Segmented<"full" | "essential">
+                value={exportColumns}
+                onChange={setExportColumns}
+                options={[
+                  { value: "full", label: `Đầy đủ ${MEMBER_COLUMN_COUNT} cột` },
+                  { value: "essential", label: `Thiết yếu ${ESSENTIAL_HEADERS.length} cột` },
+                ]}
+              />
+            </div>
+            <p className="mt-1.5 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+              {exportColumns === "full"
+                ? "Mã, quan hệ, tên cổ, bản đồ, tiểu sử và toàn bộ trường gia phả."
+                : "Mã, họ tên, giới tính, cha, mẹ — đủ để nhập lại và nối quan hệ."}
+            </p>
+          </div>
+
+          <div className="grid gap-1">
+            <SheetRow
+              icon={<FileSpreadsheet size={18} />}
+              title={`Xuất CSV · ${exportColumns === "full" ? `${MEMBER_COLUMN_COUNT} cột` : `${ESSENTIAL_HEADERS.length} cột thiết yếu`}`}
+              subtitle={`${exportScope === "clan" ? "Trong dòng họ" : "Tất cả thành viên"} · UTF-8 BOM để Excel mở đúng tiếng Việt`}
+              onClick={() => {
+                exportMembersCsv(tree, {
+                  essentialOnly: exportColumns === "essential",
+                  scope: exportScope,
+                });
+                setExportOpen(false);
+              }}
+            />
+            <SheetRow
+              icon={<FileSpreadsheet size={18} />}
+              title={`Excel mẫu ${MEMBER_COLUMN_COUNT} cột kèm dữ liệu`}
+              subtitle="Đối chiếu rồi nhập lại dưới dạng cập nhật"
+              onClick={() => {
+                downloadExcelTemplate(tree);
+                setExportOpen(false);
+              }}
+            />
+            <SheetRow
+              icon={<FileText size={18} />}
+              title="Xuất GEDCOM (.ged)"
+              subtitle="Tệp chuẩn 5.5.1 để trao đổi với phần mềm gia phả khác"
+              onClick={() => {
+                exportGedcom(tree);
+                setExportOpen(false);
+              }}
+            />
+            <SheetRow
+              icon={<FileJson size={18} />}
+              title="Sao lưu JSON"
+              subtitle="Tệp đầy đủ để khôi phục hoặc chuyển máy"
+              onClick={() => {
+                exportBackup(tree);
+                setExportOpen(false);
+              }}
+            />
+            <SheetRow
+              icon={<Printer size={18} />}
+              title="In danh sách"
+              subtitle="Mở hộp thoại in, chọn Save as PDF nếu cần"
+              onClick={printList}
+            />
+            <SheetRow
+              icon={<Network size={18} />}
+              title="Xuất phả đồ"
+              subtitle="Thiết kế và in phả đồ khổ lớn"
+              onClick={() => {
+                setExportOpen(false);
+                router.push(`/gia-pha/${tree.id}/ve-pha-do`);
+              }}
+            />
+          </div>
+
+          <p className="flex items-start gap-1.5 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+            <Info size={13} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
+            Tệp CSV có BOM nên Excel nhận đúng dấu tiếng Việt. GEDCOM và JSON dùng để chuyển sang ứng dụng khác hoặc sao
+            lưu toàn bộ.
+          </p>
         </div>
       </Sheet>
 
@@ -701,7 +759,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
           />
           <SheetRow
             icon={<Network size={18} />}
-            title="Xem cây phả hệ"
+            title="Xem cây gia phả"
             onClick={() => {
               setMoreOpen(false);
               router.push(`/gia-pha/${tree.id}/chinh-sua-voi-cay-gia-pha`);

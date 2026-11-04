@@ -5,8 +5,13 @@ import { useRef } from "react";
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
+  ArrowDown,
+  ArrowUp,
+  Copy,
   Frame,
   ImagePlus,
+  Lock,
+  LockOpen,
   Minus,
   MoveHorizontal,
   Palette,
@@ -20,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { Avatar, Badge, Field, Segmented } from "./ui";
+import { lifeSpan } from "./utils";
 import type {
   BackgroundImageSettings,
   BannerSettings,
@@ -66,9 +72,9 @@ export function InspectorHeader({
   return (
     <div className="flex items-start gap-2 border-b border-[var(--pat-line)] px-3.5 py-3">
       <div className="min-w-0 flex-1">
-        <p className="text-[0.58rem] font-bold uppercase tracking-[0.18em] text-[var(--pat-muted)]">{eyebrow}</p>
+        <p className="text-[0.68rem] font-bold uppercase tracking-[0.18em] text-[var(--pat-muted)]">{eyebrow}</p>
         <p className="pat-serif mt-0.5 truncate text-base font-semibold text-[var(--pat-red)]">{title}</p>
-        {subtitle ? <p className="mt-0.5 text-[0.66rem] text-[var(--pat-muted)]">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-0.5 text-[0.72rem] text-[var(--pat-muted)]">{subtitle}</p> : null}
       </div>
       {onClose ? (
         <button
@@ -98,11 +104,11 @@ function Section({
   return (
     <section className="space-y-2.5 border-b border-[var(--pat-line)]/70 px-3.5 py-3.5 last:border-b-0">
       <div>
-        <p className="flex items-center gap-1.5 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-[var(--pat-red)]">
+        <p className="flex items-center gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.14em] text-[var(--pat-red)]">
           {icon}
           {title}
         </p>
-        {hint ? <p className="mt-1 text-[0.64rem] leading-relaxed text-[var(--pat-muted)]">{hint}</p> : null}
+        {hint ? <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">{hint}</p> : null}
       </div>
       {children}
     </section>
@@ -172,7 +178,7 @@ function ToggleRow({
     <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg px-0.5 py-1">
       <span className="min-w-0">
         <span className="block text-[0.74rem] font-semibold">{label}</span>
-        {hint ? <span className="block text-[0.62rem] leading-snug text-[var(--pat-muted)]">{hint}</span> : null}
+        {hint ? <span className="block text-[0.68rem] leading-snug text-[var(--pat-muted)]">{hint}</span> : null}
       </span>
       <input
         type="checkbox"
@@ -204,7 +210,7 @@ function ColorField({
           onChange={(event) => onChange(event.target.value)}
           className="h-8 w-11 cursor-pointer rounded-md border border-[var(--pat-line)] bg-white p-0.5"
         />
-        <span className="flex-1 font-mono text-[0.65rem] uppercase text-[var(--pat-muted)]">
+        <span className="flex-1 font-mono text-[0.72rem] uppercase text-[var(--pat-muted)]">
           {value || "Tự động"}
         </span>
         {value ? (
@@ -255,7 +261,7 @@ function ImagePicker({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex h-10 items-center gap-1 rounded-md border border-dashed border-[var(--pat-line)] px-2 text-[0.62rem] font-semibold text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
+          className="flex h-10 items-center gap-1 rounded-md border border-dashed border-[var(--pat-line)] px-2 text-[0.68rem] font-semibold text-[var(--pat-muted)] transition hover:text-[var(--pat-red)]"
         >
           <ImagePlus size={12} /> Tải lên
         </button>
@@ -397,7 +403,7 @@ function BackgroundSection({
           <button
             key={option.value}
             type="button"
-            className="pat-chip text-[0.65rem]"
+            className="pat-chip text-[0.72rem]"
             data-active={pattern === option.value}
             onClick={() => onChange({ background: option.value })}
           >
@@ -537,7 +543,7 @@ export function WholeDiagramInspector({
             <button
               key={size}
               type="button"
-              className="pat-chip justify-center px-1 text-[0.65rem]"
+              className="pat-chip justify-center px-1 text-[0.72rem]"
               data-active={preset === size}
               onClick={() => onDesign({ paper: size as DesignSettings["paper"], customPaper: null })}
             >
@@ -765,7 +771,7 @@ export function WholeDiagramInspector({
             hint="Viền dày hơn sẽ tự thu lề để nội dung không đè lên hoa văn."
           />
         ) : null}
-        <p className="text-[0.64rem] leading-relaxed text-[var(--pat-muted)]">
+        <p className="text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
           Khung chỉ đổi cách trình bày, nội dung và dữ liệu thành viên giữ nguyên.
         </p>
       </Section>
@@ -788,6 +794,7 @@ export function GenerationInspector({
   count,
   resolved,
   extraFields,
+  sample,
   onStyle,
   onReset,
   onClose,
@@ -807,6 +814,7 @@ export function GenerationInspector({
     cardColor?: string;
   };
   extraFields: ExtraFieldKey[];
+  sample?: Person;
   onStyle: (patch: Partial<GenerationStyle>) => void;
   onReset: () => void;
   onClose?: () => void;
@@ -828,6 +836,31 @@ export function GenerationInspector({
       />
 
       <Section title="Kiểu thẻ" icon={<Settings2 size={13} />}>
+        {sample ? (
+          <div className="rounded-xl border border-[var(--pat-line)] p-3" style={{ background: resolved.cardColor || "#fff9e4" }}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                {resolved.showTitle ? (
+                  <p className="truncate uppercase tracking-wide opacity-60" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(7, resolved.fontSize * 0.72) }}>
+                    {generationTag(generation)}
+                  </p>
+                ) : null}
+                {resolved.showName ? (
+                  <p className="truncate font-semibold" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(9, resolved.fontSize) }}>
+                    {sample.name}
+                  </p>
+                ) : null}
+                {resolved.showDates ? (
+                  <p className="truncate opacity-70" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(7, resolved.fontSize * 0.78) }}>
+                    {lifeSpan(sample)}
+                  </p>
+                ) : null}
+              </div>
+              {resolved.showAvatar ? <Avatar person={sample} size={28} /> : null}
+            </div>
+            <p className="mt-2 text-[0.62rem] text-[var(--pat-muted)]">Thẻ mẫu cập nhật ngay khi chỉnh bên dưới.</p>
+          </div>
+        ) : null}
         <Segmented<CardOrientation>
           value={resolved.orientation}
           onChange={(orientation) => onStyle({ orientation })}
@@ -874,7 +907,7 @@ export function GenerationInspector({
             <button
               key={key}
               type="button"
-              className="pat-chip text-[0.65rem]"
+              className="pat-chip text-[0.72rem]"
               data-active={extraFields.includes(key)}
               onClick={() => toggleExtra(key)}
             >
@@ -948,6 +981,7 @@ export function PersonInspector({
   onApplyBranch,
   onResetPosition,
   onStyle,
+  onResetStyle,
   onEdit,
   onFocus,
   onClose,
@@ -961,6 +995,7 @@ export function PersonInspector({
   onApplyBranch: () => void;
   onResetPosition: () => void;
   onStyle: (patch: Partial<PersonStyle>) => void;
+  onResetStyle?: () => void;
   onEdit: () => void;
   onFocus: () => void;
   onClose?: () => void;
@@ -978,7 +1013,7 @@ export function PersonInspector({
         <Avatar person={member} size={46} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{member.name}</p>
-          <p className="truncate text-[0.65rem] text-[var(--pat-muted)]">
+          <p className="truncate text-[0.72rem] text-[var(--pat-muted)]">
             {member.birthDate || "?"} — {member.alive ? "nay" : member.deathDate || "?"}
           </p>
         </div>
@@ -994,7 +1029,7 @@ export function PersonInspector({
             <MoveHorizontal size={13} /> Đưa vào giữa
           </button>
         </div>
-        <p className="text-[0.64rem] leading-relaxed text-[var(--pat-muted)]">
+        <p className="text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
           Tên, năm sinh/mất và ảnh sửa ở hồ sơ; màu và vị trí bên dưới chỉ đổi cách trình bày.
         </p>
       </Section>
@@ -1046,6 +1081,11 @@ export function PersonInspector({
           fallback="#c9a227"
           onChange={(lineColor) => onStyle({ lineColor })}
         />
+        {onResetStyle ? (
+          <button type="button" onClick={onResetStyle} className="pat-btn pat-btn-outline h-9 w-full text-[0.68rem]">
+            <RotateCcw size={12} /> Khôi phục kiểu mặc định
+          </button>
+        ) : null}
       </Section>
     </div>
   );
@@ -1056,12 +1096,22 @@ export function DecorationInspector({
   onUpdate,
   onDelete,
   onScale,
+  onDuplicate,
+  onToggleLock,
+  onLayer,
+  canMoveUp,
+  canMoveDown,
   onClose,
 }: {
   decoration: Decoration;
   onUpdate: (decoration: Decoration) => void;
   onDelete: () => void;
   onScale: (factor: number) => void;
+  onDuplicate?: () => void;
+  onToggleLock?: () => void;
+  onLayer?: (direction: "up" | "down") => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   onClose?: () => void;
 }) {
   const isText = decoration.type === "text";
@@ -1153,6 +1203,47 @@ export function DecorationInspector({
             <Plus size={13} /> Phóng to
           </button>
         </div>
+        {onDuplicate || onToggleLock ? (
+          <div className="grid grid-cols-2 gap-2">
+            {onDuplicate ? (
+              <button type="button" onClick={onDuplicate} className="pat-btn pat-btn-outline h-9 text-xs">
+                <Copy size={13} /> Nhân bản
+              </button>
+            ) : null}
+            {onToggleLock ? (
+              <button
+                type="button"
+                onClick={onToggleLock}
+                className="pat-btn pat-btn-outline h-9 text-xs"
+                aria-pressed={decoration.locked === true}
+              >
+                {decoration.locked ? <LockOpen size={13} /> : <Lock size={13} />}
+                {decoration.locked ? "Mở khoá" : "Khoá vị trí"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {onLayer ? (
+          <div className="flex items-center gap-2">
+            <span className="text-[0.68rem] text-[var(--pat-muted)]">Thứ tự lớp</span>
+            <button
+              type="button"
+              onClick={() => onLayer("down")}
+              disabled={!canMoveDown}
+              className="pat-btn pat-btn-outline h-8 flex-1 text-[0.68rem] disabled:opacity-40"
+            >
+              <ArrowDown size={12} /> Xuống dưới
+            </button>
+            <button
+              type="button"
+              onClick={() => onLayer("up")}
+              disabled={!canMoveUp}
+              className="pat-btn pat-btn-outline h-8 flex-1 text-[0.68rem] disabled:opacity-40"
+            >
+              <ArrowUp size={12} /> Lên trên
+            </button>
+          </div>
+        ) : null}
         {!isText ? (
           <ToggleRow
             label="Lật ngang"

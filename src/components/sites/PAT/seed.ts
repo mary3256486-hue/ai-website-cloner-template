@@ -260,9 +260,9 @@ export function createDemoTree(): FamilyTree {
   const members = buildPeople();
   const nameOf = (id: string | undefined) => members.find((m) => m.id === id)?.name ?? "";
   const branches: Branch[] = [
-    { id: "b1", name: "Chi trưởng", description: `Dòng trưởng, con cháu cụ ${nameOf("p04")}`, headId: "p04", color: "#8a1c15" },
-    { id: "b2", name: "Chi thứ", description: `Con cháu cụ ${nameOf("p06")}`, headId: "p06", color: "#b7791f" },
-    { id: "b3", name: "Chi ba", description: `Con cháu cụ ${nameOf("p08")}`, headId: "p08", color: "#2f6f5e" },
+    { id: "b1", name: "Chi trưởng", code: "C1", description: `Dòng trưởng, con cháu cụ ${nameOf("p04")}`, headId: "p04", color: "#8a1c15" },
+    { id: "b2", name: "Chi thứ", code: "C2", description: `Con cháu cụ ${nameOf("p06")}`, headId: "p06", color: "#b7791f" },
+    { id: "b3", name: "Chi ba", code: "C3", description: `Con cháu cụ ${nameOf("p08")}`, headId: "p08", color: "#2f6f5e" },
   ];
   assignBranches(members, branches, "p00");
   const now = new Date().toISOString();

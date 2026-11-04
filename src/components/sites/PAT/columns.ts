@@ -119,6 +119,8 @@ export const MEMBER_COLUMNS: MemberColumn[] = [
 ];
 
 export const MEMBER_HEADERS = MEMBER_COLUMNS.map((column) => column.header);
+export const MEMBER_COLUMN_COUNT = MEMBER_COLUMNS.length;
+export const TEMPLATE_VERSION = "3.1";
 
 /** Cột tối giản dùng khi người dùng chọn “chỉ cột thiết yếu”. */
 export const ESSENTIAL_HEADERS = MEMBER_COLUMNS.filter((column) => column.essential).map(

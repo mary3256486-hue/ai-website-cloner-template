@@ -29,6 +29,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     counts.set(generation, (counts.get(generation) ?? 0) + 1);
   }
   const inset = tuning.frameStyle === "meander" ? Math.round(88 * tuning.frameScale) : 0;
+  const cardScale = tuning.cardScale ?? 1;
   const marginTop = tuning.marginTop + inset;
   const marginBottom = tuning.marginBottom + inset;
   const marginLeft = tuning.marginLeft + inset;
@@ -70,7 +71,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
 
   const measure = (person: Person): Measure => {
     const generation = generations.get(person.id) ?? 1;
-    const { width: cardW } = cardDimsFor(tree.design, generation, counts.get(generation));
+    const { width: cardW } = cardDimsFor(tree.design, generation, counts.get(generation), cardScale);
     const spouses = orderedSpouses(person, tree.members).filter((spouse) =>
       isUnitSpouse(person, spouse),
     );
@@ -90,7 +91,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   let rowCursor = marginTop;
   for (const generation of generationKeys) {
     rowTop.set(generation, rowCursor);
-    rowCursor += cardDimsFor(tree.design, generation, counts.get(generation)).height + tuning.generationGap;
+    rowCursor += cardDimsFor(tree.design, generation, counts.get(generation), cardScale).height + tuning.generationGap;
   }
 
   const place = (m: Measure, left: number) => {
@@ -100,6 +101,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
       tree.design,
       generation,
       counts.get(generation),
+      cardScale,
     );
     const y = rowTop.get(generation) ?? marginTop;
     const add = (person: Person, x: number, isSpouse: boolean) => {
