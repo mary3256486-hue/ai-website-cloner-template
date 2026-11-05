@@ -32,8 +32,40 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const cardScale = tuning.cardScale ?? 1;
   const marginTop = tuning.marginTop + inset;
   const marginBottom = tuning.marginBottom + inset;
-  const marginLeft = tuning.marginLeft + inset;
-  const marginRight = tuning.marginRight + inset;
+  const ancestorTitles = new Map<number, string[]>();
+  for (const member of tree.members) {
+    if (!clan.isDisplayed(member.id)) continue;
+    const generation = generations.get(member.id);
+    if (generation === undefined || generation >= 0) continue;
+    const title = member.title?.trim();
+    if (!title) continue;
+    const list = ancestorTitles.get(generation) ?? [];
+    if (!list.includes(title)) list.push(title);
+    ancestorTitles.set(generation, list);
+  }
+  const rowLabel = (generation: number) => {
+    if (generation < 0) {
+      const titles = ancestorTitles.get(generation) ?? [];
+      return titles.length
+        ? titles.slice(0, 2).join(" · ").toLocaleUpperCase("vi")
+        : ancestorLabelFor(tuning.generationBandLabel, -generation);
+    }
+    return bandLabelFor(tuning.generationBandLabel, generation);
+  };
+  const bandPillWidth = (label: string) => Math.max(86, Math.min(160, label.length * 5.4 + 18));
+  // Dải đời nằm sát mép trái/phải; chừa vùng này để thẻ không bao giờ đè lên nhãn đời.
+  const bandGutter = tree.design.showGenerationLabels
+    ? Math.round(
+        34 +
+          Array.from(counts.keys()).reduce(
+            (max, generation) => Math.max(max, bandPillWidth(rowLabel(generation))),
+            0,
+          ) +
+          12,
+      )
+    : 0;
+  const marginLeft = Math.max(tuning.marginLeft + inset, bandGutter);
+  const marginRight = Math.max(tuning.marginRight + inset, bandGutter);
   const orderSiblings = (list: Person[]) =>
     tuning.siblingOrder === "desc" ? [...list].reverse() : list;
 
@@ -91,7 +123,9 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   let rowCursor = marginTop;
   for (const generation of generationKeys) {
     rowTop.set(generation, rowCursor);
-    rowCursor += cardDimsFor(tree.design, generation, counts.get(generation), cardScale).height + tuning.generationGap;
+    rowCursor +=
+      cardDimsFor(tree.design, generation, counts.get(generation), cardScale).height +
+      Math.max(tuning.generationGap, 36);
   }
 
   const place = (m: Measure, left: number) => {
@@ -120,8 +154,10 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
         unitId: m.person.id,
       });
     };
-    add(m.person, unitLeft, false);
-    m.spouses.forEach((spouse, i) => add(spouse, unitLeft + (i + 1) * (cardW + SPOUSE_GAP), true));
+    const sequence = unitSequence(m.person, m.spouses);
+    sequence.forEach((person, i) =>
+      add(person, unitLeft + i * (cardW + SPOUSE_GAP), person.id !== m.person.id),
+    );
 
     if (m.children.length === 0) return;
 
@@ -134,7 +170,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
       list.push(child);
       byMother.set(key, list);
     }
-    const order = [m.person.id, ...m.spouses.map((s) => s.id)];
+    const order = sequence.map((person) => person.id);
     const clusters = order
       .filter((key) => byMother.has(key))
       .map((key) => {
@@ -194,34 +230,69 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     };
   }
 
+  // Áp vị trí đã lưu theo cả cụm vợ/chồng: một thẻ lệch thì cả cụm dịch theo,
+  // tránh trường hợp dữ liệu cũ làm vợ/chồng chồng lên nhau. Chỉ nhận trục x
+  // vì thẻ chỉ được di chuyển ngang, và giữ nguyên hàng đời để không đè nhãn đời.
+  const units = new Map<string, TreeNode[]>();
   for (const node of nodes) {
-    const override = tree.positions[node.id];
-    if (override) {
-      node.x = override.x;
-      node.y = override.y;
+    const list = units.get(node.unitId) ?? [];
+    list.push(node);
+    units.set(node.unitId, list);
+  }
+  for (const [unitId, members] of units) {
+    const owner = members.find((member) => member.id === unitId) ?? members[0];
+    const ownerOverride = tree.positions[owner.id];
+    let shift: number | undefined;
+    if (ownerOverride) {
+      shift = ownerOverride.x - owner.x;
+    } else {
+      for (const member of members) {
+        const override = tree.positions[member.id];
+        if (!override) continue;
+        shift = override.x - member.x;
+        break;
+      }
+    }
+    if (shift === undefined || !Number.isFinite(shift)) continue;
+    for (const member of members) member.x += shift;
+  }
+
+  // Vị trí đã lưu từ bản cũ có thể để hai cụm cùng đời chồng nhau; xếp lại theo
+  // thứ tự ngang và giữ khoảng hở tối thiểu để không chèn vào cụm khác.
+  const overriddenGenerations = new Set<number>();
+  for (const node of nodes) {
+    if (tree.positions[node.id]) overriddenGenerations.add(node.generation);
+  }
+  for (const generation of overriddenGenerations) {
+    const rows = Array.from(units.values())
+      .filter((members) => members[0]?.generation === generation)
+      .map((members) => ({
+        members,
+        left: Math.min(...members.map((member) => member.x)),
+        right: Math.max(...members.map((member) => member.x + member.width)),
+      }))
+      .sort((a, b) => a.left - b.left);
+    let cursor = bandGutter;
+    for (const row of rows) {
+      const target = Math.max(row.left, cursor);
+      const adjust = target - row.left;
+      if (adjust > 0) {
+        for (const member of row.members) member.x += adjust;
+      }
+      cursor = row.right + adjust + 12;
+    }
+  }
+  if (bandGutter > 0) {
+    const minX = Math.min(...nodes.map((node) => node.x));
+    if (minX < bandGutter) {
+      const adjust = bandGutter - minX;
+      for (const node of nodes) node.x += adjust;
     }
   }
 
-  const edges = buildEdges(nodes, clan);
-  const ancestorTitles = new Map<number, string[]>();
-  for (const member of tree.members) {
-    if (!clan.isDisplayed(member.id)) continue;
-    const generation = generations.get(member.id);
-    if (generation === undefined || generation >= 0) continue;
-    const title = member.title?.trim();
-    if (!title) continue;
-    const list = ancestorTitles.get(generation) ?? [];
-    if (!list.includes(title)) list.push(title);
-    ancestorTitles.set(generation, list);
-  }
+  const edges = buildEdges(nodes, clan, tuning);
   const genRows = generationKeys.map((generation) => {
-    const titles = ancestorTitles.get(generation) ?? [];
-    const label =
-      generation < 0
-        ? titles.length
-          ? titles.slice(0, 2).join(" · ").toLocaleUpperCase("vi")
-          : ancestorLabelFor(tuning.generationBandLabel, -generation)
-        : bandLabelFor(tuning.generationBandLabel, generation);
+    const label = rowLabel(generation);
     return {
       generation,
       count: nodes.filter((n) => n.generation === generation).length,
@@ -241,7 +312,11 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   };
 }
 
-function buildEdges(nodes: TreeNode[], clan: ClanIndex): TreeEdge[] {
+function buildEdges(
+  nodes: TreeNode[],
+  clan: ClanIndex,
+  tuning: ReturnType<typeof normalizeTuning>,
+): TreeEdge[] {
   const edges: TreeEdge[] = [];
   const lineParent = clan.lineParent;
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
@@ -340,87 +415,74 @@ function buildEdges(nodes: TreeNode[], clan: ClanIndex): TreeEdge[] {
     if (!parentNode) continue;
     const unit = units.get(parentNode.unitId) ?? [parentNode];
     const unitById = new Map(unit.map((n) => [n.id, n]));
-    const byMother = new Map<string, TreeNode[]>();
-    for (const kid of kids) {
-      const motherId = kid.person.motherId;
-      const key = motherId && unitById.has(motherId) ? motherId : parentId;
-      const list = byMother.get(key) ?? [];
-      list.push(kid);
-      byMother.set(key, list);
-    }
-    const unitOrder = [...unit].sort((a, b) => a.x - b.x).map((n) => n.id);
-    const groups = [...byMother.entries()].sort(
-      (a, b) => unitOrder.indexOf(a[0]) - unitOrder.indexOf(b[0]),
-    );
+    const fatherNode =
+      parentNode.person.gender === "male"
+        ? parentNode
+        : (unit.find((n) => n.person.gender === "male") ?? parentNode);
+    const sorted = [...kids].sort((a, b) => a.x - b.x);
+    const startX = fatherNode.x + fatherNode.width / 2;
+    const startY = fatherNode.y + fatherNode.height;
+    const minTop = Math.min(...sorted.map((n) => n.y));
+    const midY = startY + Math.max(18, (minTop - startY) / 2);
+    const centers = sorted.map((n) => n.x + n.width / 2);
+    const siblingGeneration = sorted[0].generation;
 
-    for (const [key, members] of groups) {
-      const startNode = unitById.get(key) ?? parentNode;
-      const startX = startNode.x + startNode.width / 2;
-      const startY = startNode.y + startNode.height;
-      const sorted = [...members].sort((a, b) => a.x - b.x);
-
-      if (sorted.length === 1) {
-        const node = sorted[0];
-        const endX = node.x + node.width / 2;
-        const endY = node.y;
-        const midY = startY + Math.max(18, (endY - startY) / 2);
-        const groupId = `ch-${parentId}-${node.id}`;
-        if (Math.abs(startX - endX) < 1) {
-          edges.push({
-            id: `${groupId}-v`,
-            type: "child",
-            x1: startX,
-            y1: startY,
-            x2: endX,
-            y2: endY,
-            generation: node.generation,
-            subjectId: node.id,
-            maternal: node.maternal,
-          });
-        } else {
-          edges.push({
-            id: `${groupId}-a`,
-            type: "child",
-            x1: startX,
-            y1: startY,
-            x2: startX,
-            y2: midY,
-            generation: node.generation,
-            subjectId: node.id,
-            maternal: node.maternal,
-          });
-          edges.push({
-            id: `${groupId}-b`,
-            type: "child",
-            x1: startX,
-            y1: midY,
-            x2: endX,
-            y2: midY,
-            generation: node.generation,
-            subjectId: node.id,
-            maternal: node.maternal,
-          });
-          edges.push({
-            id: `${groupId}-c`,
-            type: "child",
-            x1: endX,
-            y1: midY,
-            x2: endX,
-            y2: endY,
-            generation: node.generation,
-            subjectId: node.id,
-            maternal: node.maternal,
-          });
-        }
-        continue;
+    if (sorted.length === 1) {
+      const node = sorted[0];
+      const endX = node.x + node.width / 2;
+      const groupId = `ch-${parentId}-${node.id}`;
+      if (Math.abs(startX - endX) < 1) {
+        edges.push({
+          id: `${groupId}-v`,
+          type: "child",
+          x1: startX,
+          y1: startY,
+          x2: endX,
+          y2: node.y,
+          generation: node.generation,
+          subjectId: node.id,
+          maternal: node.maternal,
+        });
+      } else {
+        edges.push({
+          id: `${groupId}-a`,
+          type: "child",
+          x1: startX,
+          y1: startY,
+          x2: startX,
+          y2: midY,
+          generation: node.generation,
+          subjectId: node.id,
+          maternal: node.maternal,
+        });
+        edges.push({
+          id: `${groupId}-b`,
+          type: "child",
+          x1: startX,
+          y1: midY,
+          x2: endX,
+          y2: midY,
+          generation: node.generation,
+          subjectId: node.id,
+          maternal: node.maternal,
+        });
+        edges.push({
+          id: `${groupId}-c`,
+          type: "child",
+          x1: endX,
+          y1: midY,
+          x2: endX,
+          y2: node.y,
+          generation: node.generation,
+          subjectId: node.id,
+          maternal: node.maternal,
+        });
       }
-
-      const minTop = Math.min(...sorted.map((n) => n.y));
-      const midY = startY + Math.max(18, (minTop - startY) / 2);
-      const centers = sorted.map((n) => n.x + n.width / 2);
-      const siblingGeneration = sorted[0].generation;
+    } else {
+      const barMin = Math.min(startX, ...centers);
+      const barMax = Math.max(startX, ...centers);
       edges.push({
-        id: `ch-${parentId}-${key}-trunk`,
+        id: `ch-${parentId}-trunk`,
         type: "child",
         x1: startX,
         y1: startY,
@@ -429,11 +491,11 @@ function buildEdges(nodes: TreeNode[], clan: ClanIndex): TreeEdge[] {
         generation: siblingGeneration,
       });
       edges.push({
-        id: `ch-${parentId}-${sorted[0].id}-bar`,
+        id: `ch-${parentId}-bar`,
         type: "child",
-        x1: centers[0],
+        x1: barMin,
         y1: midY,
-        x2: centers[centers.length - 1],
+        x2: barMax,
         y2: midY,
         generation: siblingGeneration,
       });
@@ -452,6 +514,69 @@ function buildEdges(nodes: TreeNode[], clan: ClanIndex): TreeEdge[] {
         });
       }
     }
+
+    if (!tuning.motherLine) continue;
+    const byMother = new Map<TreeNode, TreeNode[]>();
+    for (const node of sorted) {
+      const motherId = node.person.motherId;
+      const mother = motherId ? unitById.get(motherId) : undefined;
+      if (!mother || mother.id === fatherNode.id) continue;
+      const list = byMother.get(mother) ?? [];
+      list.push(node);
+      byMother.set(mother, list);
+    }
+    if (byMother.size === 0) continue;
+    const secondaryY = midY + Math.max(14, tuning.connectorWidth * 6);
+    for (const [mother, members] of byMother) {
+      const motherX = mother.x + mother.width / 2;
+      const motherY = mother.y + mother.height;
+      if (motherY >= secondaryY - 4) continue;
+      const drops = members.map((n) => n.x + n.width / 2 + 8);
+      const barMin = Math.min(motherX, ...drops);
+      const barMax = Math.max(motherX, ...drops);
+      const base = {
+        type: "child" as const,
+        generation: members[0].generation,
+        fromId: mother.id,
+        secondary: true,
+      };
+      edges.push({
+        ...base,
+        id: `sm-${mother.id}-trunk`,
+        x1: motherX,
+        y1: motherY,
+        x2: motherX,
+        y2: secondaryY,
+      });
+      edges.push({
+        ...base,
+        id: `sm-${mother.id}-bar`,
+        x1: barMin,
+        y1: secondaryY,
+        x2: barMax,
+        y2: secondaryY,
+      });
+      for (const node of members) {
+        const endX = node.x + node.width / 2 + 8;
+        edges.push({
+          ...base,
+          id: `sm-${mother.id}-${node.id}-d`,
+          x1: endX,
+          y1: secondaryY,
+          x2: endX,
+          y2: node.y,
+          subjectId: node.id,
+          generation: node.generation,
+        });
+      }
+    }
   }
   return edges;
+}
+
+function unitSequence(person: Person, spouses: Person[]): Person[] {
+  if (person.gender === "female") return [person, ...spouses];
+  const wives = spouses.filter((spouse) => spouse.gender === "female");
+  const rest = spouses.filter((spouse) => spouse.gender !== "female");
+  return [...wives.reverse(), person, ...rest];
 }

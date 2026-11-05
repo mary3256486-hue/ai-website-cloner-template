@@ -670,6 +670,12 @@ export function WholeDiagramInspector({
           onChange={(connectorDash) => onTuning({ connectorDash })}
         />
         <ToggleRow
+          label="Đường nối mẹ đến con"
+          hint="Nét đứt mảnh từ mẹ tới từng con, chạy song song nét chính từ cha."
+          checked={tuning.motherLine}
+          onChange={(motherLine) => onTuning({ motherLine })}
+        />
+        <ToggleRow
           label="Tô màu nét theo mức"
           hint="Mỗi đời một màu để dễ nhìn các nhánh chồng nhau. Màu đặt riêng cho một người được ưu tiên."
           checked={tuning.tintByLevel}
@@ -795,8 +801,10 @@ export function GenerationInspector({
   resolved,
   extraFields,
   sample,
+  members,
   onStyle,
   onReset,
+  onEditMember,
   onClose,
 }: {
   generation: number;
@@ -815,8 +823,10 @@ export function GenerationInspector({
   };
   extraFields: ExtraFieldKey[];
   sample?: Person;
+  members: Person[];
   onStyle: (patch: Partial<GenerationStyle>) => void;
   onReset: () => void;
+  onEditMember: (member: Person) => void;
   onClose?: () => void;
 }) {
   const toggleExtra = (key: ExtraFieldKey) => {
@@ -834,6 +844,36 @@ export function GenerationInspector({
         subtitle={`${count} thành viên · thay đổi áp dụng cho cả ${generation < 0 ? "bậc" : "đời"}`}
         onClose={onClose}
       />
+
+      <Section
+        title="Thẻ trong đời này"
+        icon={<PencilLine size={13} />}
+        hint="Bấm Sửa để chỉnh hồ sơ của từng thành viên."
+      >
+        <div className="max-h-60 space-y-1.5 overflow-auto pr-1">
+          {members.map((member) => (
+            <div
+              key={member.id}
+              className="flex items-center gap-2 rounded-lg border border-[var(--pat-line)]/70 bg-white/60 px-2 py-1.5"
+            >
+              <Avatar person={member} size={24} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium">{member.name}</p>
+                <p className="truncate text-[0.66rem] text-[var(--pat-muted)]">
+                  {member.title || generationTag(generation)} · {lifeSpan(member)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onEditMember(member)}
+                className="pat-btn pat-btn-outline h-7 px-2 text-[0.66rem]"
+              >
+                <PencilLine size={11} /> Sửa
+              </button>
+            </div>
+          ))}
+        </div>
+      </Section>
 
       <Section title="Kiểu thẻ" icon={<Settings2 size={13} />}>
         {sample ? (

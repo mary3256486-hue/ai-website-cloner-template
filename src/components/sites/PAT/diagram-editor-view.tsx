@@ -123,7 +123,43 @@ interface DragState {
   origW?: number;
   origH?: number;
   aspect?: number;
+  unitId?: string;
+  unitBase?: Record<string, number>;
+  unitMinLeft?: number;
+  unitMaxLeft?: number;
   snapshot: Positions;
+}
+
+const MIN_UNIT_GAP = 16;
+
+/**
+ * Khoảng x mà cụm thẻ được phép dịch: không vượt qua cụm kế bên trong cùng
+ * đời (giữ nguyên thứ tự gia đình) và không vượt biên bản vẽ.
+ */
+function unitDragRange(
+  layout: ReturnType<typeof computeLayout>,
+  node: TreeNode,
+  bandLeft: number,
+) {
+  const unit = layout.nodes.filter((entry) => entry.unitId === node.unitId);
+  const left = Math.min(...unit.map((entry) => entry.x));
+  const right = Math.max(...unit.map((entry) => entry.x + entry.width));
+  const width = right - left;
+  const hardMax = Math.max(bandLeft, layout.width - bandLeft - width);
+  let lower = bandLeft;
+  let upper = hardMax;
+  for (const entry of layout.nodes) {
+    if (entry.generation !== node.generation || entry.unitId === node.unitId) continue;
+    if (entry.x + entry.width <= left + 0.5) {
+      lower = Math.max(lower, entry.x + entry.width + MIN_UNIT_GAP);
+    } else if (entry.x >= right - 0.5) {
+      upper = Math.min(upper, entry.x - MIN_UNIT_GAP - width);
+    }
+  }
+  return {
+    minLeft: Math.min(left, Math.max(bandLeft, lower)),
+    maxLeft: Math.max(left, Math.min(hardMax, upper)),
+  };
 }
 
 function descendantIds(rootId: string, members: Person[]) {
@@ -169,14 +205,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const [panning, setPanning] = useState(false);
   const movedRef = useRef(false);
-  const zoomInitializedRef = useRef(false);
   const [fitScale, setFitScale] = useState(0.2);
   const [zoom, setZoom] = useState(1);
   const scale = Math.min(4, Math.max(0.02, fitScale * zoom));
-  const [genFilter, setGenFilter] = useState<Set<number>>(() => {
-    const gens = computeGenerations(tree.members, tree.founderId);
-    return new Set(Array.from(gens.values()));
-  });
   const [query, setQuery] = useState("");
   const [focusId, setFocusId] = useState<string | null>(null);
   const [sideOpen, setSideOpen] = useState(false);
@@ -191,7 +222,6 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [sideCollapsed, setSideCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-  const [exportScope, setExportScope] = useState<"visible" | "all">("visible");
   const [pngScale, setPngScale] = useState(2);
   const [exporting, setExporting] = useState<{ step: number; label: string } | null>(null);
   const [dropActive, setDropActive] = useState(false);
@@ -232,6 +262,21 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   useEffect(() => {
     overridesRef.current = overrides;
   }, [overrides]);
+
+  const savedRef = useRef(saved);
+  useEffect(() => {
+    savedRef.current = saved;
+  }, [saved]);
+
+  useEffect(() => {
+    return () => {
+      if (savedRef.current) return;
+      window.localStorage.setItem(
+        `phatue.diagramDraft.${tree.id}`,
+        JSON.stringify({ positions: overridesRef.current, at: new Date().toISOString() }),
+      );
+    };
+  }, [tree.id]);
 
   useEffect(() => {
     if (saved) return;
@@ -283,18 +328,6 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         Math.max(0.02, Math.min(availableW / contentDims.width, availableH / contentDims.height)),
       );
       setFitScale(fit);
-      if (!zoomInitializedRef.current) {
-        zoomInitializedRef.current = true;
-        if (fit < 0.45) {
-          setZoom(Math.min(8, 0.45 / fit));
-          window.setTimeout(() => {
-            const viewport = viewportRef.current;
-            if (!viewport) return;
-            viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) * 0.5);
-            viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) * 0.5);
-          }, 80);
-        }
-      }
     };
     update();
     const observer = new ResizeObserver(update);
@@ -313,7 +346,12 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     try {
       const parsed = JSON.parse(raw) as { positions?: Positions; at?: string };
       if (!parsed?.positions || !Object.keys(parsed.positions).length) return;
-      if (JSON.stringify(parsed.positions) === JSON.stringify(tree.positions)) return;
+      const baseX = new Map(baseLayout.nodes.map((node) => [node.id, node.x]));
+      const changesX = Object.entries(parsed.positions).some(([memberId, position]) => {
+        const savedX = tree.positions[memberId]?.x ?? baseX.get(memberId);
+        return savedX !== position.x;
+      });
+      if (!changesX) return;
       setOverrides(parsed.positions);
       setSaved(false);
       showToast(`Đã khôi phục bản nháp lúc ${timeLabel(parsed.at ?? null)}`);
@@ -530,6 +568,20 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     movedRef.current = false;
     setFocusId(node.id);
     selectScope({ kind: "person", memberId: node.id }, true);
+    const bandLeft =
+      tree.design.showGenerationLabels !== false
+        ? Math.round(
+          34 +
+            Math.max(
+              0,
+              ...layout.generations.map((row) =>
+                Math.max(86, Math.min(160, (row.label ?? "").length * 5.4 + 18)),
+              ),
+            ) +
+            12,
+        )
+      : 6;
+    const range = unitDragRange(layout, node, bandLeft);
     setDrag({
       kind: "node",
       id: node.id,
@@ -537,6 +589,14 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       startY: event.clientY,
       origX: node.x,
       origY: node.y,
+      unitId: node.unitId,
+      unitBase: Object.fromEntries(
+        layout.nodes
+          .filter((entry) => entry.unitId === node.unitId)
+          .map((entry) => [entry.id, entry.x]),
+      ),
+      unitMinLeft: range.minLeft,
+      unitMaxLeft: range.maxLeft,
       snapshot: overrides,
     });
   };
@@ -621,52 +681,49 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       if (Math.abs(dx) + Math.abs(dy) > 2) movedRef.current = true;
       if (drag.kind === "node") {
         const node = layout.nodes.find((entry) => entry.id === drag.id);
+        if (!node) return;
+        const unitId = drag.unitId ?? node.unitId;
+        const unit = layout.nodes.filter((entry) => entry.unitId === unitId);
         let x = Math.max(6, Math.round(drag.origX + dx));
-        let y = Math.max(6, Math.round(drag.origY + dy));
         const nextGuides: { x?: number; y?: number }[] = [];
         if (snapToGrid) {
           x = Math.round(x / SNAP_SIZE) * SNAP_SIZE;
-          y = Math.round(y / SNAP_SIZE) * SNAP_SIZE;
-          if (node) {
-            let bestX: { delta: number; guide: number } | null = null;
-            let bestY: { delta: number; guide: number } | null = null;
-            for (const other of layout.nodes) {
-              if (other.id === drag.id) continue;
-              const xTargets = [
-                { self: x, guide: other.x },
-                { self: x + node.width / 2, guide: other.x + other.width / 2 },
-                { self: x + node.width, guide: other.x + other.width },
-              ];
-              for (const target of xTargets) {
-                const delta = snapAxis(target.self, target.guide) - target.self;
-                if (Math.abs(delta) <= ALIGN_THRESHOLD && (!bestX || Math.abs(delta) < Math.abs(bestX.delta))) {
-                  bestX = { delta, guide: target.guide };
-                }
+          let bestX: { delta: number; guide: number } | null = null;
+          for (const other of layout.nodes) {
+            if (other.unitId === unitId) continue;
+            const xTargets = [
+              { self: x, guide: other.x },
+              { self: x + node.width / 2, guide: other.x + other.width / 2 },
+              { self: x + node.width, guide: other.x + other.width },
+            ];
+            for (const target of xTargets) {
+              const delta = snapAxis(target.self, target.guide) - target.self;
+              if (Math.abs(delta) <= ALIGN_THRESHOLD && (!bestX || Math.abs(delta) < Math.abs(bestX.delta))) {
+                bestX = { delta, guide: target.guide };
               }
-              const yTargets = [
-                { self: y, guide: other.y },
-                { self: y + node.height / 2, guide: other.y + other.height / 2 },
-                { self: y + node.height, guide: other.y + other.height },
-              ];
-              for (const target of yTargets) {
-                const delta = snapAxis(target.self, target.guide) - target.self;
-                if (Math.abs(delta) <= ALIGN_THRESHOLD && (!bestY || Math.abs(delta) < Math.abs(bestY.delta))) {
-                  bestY = { delta, guide: target.guide };
-                }
-              }
-            }
-            if (bestX) {
-              x += bestX.delta;
-              nextGuides.push({ x: bestX.guide });
-            }
-            if (bestY) {
-              y += bestY.delta;
-              nextGuides.push({ y: bestY.guide });
             }
           }
+          if (bestX) {
+            x += bestX.delta;
+            nextGuides.push({ x: bestX.guide });
+          }
         }
+        const baseOf = (entry: { id: string; x: number }) =>
+          drag.unitBase?.[entry.id] ?? drag.snapshot[entry.id]?.x ?? entry.x;
+        const wantedShift = x - drag.origX;
+        const leftMost = Math.min(...unit.map(baseOf));
+        const minShift = (drag.unitMinLeft ?? leftMost) - leftMost;
+        const maxShift = (drag.unitMaxLeft ?? leftMost) - leftMost;
+        const shift = Math.max(minShift, Math.min(maxShift, wantedShift));
+        if (Math.abs(shift - wantedShift) > 0.5) nextGuides.length = 0;
         setGuides(nextGuides);
-        setOverrides((prev) => ({ ...prev, [drag.id]: { x, y } }));
+        setOverrides((prev) => {
+          const next = { ...prev };
+          for (const entry of unit) {
+            next[entry.id] = { x: Math.round(baseOf(entry) + shift), y: drag.origY };
+          }
+          return next;
+        });
       } else if (drag.kind === "resize") {
         const width = Math.max(24, Math.min(640, Math.round((drag.origW ?? 120) + dx)));
         const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
@@ -728,19 +785,6 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     };
   }, [drag, scale, pushHistory, selectScope, tree.id, setDecoration, snapToGrid, layout.nodes]);
 
-  const visibleIds = useMemo(() => {
-    const all = Array.from(gens.values());
-    const every = all.every((value) => genFilter.has(value));
-    if (every) return null;
-    return new Set(tree.members.filter((member) => genFilter.has(gens.get(member.id) ?? 1)).map((member) => member.id));
-  }, [tree.members, gens, genFilter]);
-
-  const hiddenRows = useMemo(
-    () => layout.generations.filter((row) => !genFilter.has(row.generation)),
-    [layout.generations, genFilter],
-  );
-  const hiddenMembers = Math.max(0, displayedCount - (visibleIds?.size ?? displayedCount));
-
   const searchResults = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return [];
@@ -782,33 +826,16 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
 
   const findSvg = () => document.getElementById("pat-diagram-svg") as SVGSVGElement | null;
 
-  const exportWithScope = async (mode: "visible" | "all", action: () => Promise<void> | void) => {
-    const snapshot = new Set(genFilter);
-    if (mode === "all" && visibleIds) {
-      setGenFilter(new Set(layout.generations.map((row) => row.generation)));
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-    }
-    try {
-      await action();
-    } finally {
-      if (mode === "all" && visibleIds) setGenFilter(snapshot);
-    }
-  };
-
-  const scopeSuffix = visibleIds ? (exportScope === "all" ? "day-du" : "dang-xem") : "pha-do";
-
   const downloadPng = async () => {
     if (exporting) return;
     setExporting({ step: 0.02, label: "Đang chuẩn bị phả đồ" });
     try {
-      await exportWithScope(exportScope, async () => {
-        await exportDiagramPng(
-          "pat-diagram-svg",
-          `${safeName(tree.name)}-${scopeSuffix}-${dateStamp()}.png`,
-          "#fdf6e7",
-          { scale: pngScale, onProgress: (step, label) => setExporting({ step, label }) },
-        );
-      });
+      await exportDiagramPng(
+        "pat-diagram-svg",
+        `${safeName(tree.name)}-pha-do-${dateStamp()}.png`,
+        "#fdf6e7",
+        { scale: pngScale, onProgress: (step, label) => setExporting({ step, label }) },
+      );
       setExportOpen(false);
       showToast(
         `Đã tải PNG ${Math.round(dims.width * pngScale)} × ${Math.round(dims.height * pngScale)} px`,
@@ -820,11 +847,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     }
   };
 
-  const printDiagram = async () => {
-    await exportWithScope(exportScope, () => {
-      const svg = findSvg();
-      if (svg) void printSvgDiagram(svg, tree);
-    });
+  const printDiagram = () => {
+    const svg = findSvg();
+    if (svg) void printSvgDiagram(svg, tree);
     setExportOpen(false);
   };
 
@@ -992,15 +1017,6 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     showToast("Đã trả kiểu thẻ về mặc định");
   };
 
-  const toggleGen = (generation: number) => {
-    setGenFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(generation)) next.delete(generation);
-      else next.add(generation);
-      return next;
-    });
-  };
-
   const rowLabel = (generation: number) =>
     layout.generations.find((entry) => entry.generation === generation)?.label ?? generationTag(generation);
   const nonAncestorRows = layout.generations.filter((row) => !row.isAncestor);
@@ -1026,11 +1042,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     if (scope.kind === "decoration") {
       return "Đang chỉnh trang trí · kéo để di chuyển, kéo ô vuông góc để đổi kích thước";
     }
-    return visibleIds
-      ? `${visibleIds.size} / ${displayedCount} thành viên đang hiển thị`
-      : `${displayedCount} thành viên · ${nonAncestorRows.length} đời${
-          ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""
-        }`;
+    return `${displayedCount} thành viên · ${nonAncestorRows.length} đời${
+      ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""
+    }`;
   })();
 
   const renderInspector = (onClose?: () => void) => {
@@ -1041,6 +1055,10 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       const sample = tree.members.find(
         (member) => gens.get(member.id) === generation && clan.isDisplayed(member.id),
       );
+      const members = layout.nodes
+        .filter((node) => node.generation === generation)
+        .sort((a, b) => a.x - b.x)
+        .map((node) => node.person);
       return (
         <GenerationInspector
           generation={generation}
@@ -1048,8 +1066,10 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           resolved={resolveGeneration(generation)}
           extraFields={style?.extraFields ?? tuning.extraFields}
           sample={sample}
+          members={members}
           onStyle={(patch) => updateGenerationStyle(generation, patch)}
           onReset={() => resetGenerationStyle(generation)}
+          onEditMember={(member) => setEditMember(member)}
           onClose={onClose}
         />
       );
@@ -1169,16 +1189,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       ) : null}
 
       <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <p className="pat-form-section mb-0 flex-1">Đời & bố cục</p>
-          <button
-            type="button"
-            className="ml-2 text-[0.72rem] font-semibold text-[var(--pat-red)]"
-            onClick={() => setGenFilter(new Set(layout.generations.map((row) => row.generation)))}
-          >
-            Hiện tất cả
-          </button>
-        </div>
+        <p className="pat-form-section">Đời & bố cục</p>
         <div className="space-y-1">
           <button
             type="button"
@@ -1192,36 +1203,24 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             <Frame size={13} /> Cả phả đồ
           </button>
           {layout.generations.map((row) => {
-            const active = genFilter.has(row.generation);
             const selected = scope.kind === "generation" && scope.generation === row.generation;
             return (
-              <div
+              <button
                 key={row.generation}
-                className={`flex items-center gap-1.5 rounded-lg px-1.5 py-1 ${
-                  selected ? "bg-[#f9e3df]/60" : "hover:bg-[#f6e9c8]/60"
+                type="button"
+                onClick={() => selectScope({ kind: "generation", generation: row.generation }, true)}
+                className={`flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs transition ${
+                  selected
+                    ? "border-[var(--pat-red)] bg-[#f9e3df]/60 text-[var(--pat-red)]"
+                    : "border-[var(--pat-line)] bg-white/60 hover:bg-[#f6e9c8]/50"
                 }`}
               >
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={() => toggleGen(row.generation)}
-                  className="h-3.5 w-3.5 shrink-0 accent-[var(--pat-red)]"
-                  aria-label={`Hiện ${row.label ?? generationTag(row.generation)}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => selectScope({ kind: "generation", generation: row.generation }, true)}
-                  className="flex min-w-0 flex-1 items-center gap-1 text-left text-xs"
-                >
-                  <span
-                    className={`min-w-0 flex-1 truncate font-medium ${selected ? "text-[var(--pat-red)]" : ""}`}
-                  >
-                    {row.label ?? generationTag(row.generation)}
-                  </span>
-                  <span className="text-[0.68rem] text-[var(--pat-muted)]">{row.count}</span>
-                  <PanelRight size={11} className="text-[var(--pat-muted)]" />
-                </button>
-              </div>
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {row.label ?? generationTag(row.generation)}
+                </span>
+                <span className="text-[0.68rem] text-[var(--pat-muted)]">{row.count}</span>
+                <PanelRight size={11} className="text-[var(--pat-muted)]" />
+              </button>
             );
           })}
         </div>
@@ -1276,17 +1275,10 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             type="button"
             onClick={() => setExportOpen(true)}
             className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
-            aria-label={
-              hiddenRows.length ? `Xuất phả đồ (đang ẩn ${hiddenRows.length} đời)` : "Xuất phả đồ"
-            }
-            title={hiddenRows.length ? `Đang ẩn ${hiddenRows.length} đời · ${hiddenMembers} thành viên` : "Xuất phả đồ"}
+            aria-label="Xuất phả đồ"
+            title="Xuất phả đồ"
           >
             <Download size={17} />
-            {hiddenRows.length ? (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f6e9c8] px-1 text-[0.55rem] font-bold text-[#7a5a10]">
-                {hiddenRows.length}
-              </span>
-            ) : null}
           </button>
         </>
       }
@@ -1418,7 +1410,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               setDropActive(false);
               void addDroppedFiles(event.dataTransfer.files);
             }}
-            className={`pat-scroll relative max-h-[calc(100dvh-13rem)] min-h-[460px] select-none overflow-auto rounded-2xl border bg-[#eadfc8] p-2 shadow-inner ${
+            className={`pat-scroll relative h-[calc(100dvh-19rem)] min-h-[460px] select-none overflow-auto rounded-2xl border bg-[#eadfc8] p-2 shadow-inner ${
               dropActive ? "border-[var(--pat-red)]" : "border-[var(--pat-line)]"
             }`}
             style={{ touchAction: "none" }}
@@ -1445,7 +1437,6 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                     decorations={decorations}
                     svgId="pat-diagram-svg"
                     idPrefix="editor"
-                    visibleIds={visibleIds}
                     focusId={focusId}
                     selectedIds={selectedIds}
                     guides={guides}
@@ -1533,7 +1524,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         </div>
 
         {inspectorCollapsed ? null : (
-          <aside className="pat-card hidden max-h-[calc(100dvh-8rem)] self-start overflow-y-auto no-print xl:block">
+          <aside className="pat-card hidden max-h-[calc(100dvh-11rem)] self-start overflow-y-auto no-print xl:block">
             {inspectorContent}
           </aside>
         )}
@@ -1579,29 +1570,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               Phả đồ nhiều thành viên: nên chọn khổ lớn hơn hoặc giảm số dòng tên để chữ còn đọc được khi in.
             </p>
           ) : null}
-          {hiddenRows.length ? (
-            <p className="mt-1 rounded-lg bg-[#f9e3df] px-2 py-1 text-[0.72rem] font-semibold text-[#8a1c15]">
-              Đang ẩn {hiddenRows.length} đời · {hiddenMembers} thành viên. Chọn phạm vi xuất bên dưới.
-            </p>
-          ) : null}
         </div>
-
-        {visibleIds ? (
-          <div className="mb-3">
-            <p className="pat-form-section">Phạm vi xuất</p>
-            <Segmented<"visible" | "all">
-              value={exportScope}
-              onChange={setExportScope}
-              options={[
-                { value: "visible", label: `Đang xem (${visibleIds.size})` },
-                { value: "all", label: `Toàn bộ (${displayedCount})` },
-              ]}
-            />
-            <p className="mt-1 text-[0.68rem] text-[var(--pat-muted)]">
-              Tên tệp ghi rõ “dang-xem” hoặc “day-du” để tránh lẫn bản in.
-            </p>
-          </div>
-        ) : null}
 
         <div className="mb-3">
           <p className="pat-form-section">Độ phân giải PNG</p>

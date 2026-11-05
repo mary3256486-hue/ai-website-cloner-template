@@ -111,14 +111,23 @@ function clamp(value: number, min: number, max: number) {
 
 export function DesignView({ tree }: { tree: FamilyTree }) {
   const router = useRouter();
-  const { setDesign } = useGenealogy();
+  const { setDesign, setPositions } = useGenealogy();
   const design = tree.design;
   const tuning = useMemo(() => normalizeTuning(design.tuning), [design.tuning]);
   const patternOpacity = tuning.patternOpacity ?? 1;
   const patternScale = tuning.patternScale ?? 1;
   const cardScale = tuning.cardScale ?? 1;
-  const layout = useMemo(() => computeLayout(tree), [tree]);
-  const dims = useMemo(() => diagramDimensions(layout, design), [layout, design]);
+  const [draftPositions, setDraftPositions] = useState<FamilyTree["positions"] | null>(null);
+  const activePositions = draftPositions ?? tree.positions;
+  const baseLayout = useMemo(() => computeLayout({ ...tree, positions: {} }), [tree]);
+  const baseLayoutNodes = baseLayout.nodes;
+  const layout = useMemo(
+    () => computeLayout({ ...tree, positions: activePositions }),
+    [tree, activePositions],
+  );
+  const paper = useMemo(() => paperDimensions(tree, baseLayout), [tree, baseLayout]);
+  const paperAspect = paper.widthMm / paper.heightMm;
+  const dims = useMemo(() => diagramDimensions(layout, design, paperAspect), [layout, design, paperAspect]);
   const generations = useMemo(
     () => computeGenerations(tree.members, tree.founderId),
     [tree.members, tree.founderId],
@@ -153,11 +162,45 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
   }, [showGuides, tree.id]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = `phatue.diagramDraft.${tree.id}`;
+    const raw = window.localStorage.getItem(key);
+    if (!raw) {
+      setDraftPositions(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as { positions?: FamilyTree["positions"] };
+      const positions = parsed?.positions;
+      if (!positions || !Object.keys(positions).length) {
+        window.localStorage.removeItem(key);
+        setDraftPositions(null);
+        return;
+      }
+      const baseX = new Map(baseLayoutNodes.map((node) => [node.id, node.x]));
+      const changesX = Object.entries(positions).some(([memberId, position]) => {
+        const savedX = tree.positions[memberId]?.x ?? baseX.get(memberId);
+        return savedX !== position.x;
+      });
+      if (!changesX) {
+        window.localStorage.removeItem(key);
+        setDraftPositions(null);
+        return;
+      }
+      setDraftPositions(positions);
+    } catch {
+      window.localStorage.removeItem(key);
+      setDraftPositions(null);
+    }
+  }, [tree.id, tree.positions, baseLayoutNodes]);
+
+  useEffect(() => {
     const el = previewRef.current;
     if (!el) return;
     const update = () => {
-      const available = el.clientWidth - 24;
-      setFitScale(Math.min(0.85, Math.max(0.18, Math.min(available / dims.width, 540 / dims.height))));
+      const availableW = el.clientWidth - 24;
+      const availableH = el.clientHeight - 36;
+      setFitScale(Math.min(1, Math.max(0.12, Math.min(availableW / dims.width, availableH / dims.height))));
     };
     update();
     const observer = new ResizeObserver(update);
@@ -167,7 +210,6 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
 
   const orientation = resolveOrientation(tree, layout);
   const autoRotate = design.autoRotate !== false;
-  const paper = paperDimensions(tree, layout);
   const paperCm = `${(paper.widthMm / 10).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} × ${(
     paper.heightMm / 10
   ).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} cm`;
@@ -190,6 +232,20 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
   const flash = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 2200);
+  };
+
+  const keepDraft = () => {
+    if (!draftPositions) return;
+    setPositions(tree.id, draftPositions);
+    window.localStorage.removeItem(`phatue.diagramDraft.${tree.id}`);
+    setDraftPositions(null);
+    flash("Đã lưu bố cục phả đồ vào gia phả");
+  };
+
+  const discardDraft = () => {
+    window.localStorage.removeItem(`phatue.diagramDraft.${tree.id}`);
+    setDraftPositions(null);
+    flash("Đã bỏ thay đổi bố cục chưa lưu");
   };
 
   const findSvg = () => document.getElementById("pat-design-svg") as SVGSVGElement | null;
@@ -318,6 +374,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
       section="giao-dien"
       title="Thiết kế bản in"
       subtitle="Khổ giấy, nền, hoa văn và bản in"
+      wide
       actions={
         <>
           <button
@@ -350,9 +407,28 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
               {autoRotate && isLargeTree(tree) ? " · tự xoay" : ""}
             </span>
           </div>
-          <div ref={previewRef} className="flex max-h-[72vh] overflow-auto bg-[#eadfc8] px-3 py-4">
+          {draftPositions ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 border-b border-[#e7ce8b]/70 bg-[#fff4df] px-4 py-2">
+              <Info size={14} className="shrink-0 text-[var(--pat-red)]" />
+              <p className="text-[0.72rem] font-semibold text-[#8f2018]">
+                Bản xem trước, bản in và PNG đang dùng bố cục chưa lưu từ Vẽ phả đồ.
+              </p>
+              <div className="ml-auto flex items-center gap-1.5">
+                <button type="button" className="pat-btn pat-btn-red h-8 px-3 text-[0.7rem]" onClick={keepDraft}>
+                  Lưu bố cục
+                </button>
+                <button type="button" className="pat-btn pat-btn-outline h-8 px-3 text-[0.7rem]" onClick={discardDraft}>
+                  Bỏ thay đổi
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <div
+            ref={previewRef}
+            className="flex h-[max(360px,calc(100dvh-19rem))] overflow-auto bg-[#eadfc8] px-3 py-4"
+          >
             <div
-              className="relative shrink-0"
+              className="relative m-auto shrink-0"
               style={{ width: dims.width * scale, height: dims.height * scale }}
             >
               <div className="h-full w-full overflow-hidden rounded-sm shadow-[0_18px_40px_-18px_rgba(74,31,16,0.6)]">
@@ -366,6 +442,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                     decorations={tree.decorations}
                     svgId="pat-design-svg"
                     idPrefix="design"
+                    paperAspect={paperAspect}
                   />
                 </div>
               </div>
@@ -1040,6 +1117,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                       decorations={tree.decorations}
                       svgId={`pat-cmp-${index}`}
                       idPrefix={`cmp-${index}`}
+                      paperAspect={paperAspect}
                     />
                   </div>
                 </div>

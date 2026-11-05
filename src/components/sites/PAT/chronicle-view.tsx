@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { BookOpen, Check, Feather, GitBranch, Printer, Sparkles, Users } from "lucide-react";
+import Image from "next/image";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
 import { generationTag } from "./types";
@@ -155,7 +156,7 @@ function MemberLine({
 }
 
 function generationTitle(generation: number, members: Person[]) {
-  if (generation === 0) return "Đời 0";
+  if (generation === 0) return "Sơ tổ";
   if (generation > 0) return `Đời thứ ${generation}`;
   const titles = Array.from(
     new Set(
@@ -897,14 +898,17 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                 {tree.name}
               </h1>
               {tree.coverEmblem && tree.coverEmblem !== "none" ? (
-                <img
+                <Image
                   src={
                     tree.coverEmblem === "pham"
                       ? "/sites/PAT/images/han-pham.png"
                       : "/sites/PAT/images/han-gia-pha.png"
                   }
                   alt=""
-                  className="mt-5 h-20 object-contain opacity-90"
+                  width={tree.coverEmblem === "pham" ? 585 : 1200}
+                  height={tree.coverEmblem === "pham" ? 728 : 676}
+                  priority
+                  className="mt-5 h-20 w-auto object-contain opacity-90"
                 />
               ) : null}
               {tree.address ? (

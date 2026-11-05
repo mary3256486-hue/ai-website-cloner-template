@@ -12,8 +12,10 @@ export type MemberColumnKey =
   | "lifeStatus"
   | "birthDate"
   | "birthCalendar"
+  | "birthLeap"
   | "deathDate"
   | "deathCalendar"
+  | "deathLeap"
   | "alive"
   | "father"
   | "mother"
@@ -73,8 +75,10 @@ export const MEMBER_COLUMNS: MemberColumn[] = [
   { key: "lifeStatus", header: "Tình trạng" },
   { key: "birthDate", header: "Sinh" },
   { key: "birthCalendar", header: "Lịch sinh" },
+  { key: "birthLeap", header: "Tháng nhuận sinh" },
   { key: "deathDate", header: "Mất" },
   { key: "deathCalendar", header: "Lịch mất" },
+  { key: "deathLeap", header: "Tháng nhuận mất" },
   { key: "alive", header: "Còn sống" },
   { key: "father", header: "Cha", essential: true },
   { key: "mother", header: "Mẹ", essential: true },
@@ -84,7 +88,7 @@ export const MEMBER_COLUMNS: MemberColumn[] = [
   { key: "generation", header: "Đời" },
   { key: "scope", header: "Phạm vi" },
   { key: "ancestorOrder", header: "Bậc tiền tổ" },
-  { key: "founder", header: "Khởi Tổ" },
+  { key: "founder", header: "Sơ Tổ" },
   { key: "title", header: "Danh xưng" },
   { key: "generationNote", header: "Thế thứ" },
   { key: "tabooName", header: "Tên húy" },
@@ -120,7 +124,7 @@ export const MEMBER_COLUMNS: MemberColumn[] = [
 
 export const MEMBER_HEADERS = MEMBER_COLUMNS.map((column) => column.header);
 export const MEMBER_COLUMN_COUNT = MEMBER_COLUMNS.length;
-export const TEMPLATE_VERSION = "3.1";
+export const TEMPLATE_VERSION = "3.2";
 
 /** Cột tối giản dùng khi người dùng chọn “chỉ cột thiết yếu”. */
 export const ESSENTIAL_HEADERS = MEMBER_COLUMNS.filter((column) => column.essential).map(
@@ -160,11 +164,17 @@ const ALIASES: Record<string, MemberColumnKey> = {
   "năm sinh": "birthDate",
   "lịch sinh": "birthCalendar",
   "loại lịch sinh": "birthCalendar",
+  "tháng nhuận sinh": "birthLeap",
+  "nhuận sinh": "birthLeap",
+  "sinh nhuận": "birthLeap",
   "mất": "deathDate",
   "ngày mất": "deathDate",
   "năm mất": "deathDate",
   "lịch mất": "deathCalendar",
   "loại lịch mất": "deathCalendar",
+  "tháng nhuận mất": "deathLeap",
+  "nhuận mất": "deathLeap",
+  "mất nhuận": "deathLeap",
   "còn sống": "alive",
   "cha": "father",
   "họ tên cha": "father",
@@ -189,6 +199,8 @@ const ALIASES: Record<string, MemberColumnKey> = {
   "bậc tổ": "ancestorOrder",
   "khởi tổ": "founder",
   "là khởi tổ": "founder",
+  "sơ tổ": "founder",
+  "là sơ tổ": "founder",
   "tổ của nhánh": "founder",
   "tổ của chi phái": "founder",
   "tổ của dòng": "founder",

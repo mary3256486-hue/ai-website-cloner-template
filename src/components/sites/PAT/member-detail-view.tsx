@@ -30,7 +30,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useGenealogy } from "./store";
-import type { FamilyTree, Person } from "./types";
+import type { CalendarKind, FamilyTree, Person } from "./types";
 import {
   CALENDAR_LABELS,
   generationTag,
@@ -54,6 +54,16 @@ import { TreeShell } from "./app-shell";
 import { Avatar, Badge, SectionTitle, Sheet, SheetRow, Stat } from "./ui";
 import { MemberFormSheet, type FormTab } from "./member-form-sheet";
 import { KinshipSheet } from "./kinship-sheet";
+import { formatStoredLunarDate } from "./lunar";
+
+function personDateText(value?: string, calendar?: CalendarKind, leap = false) {
+  if (!value) return undefined;
+  if (calendar === "am") {
+    const lunarText = formatStoredLunarDate(value, leap);
+    if (lunarText) return `${lunarText} (Âm lịch)`;
+  }
+  return `${value}${calendar ? ` (${CALENDAR_LABELS[calendar]})` : ""}`;
+}
 
 const TERM_HINTS: Record<string, string> = {
   "Thế thứ": "Thứ tự đời và vai vế trong dòng họ, ví dụ đích tôn, trưởng nam, con thứ.",
@@ -64,7 +74,7 @@ const TERM_HINTS: Record<string, string> = {
   "Chức tước": "Tước vị hoặc chức quan thời trước.",
   "Phẩm hàm": "Phẩm cấp được phong, từ chánh nhất đến tòng cửu phẩm.",
   "Khoa bảng": "Kết quả thi cử hoặc danh hiệu được ban như Tiến sĩ, Cử nhân.",
-  "Danh xưng": "Cách gọi theo vai vế trong họ, ví dụ Thủy tổ, Khởi tổ, Cao tổ.",
+  "Danh xưng": "Cách gọi theo vai vế trong họ, ví dụ Thủy tổ, Sơ tổ, Cao tổ.",
   "Tuổi": "Tuổi tính bằng năm mất (hoặc năm hiện tại) trừ năm sinh, chưa xét ngày sinh nhật.",
 };
 
@@ -251,12 +261,8 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
   const lifeStatus = lifeStatusOf(member);
   const statusTone = lifeStatus === "alive" ? "green" : lifeStatus === "deceased" ? "muted" : "gold";
   const generationKnown = generation !== UNKNOWN_GENERATION;
-  const birthText = member.birthDate
-    ? `${member.birthDate}${member.birthCalendar ? ` (${CALENDAR_LABELS[member.birthCalendar]})` : ""}`
-    : undefined;
-  const deathText = member.deathDate
-    ? `${member.deathDate}${member.deathCalendar ? ` (${CALENDAR_LABELS[member.deathCalendar]})` : ""}`
-    : undefined;
+  const birthText = personDateText(member.birthDate, member.birthCalendar, member.birthLeap);
+  const deathText = personDateText(member.deathDate, member.deathCalendar, member.deathLeap);
   const branch = tree.branches.find((b) => b.id === member.branchId);
   const father = tree.members.find((m) => m.id === member.fatherId);
   const mother = tree.members.find((m) => m.id === member.motherId);
@@ -886,7 +892,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
                 ? "Dâu/rể hiển thị cạnh vợ/chồng; đời lấy theo vợ/chồng, cha mẹ chỉ là thông tin tham khảo."
                 : role === "maternal"
                   ? "Con của con gái thuộc dòng họ bên chồng nên chỉ hiển thị một đời, không nối tiếp các đời sau."
-                  : "Liên kết tiền tổ chỉ nối các bậc trên Khởi Tổ khi thiếu đời nối tiếp và được vẽ bằng nét đứt trên phả đồ."}
+                  : "Liên kết tiền tổ chỉ nối các bậc trên Sơ Tổ khi thiếu đời nối tiếp và được vẽ bằng nét đứt trên phả đồ."}
           </p>
         </section>
 

@@ -124,6 +124,8 @@ export interface DiagramTuning {
   connectorWidth: number;
   connectorColor?: string;
   connectorDash: boolean;
+  /** Vẽ thêm nét đứt mảnh từ mẹ xuống từng con, song song nét chính từ cha. */
+  motherLine: boolean;
   tintByLevel: boolean;
   showLinkGap: boolean;
   /** Thứ tự trình bày anh chị em trên phả đồ: 1→n hoặc n→1. */
@@ -184,6 +186,10 @@ export interface Person {
   lifeStatus?: LifeStatus;
   birthCalendar?: CalendarKind;
   deathCalendar?: CalendarKind;
+  /** Ngày sinh rơi vào tháng nhuận (chỉ có nghĩa khi birthCalendar = "am"). */
+  birthLeap?: boolean;
+  /** Ngày mất rơi vào tháng nhuận (chỉ có nghĩa khi deathCalendar = "am"). */
+  deathLeap?: boolean;
   title?: string;
   generationNote?: string;
   tabooName?: string;
@@ -194,9 +200,9 @@ export interface Person {
   mandarinRank?: string;
   honors?: string;
   birthOrder: number;
-  /** Đời nội bộ: 0 = Khởi Tổ, 1.. = các đời sau, -1.. = bậc tiền tổ (gần nhất = -1). */
+  /** Đời nội bộ: 0 = Sơ Tổ, 1.. = các đời sau, -1.. = bậc tiền tổ (gần nhất = -1). */
   generation?: number;
-  /** Thứ tự bậc tiền tổ: 1 = xa nhất, tăng dần về phía Khởi Tổ. */
+  /** Thứ tự bậc tiền tổ: 1 = xa nhất, tăng dần về phía Sơ Tổ. */
   ancestorOrder?: number;
   /** Nối bậc tiền tổ này xuống bậc kế tiếp khi thiếu cha/mẹ ruột. */
   ancestorLinkId?: string;
@@ -310,7 +316,7 @@ export interface FamilyTree {
   decorations: Decoration[];
   /** Phiên bản mô hình dữ liệu, dùng để nâng cấp tệp sao lưu cũ. */
   schemaVersion?: number;
-  /** Người duy nhất được đánh dấu là Khởi Tổ của dòng đang soạn. */
+  /** Người duy nhất được đánh dấu là Sơ Tổ của dòng đang soạn. */
   founderId?: string;
   /** Kho tư liệu tham khảo của cả gia phả. */
   documents?: ReferenceDocument[];
@@ -376,7 +382,7 @@ export interface TrashedMember {
   spouseOrderOf: string[];
   /** Chi phái do hồ sơ này làm trưởng chi. */
   branchHeadOf: string[];
-  /** Hồ sơ từng là Khởi Tổ của dòng đang soạn. */
+  /** Hồ sơ từng là Sơ Tổ của dòng đang soạn. */
   wasFounder: boolean;
 }
 
@@ -420,6 +426,8 @@ export interface TreeEdge {
   indirect?: boolean;
   /** Nối xuống con của con gái (ngoại tộc, chỉ một đời). */
   maternal?: boolean;
+  /** Nét phụ (mẹ → con): mảnh, đứt, chạy song song nét chính. */
+  secondary?: boolean;
   label?: string;
 }
 
@@ -474,7 +482,7 @@ export const ANCESTOR_TITLES = [
   "Đại tổ",
   "Thượng tổ",
   "Thủy tổ",
-  "Khởi tổ",
+  "Sơ tổ",
   "Viễn tổ",
   "Triệu tổ",
   "Thái tổ",
@@ -632,6 +640,7 @@ export const DEFAULT_TUNING: DiagramTuning = {
   connectorWidth: 1.6,
   connectorColor: "",
   connectorDash: false,
+  motherLine: true,
   tintByLevel: false,
   showLinkGap: false,
   siblingOrder: "asc",
@@ -667,6 +676,7 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
     marginLeft: clampNumber(tuning?.marginLeft, DEFAULT_TUNING.marginLeft, 20, 240),
     marginRight: clampNumber(tuning?.marginRight, DEFAULT_TUNING.marginRight, 20, 240),
     connectorWidth: clampNumber(tuning?.connectorWidth, DEFAULT_TUNING.connectorWidth, 1, 20),
+    motherLine: tuning?.motherLine ?? DEFAULT_TUNING.motherLine,
     showLinkGap: tuning?.showLinkGap ?? DEFAULT_TUNING.showLinkGap,
     siblingOrder: tuning?.siblingOrder === "desc" ? "desc" : "asc",
     frameScale: clampNumber(tuning?.frameScale, DEFAULT_TUNING.frameScale, 0.5, 2),
@@ -708,6 +718,7 @@ export const BAND_LABELS: Record<GenerationBandLabel, string> = {
 };
 
 export function bandLabelFor(style: GenerationBandLabel, generation: number) {
+  if (generation === 0) return "SƠ TỔ";
   switch (style) {
     case "ordinalName":
       return `ĐỜI THỨ ${generation}`;
@@ -732,6 +743,7 @@ export function ancestorLabelFor(style: GenerationBandLabel, tier: number) {
 /** Nhãn ngắn dùng trong danh sách, huy hiệu và biểu mẫu. */
 export function generationTag(generation: number): string {
   if (generation === UNKNOWN_GENERATION) return "Chưa xác định đời";
+  if (generation === 0) return "Sơ tổ";
   return generation < 0 ? `Tiền tổ ${-generation}` : `Đời ${generation}`;
 }
 

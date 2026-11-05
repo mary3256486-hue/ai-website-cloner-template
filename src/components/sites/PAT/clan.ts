@@ -4,7 +4,7 @@ import { UNKNOWN_GENERATION } from "./types";
 /**
  * Phạm vi một dòng họ trong cây gia phả.
  *
- * - `ancestor`: các bậc tiền tổ phía trên Khởi Tổ.
+ * - `ancestor`: các bậc tiền tổ phía trên Sơ Tổ.
  * - `clan`: người thuộc dòng họ đang soạn (nội tộc).
  * - `inLaw`: dâu/rể kết hôn vào dòng họ, hiển thị cạnh người hôn phối.
  * - `maternal`: con của con gái — thuộc dòng họ bên chồng, chỉ hiển thị một đời.
@@ -23,7 +23,7 @@ export const CLAN_ROLE_LABELS: Record<ClanRole, string> = {
 };
 
 export const CLAN_ROLE_HINTS: Record<ClanRole, string> = {
-  ancestor: "Bậc tiền tổ phía trên Khởi Tổ, hiển thị ở các hàng đời âm.",
+  ancestor: "Bậc tiền tổ phía trên Sơ Tổ, hiển thị ở các hàng đời âm.",
   clan: "Người mang họ của dòng họ đang soạn, tính đời và chi phái theo dòng cha.",
   inLaw: "Dâu/rể kết hôn vào dòng họ; đời theo vợ/chồng, cha mẹ chỉ là thông tin tham khảo.",
   maternal: "Con của con gái, thuộc dòng họ bên chồng; chỉ nhập và hiển thị một đời.",
@@ -158,7 +158,7 @@ export function classifyClan(members: Person[], founderId?: string): ClanIndex {
         if (ancestorIds.has(child.id) || child.reference) continue;
         if (clanIds.has(child.id) || maternalIds.has(child.id)) continue;
         // Con trai nối dòng họ; con gái vẫn thuộc dòng họ nhưng con của cô ấy thì không.
-        // Nếu chính Khởi Tổ là nữ, con của bà được tính là đời kế tiếp của dòng họ.
+        // Nếu chính Sơ Tổ là nữ, con của bà được tính là đời kế tiếp của dòng họ.
         if (person.gender === "male" || (isFounder && person.gender === "female")) {
           clanIds.add(child.id);
           queue.push(child.id);

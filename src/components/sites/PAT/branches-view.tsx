@@ -208,7 +208,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
           </div>
           {tree.branches.length === 0 ? (
             <p className="rounded-xl border border-dashed border-[var(--pat-line)] px-3 py-4 text-center text-xs text-[var(--pat-muted)]">
-              Chưa có chi phái nào. Tạo chi phái để chia dòng họ theo các con trai của Khởi Tổ.
+              Chưa có chi phái nào. Tạo chi phái để chia dòng họ theo các con trai của Sơ Tổ.
             </p>
           ) : !diagramOpen ? (
             <p className="mt-1 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
@@ -223,7 +223,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                 <span className="mt-1 max-w-[12rem] truncate text-[0.7rem] font-semibold">
                   {founder?.name ?? tree.name}
                 </span>
-                <span className="text-[0.6rem] uppercase tracking-[0.14em] text-[var(--pat-muted)]">Khởi tổ</span>
+                <span className="text-[0.6rem] uppercase tracking-[0.14em] text-[var(--pat-muted)]">Sơ tổ</span>
               </div>
               <div className="mx-auto h-4 w-px bg-[var(--pat-line)]" />
               <div className="relative mx-4 h-px bg-[var(--pat-line)]">
@@ -540,7 +540,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
               tộc. Ứng dụng quản lý một cấp Chi phái; nếu họ lớn, có thể ghi thêm Phái/Ngành vào phần mô tả chi.
             </p>
             <p>
-              Cách đặt tên quen dùng: <strong>Chi trưởng</strong> (dòng con trai trưởng của Khởi Tổ),{" "}
+              Cách đặt tên quen dùng: <strong>Chi trưởng</strong> (dòng con trai trưởng của Sơ Tổ),{" "}
               <strong>Chi thứ</strong>, <strong>Chi ba</strong>… Mã ngắn C1, C2 in kèm trên phả đồ, kể cả bản in đen
               trắng.
             </p>

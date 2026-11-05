@@ -182,16 +182,15 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               <MapPin size={13} /> {tree.address || "Chưa cập nhật địa chỉ"}
             </p>
 
-            <div className="mt-4 grid grid-cols-4 divide-x divide-white/15 rounded-xl border border-[rgba(231,206,139,0.35)] bg-black/10 py-2.5 text-center">
+            <div className="mt-4 grid grid-cols-3 divide-x divide-white/15 rounded-xl border border-[rgba(231,206,139,0.35)] bg-black/10 py-2.5 text-center">
               {[
                 {
                   value: `${stats.generations} đời`,
-                  label: stats.ancestorTiers ? `+${stats.ancestorTiers} bậc tổ` : "Đời 0 · Khởi Tổ",
-                  title: `Đời 0 là Khởi Tổ${stats.ancestorTiers ? `; ${stats.ancestorTiers} bậc tiền tổ nằm phía trên` : ""}.`,
+                  label: stats.ancestorTiers ? `+${stats.ancestorTiers} bậc tổ` : "Sơ tổ",
+                  title: `Sơ tổ là đời đầu tiên${stats.ancestorTiers ? `; ${stats.ancestorTiers} bậc tiền tổ nằm phía trên` : ""}.`,
                 },
                 { value: stats.total, label: "Thành viên", title: `${stats.total} thành viên` },
                 { value: tree.branches.length, label: "Chi phái", title: `${tree.branches.length} chi phái` },
-                { value: stats.alive, label: "Còn sống", title: `${stats.alive} người còn sống` },
               ].map((cell) => (
                 <div key={String(cell.label)} className="px-1" title={cell.title}>
                   <p className="text-base font-bold text-[#ffe9bd]">{cell.value}</p>
@@ -255,23 +254,23 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
             {needsFounder ? (
               <div className="mb-2 rounded-xl border border-[#e6b7ad] bg-[#f9e3df]/60 px-3 py-2.5">
                 <p className="text-xs font-semibold leading-relaxed text-[#8a1c15]">
-                  Có {rootsAtZero.length} người cùng ở Đời 0 nhưng chưa chọn Khởi Tổ cho dòng đang soạn.
+                  Có {rootsAtZero.length} người cùng ở đời Sơ tổ nhưng chưa chọn Sơ Tổ cho dòng đang soạn.
                 </p>
                 <p className="mt-1 text-[0.7rem] leading-relaxed text-[#8a5a52]">
-                  Nếu bỏ trống, hệ thống lấy người ở Đời 0 đầu tiên, nên danh xưng và bản in có thể sai. Mỗi dòng họ
-                  chỉ có một Khởi Tổ; các vị tổ phía trên nên nối bằng liên kết tiền tổ.
+                  Nếu bỏ trống, hệ thống lấy người ở đời Sơ tổ đầu tiên, nên danh xưng và bản in có thể sai. Mỗi dòng họ
+                  chỉ có một Sơ Tổ; các vị tổ phía trên nên nối bằng liên kết tiền tổ.
                 </p>
                 <div className="mt-2 flex gap-1.5">
                   <select
                     className="pat-input h-9 min-w-0 flex-1 text-xs"
                     value=""
-                    aria-label="Chọn Khởi Tổ"
+                    aria-label="Chọn Sơ Tổ"
                     onChange={(event) => {
                       const id = event.target.value;
                       if (id) updateTree(tree.id, { founderId: id });
                     }}
                   >
-                    <option value="">Chọn Khởi Tổ…</option>
+                    <option value="">Chọn Sơ Tổ…</option>
                     {[...rootsAtZero]
                       .sort((a, b) => a.birthOrder - b.birthOrder || a.name.localeCompare(b.name, "vi"))
                       .map((member) => (
@@ -424,7 +423,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               ) : null}
               {stats.ancestorTiers ? (
                 <p className="pt-1 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
-                  Đời 0 là Khởi Tổ; các bậc phía trên là tiền tổ, tính riêng không gộp vào số đời.
+                  Sơ tổ là đời đầu tiên; các bậc phía trên là tiền tổ, tính riêng không gộp vào số đời.
                 </p>
               ) : null}
             </div>
@@ -499,19 +498,20 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           <section className="pat-card px-4 py-4">
             <SectionTitle
               icon={<Crown size={13} />}
-              title={founder.title || "Khởi Tổ"}
+              title={founder.title || "Sơ Tổ"}
               action={
                 <button
                   type="button"
                   onClick={() => setEditOpen(true)}
                   className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[var(--pat-red)]"
                 >
-                  <PencilLine size={12} /> Sửa Khởi Tổ
+                  <PencilLine size={12} /> Sửa Sơ Tổ
                 </button>
               }
             />
             <div className="flex items-center gap-3">
               {founder.avatar ? (
+                /* eslint-disable-next-line @next/next/no-img-element -- ảnh đại diện do người dùng tải lên (data URL) */
                 <img
                   src={founder.avatar}
                   alt={founder.name}
@@ -532,7 +532,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                   {founder.hometown ? ` · ${founder.hometown}` : ""}
                 </p>
                 <p className="mt-0.5 text-[0.68rem] font-semibold text-[var(--pat-red)]">
-                  {generationTag(gens.get(founder.id) ?? 0)} · Khởi Tổ của dòng đang soạn
+                  {generationTag(gens.get(founder.id) ?? 0)} · Sơ Tổ của dòng đang soạn
                 </p>
               </div>
               <button
@@ -694,7 +694,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
             />
           </Field>
           <Field
-            label="Khởi Tổ của dòng đang soạn"
+            label="Sơ Tổ của dòng đang soạn"
             hint="Chỉ chọn một người thuộc nội tộc. Các vị tổ phía trên dùng liên kết tiền tổ trong hồ sơ."
           >
             <select
@@ -702,7 +702,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               value={form.founderId}
               onChange={(e) => setForm({ ...form, founderId: e.target.value })}
             >
-              <option value="">Tự động — người ở Đời 0 đầu tiên</option>
+              <option value="">Tự động — người ở đời Sơ tổ đầu tiên</option>
               {[...tree.members]
                 .filter((member) => clan.clanIds.has(member.id) || member.id === tree.founderId)
                 .sort((a, b) => (gens.get(a.id) ?? 999) - (gens.get(b.id) ?? 999) || a.birthOrder - b.birthOrder)
@@ -716,7 +716,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           </Field>
           {needsFounder ? (
             <p className="rounded-xl border border-[#e6b7ad] bg-[#f9e3df]/60 px-3 py-2 text-[0.7rem] leading-relaxed text-[#8a1c15]">
-              Có {rootsAtZero.length} người ở Đời 0. Hãy chọn đúng một Khởi Tổ cho dòng đang soạn để phả đồ và bản in ghi
+              Có {rootsAtZero.length} người ở đời Sơ tổ. Hãy chọn đúng một Sơ Tổ cho dòng đang soạn để phả đồ và bản in ghi
               đúng danh xưng.
             </p>
           ) : null}
@@ -888,7 +888,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
                 entry.children.length ? `${entry.children.length} con` : "",
                 entry.spouseOf.length ? `${entry.spouseOf.length} vợ/chồng` : "",
                 entry.branchHeadOf.length ? "trưởng chi phái" : "",
-                entry.wasFounder ? "Khởi Tổ" : "",
+                entry.wasFounder ? "Sơ Tổ" : "",
               ]
                 .filter(Boolean)
                 .join(" · ");

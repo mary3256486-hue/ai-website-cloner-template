@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -63,6 +64,7 @@ import {
 } from "./export";
 import { exportGedcom, parseGedcom, type GedcomParseResult } from "./gedcom";
 import { MEMBER_COLUMN_COUNT, TEMPLATE_VERSION } from "./columns";
+import { LunarConverterSheet } from "./lunar-converter";
 import {
   addImportHistory,
   clearImportHistory,
@@ -221,6 +223,7 @@ export function HomeView() {
     fileName: string;
   } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [lunarOpen, setLunarOpen] = useState(false);
   const [history, setHistory] = useState<ImportHistoryEntry[]>([]);
   const [rollbackTarget, setRollbackTarget] = useState<ImportHistoryEntry | null>(null);
   const [report, setReport] = useState<ImportReportState | null>(null);
@@ -958,6 +961,7 @@ export function HomeView() {
               onBackup={() => backupRef.current?.click()}
               onBackupNow={() => setBackupPickerOpen(true)}
               onHistory={() => setHistoryOpen(true)}
+              onLunar={() => setLunarOpen(true)}
             />
           ) : null}
 
@@ -1946,7 +1950,7 @@ export function HomeView() {
           setCreateStep(1);
           setAdvancedOpen(false);
         }}
-        title={createStep === 1 ? "Lập gia phả · Thông tin dòng họ" : "Lập gia phả · Khởi tổ"}
+        title={createStep === 1 ? "Lập gia phả · Thông tin dòng họ" : "Lập gia phả · Sơ tổ"}
         subtitle={createStep === 1 ? "Bước 1/2 · thông tin chung" : "Bước 2/2 · vị tổ khai sáng"}
         footer={
           createStep === 1 ? (
@@ -2063,7 +2067,7 @@ export function HomeView() {
               />
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Danh xưng / thế thứ" hint="Thủy tổ, Khởi tổ, Viễn tổ…">
+              <Field label="Danh xưng / thế thứ" hint="Thủy tổ, Sơ tổ, Viễn tổ…">
                 <input
                   className="pat-input"
                   list="founder-ancestor-titles"
@@ -2547,6 +2551,8 @@ export function HomeView() {
         </div>
       </Sheet>
 
+      <LunarConverterSheet open={lunarOpen} onClose={() => setLunarOpen(false)} />
+
       {toast ? (
         <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md">
           <div className="pat-card flex items-center gap-3 border-[#e3cd92] bg-[#fffaf0]/98 px-3.5 py-2.5 shadow-[0_18px_40px_-24px_rgba(60,20,10,0.7)]">
@@ -2630,7 +2636,7 @@ function SampleTab({
     { icon: GitBranch, label: `${sample.branches.length} chi phái`, hint: "Chi phái tách rõ, có trưởng chi phái" },
     { icon: PenTool, label: "Phả đồ in sẵn", hint: "Khung ngang/dọc, xuất PDF và PNG" },
     { icon: BookOpen, label: "Phả ký mẫu", hint: "Bài viết mẫu về lịch sử dòng họ" },
-    { icon: Info, label: "Cách tính đời", hint: "Đời 0 là Khởi Tổ, tiền tổ ở bậc âm" },
+    { icon: Info, label: "Cách tính đời", hint: "Sơ tổ là đời đầu tiên, tiền tổ ở bậc âm" },
   ];
 
   return (
@@ -2657,8 +2663,8 @@ function SampleTab({
             {[
               {
                 value: `${stats.generations} đời`,
-                label: stats.ancestorTiers ? `+${stats.ancestorTiers} bậc tổ` : "Đời 0 · Khởi Tổ",
-                title: `Đời 0 là Khởi Tổ${stats.ancestorTiers ? `; ${stats.ancestorTiers} bậc tiền tổ nằm phía trên` : ""}.`,
+                label: stats.ancestorTiers ? `+${stats.ancestorTiers} bậc tổ` : "Sơ tổ",
+                title: `Sơ tổ là đời đầu tiên${stats.ancestorTiers ? `; ${stats.ancestorTiers} bậc tiền tổ nằm phía trên` : ""}.`,
               },
               { value: stats.total, label: "Thành viên", title: `${stats.total} thành viên` },
               { value: sample.branches.length, label: "Chi phái", title: `${sample.branches.length} chi phái` },
@@ -2748,6 +2754,7 @@ function CreateTab({
   onBackup,
   onBackupNow,
   onHistory,
+  onLunar,
   onRetry,
   onCancelRead,
 }: {
@@ -2762,6 +2769,7 @@ function CreateTab({
   onBackup: () => void;
   onBackupNow: () => void;
   onHistory: () => void;
+  onLunar: () => void;
   onRetry: () => void;
   onCancelRead: () => void;
 }) {
@@ -2906,6 +2914,12 @@ function CreateTab({
             title="Lịch sử nhập"
             subtitle={historyCount ? `${historyCount} lần gần nhất · báo cáo & quay lại` : "Chưa có lần nhập nào"}
             onClick={onHistory}
+          />
+          <SheetRow
+            icon={<CalendarDays size={17} />}
+            title="Đổi ngày Âm – Dương"
+            subtitle="Chuyển ngày sinh, ngày mất, ngày giỗ · 1700–2199"
+            onClick={onLunar}
           />
         </div>
 

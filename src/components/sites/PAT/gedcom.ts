@@ -247,6 +247,8 @@ export function buildGedcom(input: FamilyTree): string {
     writer.tag(1, "_PAT_LIFE", lifeStatusOf(person));
     if (person.birthCalendar) writer.tag(1, "_PAT_BIRTH_CAL", person.birthCalendar);
     if (person.deathCalendar) writer.tag(1, "_PAT_DEATH_CAL", person.deathCalendar);
+    if (person.birthLeap && person.birthCalendar === "am") writer.tag(1, "_PAT_BIRTH_LEAP", "Y");
+    if (person.deathLeap && person.deathCalendar === "am") writer.tag(1, "_PAT_DEATH_LEAP", "Y");
 
     if (person.birthDate) {
       writer.tag(1, "BIRT");
@@ -539,6 +541,8 @@ export function parseGedcom(textValue: string, fallbackName = ""): GedcomParseRe
     const birt = kid(indi, "BIRT");
     const deat = kid(indi, "DEAT");
     const lifeStatus = readLifeStatus(indi, Boolean(deat));
+    const birthCalendar = readCalendar(indi, "_PAT_BIRTH_CAL", birt);
+    const deathCalendar = readCalendar(indi, "_PAT_DEATH_CAL", deat);
     const sex = text(indi, "SEX").toUpperCase();
     if (sex !== "M" && sex !== "F") {
       warnings.push(`“${name || indi.xref || "?"}” không ghi giới tính; tạm để Nam.`);
@@ -571,8 +575,12 @@ export function parseGedcom(textValue: string, fallbackName = ""): GedcomParseRe
       nameNote: text(indi, "_PAT_NAME_NOTE") || undefined,
       birthDate: text(indi, "_PAT_TEXT") || (birt ? fromGedcomDate(text(birt, "DATE")) : "") || undefined,
       deathDate: deat ? text(deat, "_PAT_TEXT") || fromGedcomDate(text(deat, "DATE")) || undefined : undefined,
-      birthCalendar: readCalendar(indi, "_PAT_BIRTH_CAL", birt),
-      deathCalendar: readCalendar(indi, "_PAT_DEATH_CAL", deat),
+      birthCalendar,
+      deathCalendar,
+      birthLeap:
+        birthCalendar === "am" && text(indi, "_PAT_BIRTH_LEAP") === "Y" ? true : undefined,
+      deathLeap:
+        deathCalendar === "am" && text(indi, "_PAT_DEATH_LEAP") === "Y" ? true : undefined,
       hometown: text(indi, "_PAT_HOMETOWN") || undefined,
       occupation: text(indi, "_PAT_OCCUPATION") || undefined,
       maritalStatus: text(indi, "_PAT_MARITAL") || undefined,
@@ -730,7 +738,7 @@ export function parseGedcom(textValue: string, fallbackName = ""): GedcomParseRe
   if (flagged.length > 1) {
     founderId = flagged[0].id;
     warnings.push(
-      `Có ${flagged.length} người được đánh dấu Khởi Tổ; chỉ giữ “${flagged[0].name}”, các vị còn lại nên nối bằng liên kết tiền tổ.`,
+      `Có ${flagged.length} người được đánh dấu Sơ Tổ; chỉ giữ “${flagged[0].name}”, các vị còn lại nên nối bằng liên kết tiền tổ.`,
     );
   } else if (flagged.length === 1) {
     founderId = flagged[0].id;
@@ -739,9 +747,9 @@ export function parseGedcom(textValue: string, fallbackName = ""): GedcomParseRe
     founderId = (roots.find((person) => person.gender === "male") ?? roots[0])?.id;
     if (roots.length > 2) {
       warnings.push(
-        `Tệp có ${roots.length} người ở Đời 0; tạm chọn “${
+        `Tệp có ${roots.length} người ở đời Sơ tổ; tạm chọn “${
           persons.find((person) => person.id === founderId)?.name ?? "?"
-        }” làm Khởi Tổ. Hãy kiểm tra lại trong phần cài đặt gia phả.`,
+        }” làm Sơ Tổ. Hãy kiểm tra lại trong phần cài đặt gia phả.`,
       );
     }
   }

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
+  CalendarDays,
   Check,
   ChevronDown,
   ImagePlus,
@@ -38,6 +39,8 @@ import {
 import { classifyClan, CLAN_ROLE_LABELS } from "./clan";
 import { computeGenerations, descendants, sortPersons, splitFullName } from "./utils";
 import { Avatar, Field, Sheet } from "./ui";
+import { LunarConverterSheet } from "./lunar-converter";
+import { formatStoredLunarDate } from "./lunar";
 
 interface FormDefaults {
   fatherId?: string;
@@ -77,8 +80,10 @@ function initialValues(member?: Person, defaults?: FormDefaults) {
     honors: member?.honors ?? "",
     birthDate: member?.birthDate ?? "",
     birthCalendar: (member?.birthCalendar ?? "") as CalendarKind | "",
+    birthLeap: member?.birthLeap ?? false,
     deathDate: member?.deathDate ?? "",
     deathCalendar: (member?.deathCalendar ?? "") as CalendarKind | "",
+    deathLeap: member?.deathLeap ?? false,
     alive: member?.alive ?? true,
     birthOrder: String(member?.birthOrder ?? defaults?.birthOrder ?? 1),
     fatherId: member?.fatherId ?? defaults?.fatherId ?? "",
@@ -221,6 +226,7 @@ export function MemberFormSheet({
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<FormTab>(initialTab ?? "basic");
+  const [lunarTarget, setLunarTarget] = useState<"birth" | "death" | null>(null);
 
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -243,6 +249,15 @@ export function MemberFormSheet({
   }, [savedAt, onClose]);
 
   const nameParts = useMemo(() => splitFullName(values.name), [values.name]);
+
+  const birthLunarPreview =
+    values.birthCalendar === "am"
+      ? formatStoredLunarDate(values.birthDate, values.birthLeap)
+      : null;
+  const deathLunarPreview =
+    values.deathCalendar === "am" && values.lifeStatus !== "alive"
+      ? formatStoredLunarDate(values.deathDate, values.deathLeap)
+      : null;
 
   const orderedSpousePeople = useMemo(() => {
     const map = new Map(tree.members.map((person) => [person.id, person]));
@@ -429,6 +444,11 @@ export function MemberFormSheet({
       lifeStatus: values.lifeStatus,
       birthCalendar: values.birthCalendar || undefined,
       deathCalendar: values.deathCalendar || undefined,
+      birthLeap: values.birthCalendar === "am" && values.birthLeap ? true : undefined,
+      deathLeap:
+        values.lifeStatus !== "alive" && values.deathCalendar === "am" && values.deathLeap
+          ? true
+          : undefined,
       title: values.title,
       generationNote: values.generationNote,
       tabooName: values.tabooName,
@@ -534,6 +554,7 @@ export function MemberFormSheet({
     : "";
 
   return (
+    <>
     <Sheet
       open={open}
       onClose={requestClose}
@@ -764,7 +785,7 @@ export function MemberFormSheet({
                     list="member-ancestor-titles"
                     value={values.title}
                     onChange={(event) => set("title", event.target.value)}
-                    placeholder="Thủy tổ, Khởi tổ, Cao tổ…"
+                    placeholder="Thủy tổ, Sơ tổ, Cao tổ…"
                   />
                 </Field>
                 <Field label="Ghi chú thế thứ" hint="Đích tôn, trưởng nam, con thứ, chi trưởng…">
@@ -839,9 +860,14 @@ export function MemberFormSheet({
                       placeholder="1850 hoặc 12/03/1950"
                     />
                     <select
-                      className="pat-input w-28 shrink-0"
+                      className="pat-input shrink-0"
+                      style={{ width: "8.5rem" }}
                       value={values.birthCalendar}
-                      onChange={(event) => set("birthCalendar", event.target.value as CalendarKind | "")}
+                      onChange={(event) => {
+                        const next = event.target.value as CalendarKind | "";
+                        set("birthCalendar", next);
+                        if (next !== "am") set("birthLeap", false);
+                      }}
                       aria-label="Lịch sinh"
                     >
                       <option value="">Chưa ghi lịch</option>
@@ -852,6 +878,22 @@ export function MemberFormSheet({
                       ))}
                     </select>
                   </div>
+                  {values.birthCalendar === "am" ? (
+                    <label className="mt-1.5 flex items-center gap-1.5 text-[0.7rem] text-[var(--pat-ink)]">
+                      <input
+                        type="checkbox"
+                        checked={values.birthLeap}
+                        onChange={(event) => set("birthLeap", event.target.checked)}
+                        className="h-3.5 w-3.5 accent-[var(--pat-red)]"
+                      />
+                      Tháng nhuận
+                    </label>
+                  ) : null}
+                  {birthLunarPreview ? (
+                    <span className="mt-1 block text-[0.68rem] font-medium text-[#7a5a10]">
+                      {birthLunarPreview}
+                    </span>
+                  ) : null}
                 </Field>
                 <Field
                   label="Mất"
@@ -867,10 +909,15 @@ export function MemberFormSheet({
                       placeholder="12/03/1990"
                     />
                     <select
-                      className="pat-input w-28 shrink-0"
+                      className="pat-input shrink-0"
+                      style={{ width: "8.5rem" }}
                       value={values.deathCalendar}
                       disabled={values.lifeStatus === "alive"}
-                      onChange={(event) => set("deathCalendar", event.target.value as CalendarKind | "")}
+                      onChange={(event) => {
+                        const next = event.target.value as CalendarKind | "";
+                        set("deathCalendar", next);
+                        if (next !== "am") set("deathLeap", false);
+                      }}
                       aria-label="Lịch mất"
                     >
                       <option value="">Chưa ghi lịch</option>
@@ -881,7 +928,40 @@ export function MemberFormSheet({
                       ))}
                     </select>
                   </div>
+                  {values.deathCalendar === "am" && values.lifeStatus !== "alive" ? (
+                    <label className="mt-1.5 flex items-center gap-1.5 text-[0.7rem] text-[var(--pat-ink)]">
+                      <input
+                        type="checkbox"
+                        checked={values.deathLeap}
+                        onChange={(event) => set("deathLeap", event.target.checked)}
+                        className="h-3.5 w-3.5 accent-[var(--pat-red)]"
+                      />
+                      Tháng nhuận
+                    </label>
+                  ) : null}
+                  {deathLunarPreview ? (
+                    <span className="mt-1 block text-[0.68rem] font-medium text-[#7a5a10]">
+                      {deathLunarPreview}
+                    </span>
+                  ) : null}
                 </Field>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="pat-btn h-8 px-2.5 text-[0.68rem]"
+                  onClick={() => setLunarTarget("birth")}
+                >
+                  <CalendarDays size={12} /> Đổi ngày Sinh Âm – Dương
+                </button>
+                <button
+                  type="button"
+                  className="pat-btn h-8 px-2.5 text-[0.68rem]"
+                  onClick={() => setLunarTarget("death")}
+                  disabled={values.lifeStatus === "alive"}
+                >
+                  <CalendarDays size={12} /> Đổi ngày Mất Âm – Dương
+                </button>
               </div>
               {dateWarnings.length ? (
                 <ul className="space-y-1 rounded-xl border border-[#e3cd92] bg-[#fdf4e0] px-3 py-2 text-[0.7rem] text-[#7a5a10]">
@@ -1200,7 +1280,7 @@ export function MemberFormSheet({
                         ? "Con của con gái tự động ở đời kế tiếp con gái."
                         : isReference
                           ? "Hồ sơ tham khảo không có đời trong dòng họ."
-                          : "0 = Khởi Tổ, 1.. là các đời sau. Bậc trước Khởi Tổ dùng ô Bậc tiền tổ bên cạnh."
+                          : "0 = Sơ Tổ, 1.. là các đời sau. Bậc trước Sơ Tổ dùng ô Bậc tiền tổ bên cạnh."
                   }
                 >
                   <input
@@ -1213,14 +1293,14 @@ export function MemberFormSheet({
                     placeholder="Tự động"
                   />
                 </Field>
-                <Field label="Bậc tiền tổ" hint="1 = xa nhất, tăng dần về phía Khởi Tổ. Ưu tiên hơn ô Đời.">
+                <Field label="Bậc tiền tổ" hint="1 = xa nhất, tăng dần về phía Sơ Tổ. Ưu tiên hơn ô Đời.">
                   <input
                     className="pat-input"
                     type="number"
                     min={1}
                     value={values.ancestorOrder}
                     onChange={(event) => set("ancestorOrder", event.target.value)}
-                    placeholder="Chỉ dùng cho bậc trên Khởi Tổ"
+                    placeholder="Chỉ dùng cho bậc trên Sơ Tổ"
                   />
                 </Field>
               </div>
@@ -1228,7 +1308,7 @@ export function MemberFormSheet({
                 <>
                   <Field
                     label="Liên kết tiền tổ"
-                    hint="Chỉ nối giữa các bậc trên Khởi Tổ khi gia phả thiếu thông tin các đời nối tiếp."
+                    hint="Chỉ nối giữa các bậc trên Sơ Tổ khi gia phả thiếu thông tin các đời nối tiếp."
                   >
                     <select
                       className="pat-input"
@@ -1327,8 +1407,8 @@ export function MemberFormSheet({
                 </Field>
               ) : null}
               <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
-                Bậc tiền tổ dành cho các cụ ở trên Khởi Tổ; mỗi bậc có thể đặt danh xưng riêng như Đại Tổ, Thượng Tổ,
-                Thủy Tổ. Liên kết tiền tổ chỉ nối các bậc trên Khởi Tổ và được vẽ bằng nét đứt trên phả đồ.
+                Bậc tiền tổ dành cho các cụ ở trên Sơ Tổ; mỗi bậc có thể đặt danh xưng riêng như Đại Tổ, Thượng Tổ,
+                Thủy Tổ. Liên kết tiền tổ chỉ nối các bậc trên Sơ Tổ và được vẽ bằng nét đứt trên phả đồ.
               </p>
             </section>
           </>
@@ -1474,5 +1554,31 @@ export function MemberFormSheet({
         </p>
       </div>
     </Sheet>
+    <LunarConverterSheet
+      open={lunarTarget !== null}
+      onClose={() => setLunarTarget(null)}
+      apply={
+        lunarTarget
+          ? {
+              label: lunarTarget === "birth" ? "Sinh" : "Mất",
+              date: lunarTarget === "birth" ? values.birthDate : values.deathDate,
+              calendar: (lunarTarget === "birth" ? values.birthCalendar : values.deathCalendar) || undefined,
+              leap: lunarTarget === "birth" ? values.birthLeap : values.deathLeap,
+              onApply: (date, calendar, leap) => {
+                if (lunarTarget === "birth") {
+                  set("birthDate", date);
+                  set("birthCalendar", calendar);
+                  set("birthLeap", calendar === "am" && leap);
+                } else {
+                  set("deathDate", date);
+                  set("deathCalendar", calendar);
+                  set("deathLeap", calendar === "am" && leap);
+                }
+              },
+            }
+          : undefined
+      }
+    />
+    </>
   );
 }

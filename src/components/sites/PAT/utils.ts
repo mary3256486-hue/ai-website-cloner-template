@@ -412,13 +412,14 @@ export function applyPrivacyToPerson(person: Person, privacy?: PrivacySettings):
       ...person,
       birthDate: undefined,
       birthCalendar: undefined,
+      birthLeap: undefined,
       phone: undefined,
       address: undefined,
     };
   }
   if (privacy.deathYearOnly && lifeStatusOf(person) !== "alive") {
     const year = (person.deathDate ?? "").trim().match(/\d{4}/)?.[0];
-    return { ...person, birthDate: undefined, deathDate: year ?? undefined };
+    return { ...person, birthDate: undefined, deathDate: year ?? undefined, deathLeap: undefined };
   }
   return person;
 }

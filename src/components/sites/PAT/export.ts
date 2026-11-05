@@ -90,8 +90,10 @@ export function memberRows(
       lifeStatus: LIFE_STATUS_LABELS[lifeStatusOf(m)],
       birthDate: m.birthDate,
       birthCalendar: m.birthCalendar ? CALENDAR_LABELS[m.birthCalendar] : undefined,
+      birthLeap: m.birthLeap && m.birthCalendar === "am" ? "Có" : undefined,
       deathDate: m.deathDate,
       deathCalendar: m.deathCalendar ? CALENDAR_LABELS[m.deathCalendar] : undefined,
+      deathLeap: m.deathLeap && m.deathCalendar === "am" ? "Có" : undefined,
       alive: m.alive ? "Có" : "Không",
       father: m.fatherId ? map.get(m.fatherId)?.name : undefined,
       mother: m.motherId ? map.get(m.motherId)?.name : undefined,
@@ -278,7 +280,7 @@ async function readBackupShape(parsed: unknown, fileName: string): Promise<Backu
     warnings.push("Gia phả trong tệp không có thành viên nào.");
   }
   if (value.founderId && !value.members.some((member) => member.id === value.founderId)) {
-    warnings.push("Khởi Tổ ghi trong tệp không còn trong danh sách thành viên; sẽ cần chọn lại sau khi phục hồi.");
+    warnings.push("Sơ Tổ ghi trong tệp không còn trong danh sách thành viên; sẽ cần chọn lại sau khi phục hồi.");
   }
 
   const members = ensurePersonCodes(value.members as Person[]);

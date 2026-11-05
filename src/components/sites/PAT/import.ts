@@ -255,6 +255,8 @@ function fullNameOf(row: RowValues): string {
 
 function createPersonFromRow(row: RowValues, seed: Person[]): Person {
   const name = cleanName(fullNameOf(row));
+  const birthCalendar = parseCalendar(valueOf(row, "birthCalendar"));
+  const deathCalendar = parseCalendar(valueOf(row, "deathCalendar"));
   return {
     id: uid("p"),
     code: normCode(valueOf(row, "code")) || nextPersonCode(seed),
@@ -263,8 +265,12 @@ function createPersonFromRow(row: RowValues, seed: Person[]): Person {
     birthDate: valueOf(row, "birthDate") || undefined,
     deathDate: valueOf(row, "deathDate") || undefined,
     ...parseLifeStatus(valueOf(row, "lifeStatus"), valueOf(row, "deathDate"), valueOf(row, "alive")),
-    birthCalendar: parseCalendar(valueOf(row, "birthCalendar")),
-    deathCalendar: parseCalendar(valueOf(row, "deathCalendar")),
+    birthCalendar,
+    deathCalendar,
+    birthLeap:
+      birthCalendar === "am" && parseTruthy(valueOf(row, "birthLeap")) ? true : undefined,
+    deathLeap:
+      deathCalendar === "am" && parseTruthy(valueOf(row, "deathLeap")) ? true : undefined,
     generation: parseNumber(valueOf(row, "generation")),
     ancestorOrder: Math.max(0, parseNumber(valueOf(row, "ancestorOrder")) ?? 0) || undefined,
     nameIsConventional: parseTruthy(valueOf(row, "nameIsConventional")) || undefined,
@@ -345,9 +351,25 @@ function applyRowToPerson(person: Person, row: RowValues, usedCodes: Set<string>
   assign("notes", "notes");
 
   const birthCalendar = parseCalendar(valueOf(row, "birthCalendar"));
-  if (birthCalendar) person.birthCalendar = birthCalendar;
+  if (birthCalendar) {
+    person.birthCalendar = birthCalendar;
+    if (birthCalendar !== "am") person.birthLeap = undefined;
+  }
   const deathCalendar = parseCalendar(valueOf(row, "deathCalendar"));
-  if (deathCalendar) person.deathCalendar = deathCalendar;
+  if (deathCalendar) {
+    person.deathCalendar = deathCalendar;
+    if (deathCalendar !== "am") person.deathLeap = undefined;
+  }
+  const birthLeap = valueOf(row, "birthLeap");
+  if (birthLeap) {
+    person.birthLeap =
+      person.birthCalendar === "am" && parseTruthy(birthLeap) ? true : undefined;
+  }
+  const deathLeap = valueOf(row, "deathLeap");
+  if (deathLeap) {
+    person.deathLeap =
+      person.deathCalendar === "am" && parseTruthy(deathLeap) ? true : undefined;
+  }
   const nameConventional = valueOf(row, "nameIsConventional");
   if (nameConventional) person.nameIsConventional = parseTruthy(nameConventional) || undefined;
 
@@ -376,13 +398,13 @@ const TEMPLATE_GUIDE: string[][] = [
   ["1.", "Mỗi dòng là một thành viên. Cột “Mã” là khóa ổn định (P0001, P0002…): giữ nguyên khi cập nhật, có thể để trống khi tạo mới."],
   ["2.", "Cột “Họ tên” bắt buộc. Có thể tách thành Họ / Đệm / Tên; nếu điền cả hai, ứng dụng đối chiếu và cảnh báo khi khác nhau."],
   ["3.", "Cột Cha, Mẹ, Vợ/chồng ghi Mã hoặc họ tên. Ưu tiên ghi Mã để không nhầm khi trùng tên."],
-  ["4.", "Cột “Đời”: 0 là Khởi Tổ; các đời sau là 1, 2, 3… Để trống để tự tính từ cha/mẹ hoặc liên kết tiền tổ."],
-  ["5.", "Cột “Bậc tiền tổ” chỉ dùng cho các cụ ở trên Khởi Tổ: 1 = xa nhất, tăng dần về phía Khởi Tổ."],
+  ["4.", "Cột “Đời”: 0 là Sơ Tổ; các đời sau là 1, 2, 3… Để trống để tự tính từ cha/mẹ hoặc liên kết tiền tổ."],
+  ["5.", "Cột “Bậc tiền tổ” chỉ dùng cho các cụ ở trên Sơ Tổ: 1 = xa nhất, tăng dần về phía Sơ Tổ."],
   ["6.", "Cột “Tình trạng”: Còn sống / Đã mất / Mất tích / Chưa rõ. Cột “Còn sống” kiểu cũ vẫn được đọc."],
-  ["7.", "Cột Sinh, Mất nhận năm hoặc ngày. Cột “Lịch sinh”, “Lịch mất” ghi Dương lịch hoặc Âm lịch."],
-  ["8.", "Cột “Khởi Tổ”: đánh dấu Có cho đúng một người của dòng họ đang soạn. Tổ các chi khác để trống và ghi tên chi vào cột “Chi phái”."],
+  ["7.", "Cột Sinh, Mất nhận năm hoặc ngày. Cột “Lịch sinh”, “Lịch mất” ghi Dương lịch hoặc Âm lịch. Khi dùng Âm lịch và rơi vào tháng nhuận, đánh dấu Có ở cột “Tháng nhuận sinh” / “Tháng nhuận mất”."],
+  ["8.", "Cột “Sơ Tổ”: đánh dấu Có cho đúng một người của dòng họ đang soạn. Tổ các chi khác để trống và ghi tên chi vào cột “Chi phái”."],
   ["9.", "Nhiều vợ/chồng cách nhau bằng dấu chấm phẩy ;. “Thứ tự vợ/chồng” ghi lại danh sách theo thứ tự hiển thị; “Vai vế” ghi Chánh thất / Kế thất / Thứ thất / Khác tương ứng."],
-  ["10.", "Cột “Liên kết tiền tổ”, “Quan hệ liên kết tiền tổ”, “Cách mấy bậc”, “Độ tin cậy liên kết” chỉ dùng giữa các bậc trên Khởi Tổ khi thiếu thông tin nối đời; để trống nếu không cần."],
+  ["10.", "Cột “Liên kết tiền tổ”, “Quan hệ liên kết tiền tổ”, “Cách mấy bậc”, “Độ tin cậy liên kết” chỉ dùng giữa các bậc trên Sơ Tổ khi thiếu thông tin nối đời; để trống nếu không cần."],
   ["11.", "Cột “Bản đồ mộ”, “Bản đồ nơi thờ” dán liên kết Google Maps. Chỉ hai mục này có bản đồ; địa chỉ liên hệ không tự mở bản đồ."],
   ["12.", "Cha mẹ của dâu/rể chỉ là thông tin tham khảo: nhập thành người riêng và đánh dấu phạm vi “Tham khảo”. Hồ sơ tham khảo không hiện trên phả đồ và không tham gia tính đời."],
   ["13.", "Con của con gái thuộc dòng họ bên chồng: chỉ nhập một đời con (con gái đời n, con ở đời n+1). Người từ đời n+2 trở đi cùng vợ/chồng của họ không hiển thị trên trang; khi nhập, thông tin được ẩn khỏi danh sách và chuyển vào ghi chú của người thân gần nhất."],
@@ -693,7 +715,7 @@ export async function parseSpreadsheetFile(
   try {
     workbook =
       csvText !== undefined
-        ? XLSX.read(csvText, { type: "string", cellDates: false, FS: delimiter })
+        ? XLSX.read(csvText, { type: "string", cellDates: false, FS: delimiter, raw: true })
         : XLSX.read(buffer, { type: "array", cellDates: false });
   } catch {
     throw new ImportFileError(
@@ -830,7 +852,7 @@ const WARNING_GROUPS: { key: string; label: string; match: RegExp }[] = [
   { key: "cycles", label: "Vòng lặp quan hệ", match: /vòng lặp/i },
   { key: "generation", label: "Đời & thế thứ", match: /đời|xung đột đời|thế thứ/i },
   { key: "relations", label: "Cha mẹ, vợ/chồng & liên kết", match: /cha\/mẹ|vợ\/chồng|liên kết tiền tổ|quan hệ/i },
-  { key: "founder", label: "Khởi Tổ", match: /khởi tổ/i },
+  { key: "founder", label: "Sơ Tổ", match: /sơ tổ|khởi tổ/i },
   { key: "scope", label: "Phạm vi dòng họ", match: /ngoài phả đồ|ẩn khỏi trang|tham khảo/i },
 ];
 
@@ -1239,7 +1261,7 @@ export function buildTreeFromRows(
   if (founderFlags.length > 1) {
     founderId = founderFlags[0].id;
     warnings.push(
-      `Có ${founderFlags.length} người được đánh dấu Khởi Tổ (${founderFlags.map((person) => person.name).join(", ")}). Chỉ giữ ${founderFlags[0].name} làm Khởi Tổ; các vị còn lại nên nối bằng liên kết tiền tổ.`,
+      `Có ${founderFlags.length} người được đánh dấu Sơ Tổ (${founderFlags.map((person) => person.name).join(", ")}). Chỉ giữ ${founderFlags[0].name} làm Sơ Tổ; các vị còn lại nên nối bằng liên kết tiền tổ.`,
     );
   } else if (founderFlags.length === 1) {
     founderId = founderFlags[0].id;
@@ -1251,10 +1273,10 @@ export function buildTreeFromRows(
     );
     if (roots.length === 1) {
       founderId = roots[0].id;
-      warnings.push(`Chưa đánh dấu Khởi Tổ; tạm chọn ${roots[0].name} vì đây là người duy nhất ở Đời 0.`);
+      warnings.push(`Chưa đánh dấu Sơ Tổ; tạm chọn ${roots[0].name} vì đây là người duy nhất ở đời Sơ tổ.`);
     } else if (roots.length > 1) {
       warnings.push(
-        `Có ${roots.length} người ở Đời 0 nhưng chưa đánh dấu Khởi Tổ. Hãy chọn Khởi Tổ trong phần cài đặt gia phả; các vị còn lại nên nối bằng liên kết tiền tổ.`,
+        `Có ${roots.length} người ở đời Sơ tổ nhưng chưa đánh dấu Sơ Tổ. Hãy chọn Sơ Tổ trong phần cài đặt gia phả; các vị còn lại nên nối bằng liên kết tiền tổ.`,
       );
     }
   }

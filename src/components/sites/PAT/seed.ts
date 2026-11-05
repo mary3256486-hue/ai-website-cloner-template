@@ -71,7 +71,7 @@ const seedPeople: SeedPerson[] = [
     gender: "male",
     order: 1,
     generation: 0,
-    title: "Khởi Tổ",
+    title: "Sơ Tổ",
     generationNote: "Cháu đời thứ 2 của Thủy Tổ",
     ancestorLinkId: "t02",
     ancestorLinkRelation: "cháu đời thứ 2",
@@ -89,7 +89,7 @@ const seedPeople: SeedPerson[] = [
     gender: "female",
     order: 1,
     generation: 0,
-    title: "Vợ Khởi Tổ",
+    title: "Vợ Sơ Tổ",
     spouses: ["p00"],
     address: "Hà Nội",
   },
@@ -271,7 +271,7 @@ export function createDemoTree(): FamilyTree {
     name: "GIA PHẢ HỌ PHẠM HÀ NỘI (MẪU)",
     address: SAMPLE_HOMETOWN,
     description:
-      "Gia phả mẫu gồm 2 bậc tiền tổ và 5 đời (Đời 0–4), minh hoạ cách ghi chép thành viên, quan hệ vợ chồng, con cái, các chi phái trong dòng họ. Con của con gái chỉ ghi một đời (ngoại tộc, theo họ cha); cha/mẹ của dâu/rể là hồ sơ tham khảo, không lên phả đồ.",
+      "Gia phả mẫu gồm 2 bậc tiền tổ và 5 đời (Sơ tổ đến đời 4), minh hoạ cách ghi chép thành viên, quan hệ vợ chồng, con cái, các chi phái trong dòng họ. Con của con gái chỉ ghi một đời (ngoại tộc, theo họ cha); cha/mẹ của dâu/rể là hồ sơ tham khảo, không lên phả đồ.",
     ownerName: "Quản trị viên",
     createdAt: now,
     updatedAt: now,
@@ -279,7 +279,7 @@ export function createDemoTree(): FamilyTree {
     branches,
     history:
       "Dòng họ Phạm vốn gốc ở Bắc Ninh. Cụ Đại Tổ là người được dòng họ lựa chọn ghi nhận ở bậc tiền tổ xa nhất; cụ Thủy Tổ được xác định là hậu duệ của Đại Tổ và là người khai cơ lập nghiệp.\n\n" +
-      "Khi lập phả chỉ còn biết tên Thủy Tổ, không xác định được các đời nối tiếp, nên cụ Khởi Tổ được ghi là cháu đời thứ 2 của Thủy Tổ và là đời đầu tiên nối liền mạch với các đời sau. Từ Đời 1 trở đi, con cháu dòng họ giữ nếp gia phong hiếu học, cần kiệm; nhiều người thành đạt trong giáo dục, y tế, kỹ thuật và kinh doanh.\n\n" +
+      "Khi lập phả chỉ còn biết tên Thủy Tổ, không xác định được các đời nối tiếp, nên cụ Sơ Tổ được ghi là cháu đời thứ 2 của Thủy Tổ và là đời đầu tiên nối liền mạch với các đời sau. Từ Đời 1 trở đi, con cháu dòng họ giữ nếp gia phong hiếu học, cần kiệm; nhiều người thành đạt trong giáo dục, y tế, kỹ thuật và kinh doanh.\n\n" +
       "Gia phả này được số hoá để con cháu muôn đời ghi nhớ cội nguồn.",
     design: { ...DEFAULT_DESIGN },
     positions: {},

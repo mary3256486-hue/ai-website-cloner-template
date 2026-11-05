@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
-import { generationTag } from "./types";
+import { UNKNOWN_GENERATION, generationTag } from "./types";
 import { CLAN_ROLE_HINTS, CLAN_ROLE_LABELS, classifyClan } from "./clan";
 import {
   ageText,
@@ -50,6 +50,7 @@ import { KinshipSheet } from "./kinship-sheet";
 type GenderFilter = "all" | "male" | "female";
 type StatusFilter = "all" | "alive" | "deceased";
 type SortKey = "genealogy" | "name" | "birth";
+type TagFilter = "noGen" | "noBranch" | "hasPhoto";
 
 function normalize(text: string) {
   return text
@@ -68,6 +69,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
   const [gender, setGender] = useState<GenderFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [sort, setSort] = useState<SortKey>("genealogy");
+  const [tags, setTags] = useState<TagFilter[]>([]);
   const [expanded, setExpanded] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -97,6 +99,29 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
   const index = useMemo(() => buildFamilyIndex(tree.members, tree.founderId), [tree.members, tree.founderId]);
   const stats = useMemo(() => getStats(tree), [tree]);
   const generationStats = useMemo(() => getGenerationStats(tree), [tree]);
+  const optionCounts = useMemo(() => {
+    const displayed = tree.members.filter((person) => clan.isDisplayed(person.id));
+    const branchCounts = new Map<string, number>();
+    let noGen = 0;
+    let noBranch = 0;
+    let hasPhoto = 0;
+    for (const person of displayed) {
+      if ((gens.get(person.id) ?? UNKNOWN_GENERATION) === UNKNOWN_GENERATION) noGen += 1;
+      if (person.branchId) branchCounts.set(person.branchId, (branchCounts.get(person.branchId) ?? 0) + 1);
+      else noBranch += 1;
+      if (person.avatar) hasPhoto += 1;
+    }
+    return {
+      male: displayed.filter((person) => person.gender === "male").length,
+      female: displayed.filter((person) => person.gender === "female").length,
+      alive: displayed.filter((person) => person.alive).length,
+      deceased: displayed.filter((person) => !person.alive).length,
+      branchCounts,
+      noGen,
+      noBranch,
+      hasPhoto,
+    };
+  }, [tree.members, clan, gens]);
   const branchName = useMemo(
     () => new Map(tree.branches.map((branch) => [branch.id, branch.name])),
     [tree.branches],
@@ -112,6 +137,9 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       if (gender !== "all" && person.gender !== gender) return false;
       if (status === "alive" && !person.alive) return false;
       if (status === "deceased" && person.alive) return false;
+      if (tags.includes("noGen") && (gens.get(person.id) ?? UNKNOWN_GENERATION) !== UNKNOWN_GENERATION) return false;
+      if (tags.includes("noBranch") && person.branchId) return false;
+      if (tags.includes("hasPhoto") && !person.avatar) return false;
       if (!needle) return true;
       const haystack = normalize(
         [
@@ -139,13 +167,15 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
       if (ga !== gb) return sortGenerations(ga, gb);
       return sortPersons(a, b);
     });
-  }, [tree.members, query, gen, branch, gender, status, sort, gens, branchName, clan]);
+  }, [tree.members, query, gen, branch, gender, status, sort, tags, gens, branchName, clan]);
 
   const activeFilters =
     (gender !== "all" ? 1 : 0) +
     (status !== "all" ? 1 : 0) +
     (sort !== "genealogy" ? 1 : 0) +
-    (branch !== "all" ? 1 : 0);
+    (branch !== "all" ? 1 : 0) +
+    (gen !== "all" ? 1 : 0) +
+    tags.length;
   const closeForm = () => {
     setFormOpen(false);
     setEditing(null);
@@ -200,7 +230,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             <Stat value={stats.female} label="Nữ" />
             <Stat
               value={`${stats.generations} đời`}
-              label={stats.ancestorTiers ? `+${stats.ancestorTiers} bậc tổ` : "Đời 0 · Khởi Tổ"}
+              label={stats.ancestorTiers ? `+${stats.ancestorTiers} bậc tổ` : "Sơ tổ"}
             />
           </div>
         </section>
@@ -537,6 +567,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                 setStatus("all");
                 setSort("genealogy");
                 setBranch("all");
+                setGen("all");
+                setTags([]);
               }}
             >
               Đặt lại
@@ -554,8 +586,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
               onChange={setGender}
               options={[
                 { value: "all", label: "Tất cả" },
-                { value: "male", label: "Nam" },
-                { value: "female", label: "Nữ" },
+                { value: "male", label: `Nam (${optionCounts.male})` },
+                { value: "female", label: `Nữ (${optionCounts.female})` },
               ]}
             />
           </Field>
@@ -565,8 +597,8 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
               onChange={setStatus}
               options={[
                 { value: "all", label: "Tất cả" },
-                { value: "alive", label: "Còn sống" },
-                { value: "deceased", label: "Đã mất" },
+                { value: "alive", label: `Còn sống (${optionCounts.alive})` },
+                { value: "deceased", label: `Đã mất (${optionCounts.deceased})` },
               ]}
             />
           </Field>
@@ -618,12 +650,37 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                     data-active={branch === item.id}
                     onClick={() => setBranch(item.id)}
                   >
-                    {item.name}
+                    {item.name} ({optionCounts.branchCounts.get(item.id) ?? 0})
                   </button>
                 ))}
               </div>
             </Field>
           ) : null}
+          <Field label="Lọc thêm">
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  { key: "noGen", label: "Chưa xác định đời", count: optionCounts.noGen },
+                  { key: "noBranch", label: "Chưa xếp chi phái", count: optionCounts.noBranch },
+                  { key: "hasPhoto", label: "Có ảnh", count: optionCounts.hasPhoto },
+                ] satisfies { key: TagFilter; label: string; count: number }[]
+              ).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className="pat-chip"
+                  data-active={tags.includes(item.key)}
+                  onClick={() =>
+                    setTags((prev) =>
+                      prev.includes(item.key) ? prev.filter((tag) => tag !== item.key) : [...prev, item.key],
+                    )
+                  }
+                >
+                  {item.label} ({item.count})
+                </button>
+              ))}
+            </div>
+          </Field>
         </div>
       </Sheet>
 
@@ -648,7 +705,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             </div>
             <p className="mt-1.5 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
               {exportScope === "clan"
-                ? "Chỉ người thuộc dòng họ: Khởi Tổ, con cháu nội tộc và dâu/rể của các đời hiển thị."
+                ? "Chỉ người thuộc dòng họ: Sơ Tổ, con cháu nội tộc và dâu/rể của các đời hiển thị."
                 : "Mọi hồ sơ đang lưu trong gia phả, gồm cả người tham khảo và hồ sơ đã ẩn khỏi phả đồ."}
             </p>
           </div>

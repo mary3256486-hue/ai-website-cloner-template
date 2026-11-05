@@ -282,19 +282,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
       setSelectedId(focus);
       return;
     }
-    const root = layout.nodes.find((node) => node.generation === 1 && !node.isSpouse);
-    const el = viewportRef.current;
-    if (!root || !el) {
-      fit();
-      return;
-    }
-    const rect = el.getBoundingClientRect();
-    const scale = 0.75;
-    setView({
-      scale,
-      x: rect.width / 2 - (root.x + root.width / 2) * scale,
-      y: rect.height / 2 - (root.y + root.height / 2) * scale,
-    });
+    fit();
   }, [tree.id, layout.nodes, fit, centerOn]);
 
   useEffect(() => {
@@ -556,6 +544,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
       tree={tree}
       section="chinh-sua-voi-cay-gia-pha"
       title="Cây gia phả"
+      wide
       subtitle={`${layout.nodes.length} thành viên · ${layout.generations.filter((row) => !row.isAncestor).length} đời${
         layout.generations.some((row) => row.isAncestor)
           ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tiền tổ`

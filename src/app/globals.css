@@ -209,6 +209,15 @@
   top: auto;
   bottom: calc(100% + 6px);
 }
+.pat-tip-end::after {
+  left: auto;
+  right: 0;
+  transform: translateY(-4px);
+}
+.pat-tip-end:hover::after,
+.pat-tip-end:focus-visible::after {
+  transform: translateY(0);
+}
 .pat-tip-wrap::after {
   width: max-content;
   max-width: min(16rem, 72vw);

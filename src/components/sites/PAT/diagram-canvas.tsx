@@ -537,6 +537,7 @@ export function DiagramCanvas({
           ? layout.generations.map((row) => {
               const label = row.label ?? bandLabelFor(tuning.generationBandLabel, row.generation);
               const bandW = Math.max(86, Math.min(160, label.length * 5.4 + 18));
+              const rightX = contentW - 34 - bandW;
               return (
                 <g key={`gen-${row.generation}`}>
                   <rect
@@ -563,9 +564,33 @@ export function DiagramCanvas({
                   >
                     {label}
                   </text>
+                  <rect
+                    x={rightX}
+                    y={row.y - 28}
+                    width={bandW}
+                    height="20"
+                    rx="10"
+                    fill={bandColor}
+                    fillOpacity="0.12"
+                    stroke={bandColor}
+                    strokeOpacity="0.35"
+                    strokeWidth="0.7"
+                  />
+                  <text
+                    x={rightX + bandW / 2}
+                    y={row.y - 14}
+                    textAnchor="middle"
+                    fontSize="7.2"
+                    fontWeight="700"
+                    letterSpacing="0.8"
+                    fill={bandColor}
+                    fontFamily="'Be Vietnam Pro', sans-serif"
+                  >
+                    {label}
+                  </text>
                   <line
                     x1={34 + bandW + 6}
-                    x2={contentW - 42}
+                    x2={rightX - 6}
                     y1={row.y - 18}
                     y2={row.y - 18}
                     stroke={bandColor}
@@ -602,25 +627,32 @@ export function DiagramCanvas({
                 y2={edge.y2}
                 stroke={stroke}
                 strokeOpacity={
-                  connectorColor || personLineColor || tint
-                    ? 0.85
-                    : edge.type === "spouse"
-                      ? 0.7
-                      : edge.indirect
-                        ? 0.8
-                        : 0.55
+                  edge.secondary
+                    ? 0.5
+                    : connectorColor || personLineColor || tint
+                      ? 0.85
+                      : edge.type === "spouse"
+                        ? 0.7
+                        : edge.indirect
+                          ? 0.8
+                          : 0.55
                 }
-                strokeWidth={tuning.connectorWidth * (edge.type === "spouse" ? 1.08 : 1)}
+                strokeWidth={
+                  tuning.connectorWidth *
+                  (edge.secondary ? 0.55 : edge.type === "spouse" ? 1.08 : 1)
+                }
                 strokeDasharray={
-                  edge.maternal
-                    ? "2 3"
-                    : edge.indirect
-                      ? "5 4"
-                      : tuning.connectorDash
-                        ? "6 4"
-                        : edge.type === "spouse"
-                          ? "5 3"
-                          : undefined
+                  edge.secondary
+                    ? "5 4"
+                    : edge.maternal
+                      ? "2 3"
+                      : edge.indirect
+                        ? "5 4"
+                        : tuning.connectorDash
+                          ? "6 4"
+                          : edge.type === "spouse"
+                            ? "5 3"
+                            : undefined
                 }
                 strokeLinecap="round"
               />
@@ -694,7 +726,12 @@ export function DiagramCanvas({
               const showAnniversary =
                 (genStyle?.showDeathAnniversary ?? settings.showDeathAnniversary === true) && Boolean(anniversary);
               const title =
-                person.title || (isGen(node) < 0 ? `TIỀN TỔ ${-isGen(node)}` : `ĐỜI ${isGen(node)}`);
+                person.title ||
+                (isGen(node) < 0
+                  ? `TIỀN TỔ ${-isGen(node)}`
+                  : isGen(node) === 0
+                    ? "SƠ TỔ"
+                    : `ĐỜI ${isGen(node)}`);
               const meta: string[] = [];
               if (settings.showBirthOrder && person.birthOrder > 0) meta.push(`Con thứ ${person.birthOrder}`);
               if (showDates) meta.push(displayLifeSpan(person, tree.privacy));

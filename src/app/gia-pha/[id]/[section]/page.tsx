@@ -7,6 +7,7 @@ import { ComingSoon } from "@/components/sites/PAT/coming-soon";
 import { DesignView } from "@/components/sites/PAT/design-view";
 import { DiagramEditorView } from "@/components/sites/PAT/diagram-editor-view";
 import { MembersView } from "@/components/sites/PAT/members-view";
+import { ToolsView } from "@/components/sites/PAT/tools-view";
 import { TreeEditorView } from "@/components/sites/PAT/tree-editor-view";
 import { LoadingTree, MissingTree, useTreeFromRoute } from "@/components/sites/PAT/tree-route";
 
@@ -22,5 +23,6 @@ export default function TreeSectionPage() {
   if (section === "ve-pha-do") return <DiagramEditorView tree={tree} />;
   if (section === "giao-dien") return <DesignView tree={tree} />;
   if (section === "pha-ky") return <ChronicleView tree={tree} />;
+  if (section === "cong-cu") return <ToolsView tree={tree} />;
   return <ComingSoon tree={tree} section={section ?? ""} />;
 }

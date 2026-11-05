@@ -115,7 +115,7 @@ function nowIso() {
 /**
  * Nâng cấp dữ liệu đã lưu:
  * - v4 gỡ cha mẹ nuôi/dượng/kế, ảnh tư liệu và “nối không trực hệ”.
- * - Liên kết giữa các bậc tiền tổ được chuyển sang `ancestorLink*` để không mất chuỗi Đại Tổ → Thủy Tổ → Khởi Tổ.
+ * - Liên kết giữa các bậc tiền tổ được chuyển sang `ancestorLink*` để không mất chuỗi Đại Tổ → Thủy Tổ → Sơ Tổ.
  * - v5 ẩn hồ sơ ngoài phả đồ khỏi trang và chuyển thông tin vào ghi chú của thân nhân gần nhất.
  */
 function normalizeTree(tree: FamilyTree): FamilyTree {
@@ -125,6 +125,11 @@ function normalizeTree(tree: FamilyTree): FamilyTree {
   const members = source.map((person) => {
     const legacy = person as LegacyPerson;
     const next: Person & Partial<LegacyPerson> = { ...person };
+    if (typeof next.title === "string" && /khởi\s+tổ/i.test(next.title)) {
+      next.title = next.title.replace(/khởi\s+(tổ)/gi, (_match, word: string) =>
+        word === word.toUpperCase() ? "SƠ TỔ" : "Sơ tổ",
+      );
+    }
     if (version < 4 && legacy.linkToId) {
       const target = byId.get(legacy.linkToId);
       const isAncestorTier =
@@ -494,6 +499,8 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
           lifeStatus: input.lifeStatus,
           birthCalendar: input.birthCalendar,
           deathCalendar: input.deathCalendar,
+          birthLeap: input.birthLeap || undefined,
+          deathLeap: input.deathLeap || undefined,
           title: input.title?.trim() || undefined,
           generation: input.generation,
           ancestorOrder: input.ancestorOrder,

@@ -14,6 +14,7 @@ import {
   Palette,
   PenTool,
   Users,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FamilyTree } from "./types";
@@ -27,6 +28,7 @@ const sections = [
   { key: "ve-pha-do", label: "Vẽ phả đồ", icon: PenTool, short: "Vẽ phả đồ" },
   { key: "giao-dien", label: "Thiết kế bản in", icon: Palette, short: "Bản in" },
   { key: "pha-ky", label: "Phả ký", icon: BookOpen, short: "Phả ký" },
+  { key: "cong-cu", label: "Công cụ", icon: Wrench, short: "Công cụ" },
 ];
 
 export function TreeShell({
@@ -58,7 +60,12 @@ export function TreeShell({
   return (
     <div className="pat-shell flex min-h-dvh flex-col">
       <header className="pat-header sticky top-0 z-30 no-print">
-        <div className="mx-auto flex min-h-[76px] w-full max-w-6xl items-center gap-3 px-4 py-3">
+        <div
+          className={cn(
+            "mx-auto flex min-h-[76px] w-full items-center gap-3 px-4 py-3",
+            wide ? "max-w-none" : "max-w-6xl",
+          )}
+        >
           <Link
             href="/"
             className="pat-tip flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
@@ -77,7 +84,7 @@ export function TreeShell({
             {actions}
             <Link
               href="/"
-              className="pat-tip flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
+              className="pat-tip pat-tip-end flex h-11 w-11 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 transition hover:bg-white/20"
               aria-label="Về danh sách gia phả"
               data-tip="Danh sách gia phả"
             >
@@ -85,7 +92,12 @@ export function TreeShell({
             </Link>
           </div>
         </div>
-        <nav className="mx-auto hidden w-full max-w-6xl gap-1 overflow-x-auto px-3 pb-1 md:flex xl:gap-1.5">
+        <nav
+          className={cn(
+            "mx-auto hidden w-full gap-1 overflow-x-auto px-3 pb-1 md:flex xl:gap-1.5",
+            wide ? "max-w-none" : "max-w-6xl",
+          )}
+        >
           {sections.map((item) => {
             const active = pathname?.includes(`/${item.key}`) || section === item.key;
             const Icon = item.icon;
@@ -110,7 +122,12 @@ export function TreeShell({
         </nav>
       </header>
 
-      <main className={cn("mx-auto w-full flex-1 px-3 pb-28 pt-4 sm:px-5 md:pb-10", wide ? "max-w-[1600px]" : "max-w-6xl")}>
+      <main
+        className={cn(
+          "mx-auto w-full flex-1 px-3 pb-28 pt-4 sm:px-5 md:pb-10",
+          wide ? "max-w-none" : "max-w-6xl",
+        )}
+      >
         {children}
       </main>
 
@@ -155,6 +172,9 @@ export function TreeShell({
           <SheetGroup label="Bản in">
             <SheetRow icon={<Palette size={18} />} title="Thiết kế bản in" subtitle="Khổ giấy, lề, màu sắc, xem trước in" onClick={() => go("giao-dien")} />
             <SheetRow icon={<BookOpen size={18} />} title="Phả ký" subtitle="Viết lịch sử dòng họ" onClick={() => go("pha-ky")} />
+          </SheetGroup>
+          <SheetGroup label="Tra cứu">
+            <SheetRow icon={<Wrench size={18} />} title="Công cụ" subtitle="Đổi ngày Âm – Dương, tra cứu niên hiệu" onClick={() => go("cong-cu")} />
           </SheetGroup>
           <SheetGroup label="Dữ liệu">
             <SheetRow icon={<Download size={18} />} title="Xuất dữ liệu" subtitle="Excel (CSV), JSON, GEDCOM" onClick={() => go("danh-sach-thanh-vien")} />
