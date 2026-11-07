@@ -268,7 +268,7 @@ export function createDemoTree(): FamilyTree {
   const now = new Date().toISOString();
   return {
     id: "mau-gia-pha",
-    name: "GIA PHẢ HỌ PHẠM HÀ NỘI (MẪU)",
+    name: "GIA PHẢ HỌ PHẠM (MẪU)",
     address: SAMPLE_HOMETOWN,
     description:
       "Gia phả mẫu gồm 2 bậc tiền tổ và 5 đời (Sơ tổ đến đời 4), minh hoạ cách ghi chép thành viên, quan hệ vợ chồng, con cái, các chi phái trong dòng họ. Con của con gái chỉ ghi một đời (ngoại tộc, theo họ cha); cha/mẹ của dâu/rể là hồ sơ tham khảo, không lên phả đồ.",

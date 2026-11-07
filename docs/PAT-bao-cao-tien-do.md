@@ -295,6 +295,23 @@ Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gi
 
 Lưu ý: các số đo nhãn ở mục 6.2 (`x = 206 / 3162`) là **trước** thay đổi này; số hiện hành là `x = 161 / 3239` như trên. Khổ giấy được cố định theo mục 6.4 nên đổi cỡ thẻ/cỡ nhãn không còn nới `viewBox`; hai nhãn vẫn giữ khe 2,5 cm ở cả hai phía.
 
+### 6.14. Tiêu đề trang chủ, tên bản mẫu và biểu trưng chữ Phạm trên phả đồ — ngày 2026-11-08
+
+Ba yêu cầu của bạn:
+
+1. **Trang chủ:** tiêu đề đầu trang đổi từ “Tiểu Phạm” thành **“Khối Đình Tiểu Phạm”** (`home-view.tsx`).
+2. **Bản mẫu:** tên đổi từ “GIA PHẢ HỌ PHẠM HÀ NỘI (MẪU)” thành **“GIA PHẢ HỌ PHẠM (MẪU)”** (`seed.ts`). Bản mẫu không lưu xuống localStorage nên mọi phiên nạp lại đều nhận tên mới; bản sao tạo từ mẫu cũng mang tên mới.
+3. **Phả đồ:** mọi avatar thành viên (ảnh riêng hoặc chữ tắt) thay bằng **biểu trưng chữ Phạm vàng trên nền đỏ như logo trang chủ** (`diagram-canvas.tsx`). Ảnh `han-pham.png` đặt một lần trong `<defs>` rồi mỗi thẻ tham chiếu bằng `<use>` — bản in/PNG chỉ nhúng ảnh một lần thay vì 58 bản sao. Nền đỏ `#8a1c15` đúng màu logo; chế độ tiết kiệm mực giảm độ đậm nền như cũ. Công tắc ở Thiết kế bản in và inspector đổi nhãn thành “Biểu trưng chữ Phạm”; thẻ mẫu trong inspector hiện đúng biểu trưng. Ảnh chân dung vẫn giữ ở danh sách, hồ sơ và biểu mẫu thành viên (ngoài phạm vi phả đồ).
+
+**Bằng chứng kiểm tra** trên bản production `http://localhost:3001`, `BUILD_ID _Fl6IQUjOljX3jT5RX4Sf`:
+
+- **Trang chủ** 1440×900 và 420×900: tiêu đề mới hiện một dòng (cao 24 px, rộng 284 px ở khổ mobile), không tràn ngang; thẻ bản mẫu mang tên mới. Ảnh: `pat-audit/pham-home-desktop.png`, `pham-home-mobile.png`.
+- **Phả đồ** (`ve-pha-do`): đúng **58 `<use>`** tham chiếu biểu trưng, **1** ảnh trong defs, 58 nền đỏ; không còn chữ tắt. Cắt vùng thẻ ở toàn khổ 3572 px cho thấy chữ Phạm vàng rõ nét trong tròn đỏ (`pat-audit/pham-crop-cards.png`).
+- **Công tắc** (`giao-dien`): bấm “Biểu trưng chữ Phạm” tắt → 0 use; bật lại → 58 use.
+- **Đường xuất PNG:** dựng thử đúng cách export (nhúng ảnh thành data URI rồi raster bằng canvas) cho ảnh đủ biểu trưng trên mọi thẻ (`pat-audit/pham-export-raster.png`, `pham-full-res.png`).
+- **Bản in thành viên:** PDF khổ A4 như mục 6.13, dòng đầu đúng “GIA PHẢ HỌ PHẠM (MẪU)”, không còn “HÀ NỘI” (`pat-audit/pham-member-print.pdf`).
+- **Kiểm tra mã:** `npm run lint`, `npm run typecheck`, `npm run build` sạch; console 0 lỗi trên cả năm trang đã mở.
+
 ### 6.13. Review commit fdc517b và sửa bốn điểm sót — ngày 2026-11-07
 
 Rà soát toàn bộ thay đổi của commit `fdc517b` (tab Tư liệu thay Phả ký + bốn mặc định phả đồ). Phần lớn sạch; bốn điểm cần chỉnh đã sửa:

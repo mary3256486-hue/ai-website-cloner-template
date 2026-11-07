@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import Image from "next/image";
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -1070,7 +1071,17 @@ export function GenerationInspector({
                   </p>
                 ) : null}
               </div>
-              {resolved.showAvatar ? <Avatar person={sample} size={28} /> : null}
+              {resolved.showAvatar ? (
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#8a1c15]">
+                  <Image
+                    src="/sites/PAT/images/han-pham.png"
+                    alt=""
+                    width={585}
+                    height={728}
+                    className="h-[86%] w-auto max-w-none object-contain"
+                  />
+                </span>
+              ) : null}
             </div>
             <p className="mt-2 text-[0.62rem] text-[var(--pat-muted)]">Thẻ mẫu cập nhật ngay khi chỉnh bên dưới.</p>
           </div>
@@ -1094,7 +1105,8 @@ export function GenerationInspector({
           onChange={(cardScale) => onStyle({ cardScale })}
         />
         <ToggleRow
-          label="Ảnh chân dung"
+          label="Biểu trưng chữ Phạm"
+          hint="Mọi thẻ dùng chữ Phạm vàng trên nền đỏ như logo trang chủ."
           checked={resolved.showAvatar}
           onChange={(showAvatar) => onStyle({ showAvatar })}
         />

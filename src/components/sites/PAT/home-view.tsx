@@ -811,7 +811,7 @@ export function HomeView() {
             />
           </span>
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="pat-serif text-base font-semibold text-[var(--pat-red)]">Tiểu Phạm</p>
+            <p className="pat-serif text-base font-semibold text-[var(--pat-red)]">Khối Đình Tiểu Phạm</p>
             <p className="text-[0.6rem] font-semibold uppercase tracking-[0.22em] text-[var(--pat-muted)]">
               Gia phả Việt
             </p>

@@ -876,7 +876,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                   onClick={() => setDesign(tree.id, { showDeathAnniversary: design.showDeathAnniversary !== true })}
                 />
                 <Toggle
-                  label="Ảnh đại diện"
+                  label="Biểu trưng chữ Phạm"
                   active={design.showAvatar}
                   onClick={() => setDesign(tree.id, { showAvatar: !design.showAvatar })}
                 />

@@ -354,15 +354,8 @@ function wrapText(text: string, maxChars: number, maxLines: number): string[] {
   return kept;
 }
 
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
+const PHAM_EMBLEM_SRC = "/sites/PAT/images/han-pham.png";
+const PHAM_EMBLEM_RATIO = 585 / 728;
 
 function yearOf(value?: string) {
   const match = value?.match(/\d{4}/);
@@ -597,6 +590,13 @@ export function DiagramCanvas({
       aria-label={`Phả đồ ${tree.name}`}
     >
       <defs>
+        <image
+          id={`${idPrefix}-pham-emblem`}
+          href={PHAM_EMBLEM_SRC}
+          width={100 * PHAM_EMBLEM_RATIO}
+          height={100}
+          preserveAspectRatio="xMidYMid meet"
+        />
         <pattern id={patternId} width="56" height="56" patternUnits="userSpaceOnUse" patternTransform={`scale(${patternScale})`}>
           {settings.background === "lotus" ? (
             <g fill="none" stroke={palette.gold} strokeOpacity={0.13 * patternOpacity} strokeWidth="1">
@@ -1181,8 +1181,10 @@ export function DiagramCanvas({
               }
 
               const avatar = vertical
-                ? { cx: baseW / 2, cy: 27, r: 13, initialsY: 31, initialsSize: 9 }
-                : { cx: 22, cy: 26, r: 11, initialsY: 30, initialsSize: 8.5 };
+                ? { cx: baseW / 2, cy: 27, r: 13 }
+                : { cx: 22, cy: 26, r: 11 };
+              const emblemH = avatar.r * 1.84;
+              const emblemW = emblemH * PHAM_EMBLEM_RATIO;
               const textX = vertical ? baseW / 2 : 40;
               const anchor = vertical ? "middle" : "start";
               const fontFamily = genStyle?.fontFamily || tuning.fontFamily;
@@ -1257,32 +1259,21 @@ export function DiagramCanvas({
                     </clipPath>
                   </defs>
                   <g transform={`scale(${contentScale})`}>
-                    {showAvatar && person.avatar ? (
-                      <image
-                        href={person.avatar}
-                        x={avatar.cx - avatar.r}
-                        y={avatar.cy - avatar.r}
-                        width={avatar.r * 2}
-                        height={avatar.r * 2}
-                        clipPath={`url(#${clip})`}
-                        preserveAspectRatio="xMidYMid slice"
-                      />
-                    ) : (
-                      <>
-                        <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} fill={color} opacity={inkSaver ? 0.5 : 0.92} />
-                        <text
-                          x={avatar.cx}
-                          y={avatar.initialsY}
-                          textAnchor="middle"
-                          fontSize={avatar.initialsSize}
-                          fontWeight="700"
-                          fill="#fff8e9"
-                          fontFamily="'Be Vietnam Pro', sans-serif"
-                        >
-                          {initials(person.name)}
-                        </text>
-                      </>
-                    )}
+                    {showAvatar ? (
+                      <g clipPath={`url(#${clip})`}>
+                        <circle
+                          cx={avatar.cx}
+                          cy={avatar.cy}
+                          r={avatar.r}
+                          fill="#8a1c15"
+                          opacity={inkSaver ? 0.5 : 0.92}
+                        />
+                        <use
+                          href={`#${idPrefix}-pham-emblem`}
+                          transform={`translate(${avatar.cx - emblemW / 2}, ${avatar.cy - emblemH / 2}) scale(${emblemH / 100})`}
+                        />
+                      </g>
+                    ) : null}
                   <g clipPath={`url(#${clipText})`}>
                     {showTitle ? (
                       <text
