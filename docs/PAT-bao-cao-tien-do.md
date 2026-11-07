@@ -1,6 +1,6 @@
 # PAT — Báo cáo tiến độ triển khai
 
-Cập nhật lần cuối: **2026-11-06**.
+Cập nhật lần cuối: **2026-11-07**.
 
 Mục đích: ghi lại việc đã rà soát/sửa, cách đã kiểm tra và phần còn chờ duyệt để bước tiếp theo không phải rà lại từ đầu. Cập nhật file này ngay sau mỗi đợt rà soát/sửa.
 
@@ -283,7 +283,7 @@ Ba yêu cầu bạn chốt:
 - **Kéo đổi cỡ thẻ** (`diagram-editor-view.tsx` + canvas): thẻ đang chọn có tay nắm tròn ở góc dưới phải. Kéo theo hướng chéo, tỉ lệ tính từ cạnh lớn hơn rồi làm tròn bước 0,05; thay đổi ghi vào `generationStyles[đời].cardScale` nên **mọi thẻ cùng đời** đổi cùng lúc. Nội dung thẻ vẽ ở kích thước gốc rồi scale cả nhóm, nên chữ và ảnh không tràn khi thẻ to/nhỏ. Có thông báo “Đã đổi cỡ thẻ cho … và toàn bộ thẻ cùng đời”.
 - **Nhãn đời** (`diagram-canvas.tsx` + `layout.ts`): cỡ nhãn = `generationLabelScale × cardScaleFor(đời)`. Khoảng cách dùng `labelGap = round(73 × cỡ viền)` đơn vị; ở A0 (`viewBox` rộng 3486, tỉ lệ `1189 mm / 3486 = 0,3411 mm/đơn vị`) tương đương **24,9 mm ≈ 2,5 cm**. Nhãn trái ở `frameS + labelGap`, nhãn phải ở `width − frameS − labelGap − bề rộng nhãn`; lề nội dung `bandGutter = dày khung dự kiến + labelGap + bề rộng nhãn lớn nhất + labelGap` nên thẻ bắt đầu đúng 2,5 cm sau nhãn.
 - **Inspector** (`diagram-inspector.tsx`): mục “Banner” có công tắc “Câu đối dọc hai bên rồng”, hai ô “Vế trái”/“Vế phải”, thanh “Cỡ chữ câu đối” 12–90 px, ô màu và ghi chú kéo/đối xứng/font. Mục “Dải đời” có thanh “Cỡ nhãn đời” 0,4–2× kèm ghi chú A0 2,5 cm. Bảng của một đời có thanh “Cỡ thẻ” 0,6–1,8× và liệt kê thẻ trong đời kèm nút Sửa.
-- **In/PNG** (`export.ts`): nhúng font `Thu Phap Viet` (Dancing Script bản tiếng Việt, SIL OFL 1.1, đã ghi nguồn trong `SOURCES.md`) dưới dạng data URI vào bản sao SVG trước khi in/xuất, nên câu đối giữ nét thư pháp trong cửa sổ in và ảnh PNG. Tuỳ chọn “font serif hệ thống” chỉ đổi chữ thường, giữ nguyên `text.pat-couplet`.
+- **In/PNG** (`export.ts`): nhúng font thư pháp (từ mục 6.6 là hai bản Hải Yến, kèm Dancing Script dự phòng) dưới dạng data URI vào bản sao SVG trước khi in/xuất, nên câu đối giữ nét thư pháp trong cửa sổ in và ảnh PNG. Tuỳ chọn “font serif hệ thống” chỉ đổi chữ thường, giữ nguyên `text.pat-couplet`.
 
 Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gia-pha/mau-gia-pha/ve-pha-do`, bản production dựng sạch, `BUILD_ID 35lfp-G_ybPrV7mTgauGG`):
 
@@ -295,13 +295,113 @@ Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gi
 
 Lưu ý: các số đo nhãn ở mục 6.2 (`x = 206 / 3162`) là **trước** thay đổi này; số hiện hành là `x = 161 / 3239` như trên. Khổ giấy được cố định theo mục 6.4 nên đổi cỡ thẻ/cỡ nhãn không còn nới `viewBox`; hai nhãn vẫn giữ khe 2,5 cm ở cả hai phía.
 
+### 6.9. Sửa lỗi hiển thị còn lại trên toàn giao diện — ngày 2026-11-07
+
+Rà soát bằng trình duyệt thật (360, 390, 768, 1024, 1440 px) trên toàn bộ trang: trang chủ, trang chủ mẫu, danh sách thành viên, danh sách nhanh, chỉnh sửa với cây gia phả, vẽ phả đồ, giao diện, phả ký, công cụ — kèm các trạng thái đang mở (bảng thuộc tính phả đồ, bảng xuất, chi tiết thành viên, menu thêm, cuối trang thiết kế, bảng hoành phi trên desktop). Không có tràn ngang cấp trang, không có ảnh lỗi, không có chữ bị cắt, console sạch. Ba lỗi hiển thị thật đã tìm thấy và sửa:
+
+1. **Nhãn “Lề an toàn” bị ngắt dòng giữa cụm từ** (`design-view.tsx`): ở 390 px chữ vỡ thành 3 dòng “Lề” / “an” / “toàn”, ở 768–1440 px vỡ 2 dòng. Thêm `shrink-0 whitespace-nowrap` cho nhãn → còn đúng 1 dòng ở mọi khổ.
+2. **Huy hiệu “Vùng an toàn” đè lên mép trên tờ giấy và hoa văn khung** (`design-view.tsx`): trước đây hai nhãn nằm ở hai vị trí tuyệt đối khác nhau, nhãn vùng an toàn đặt theo `top: safeY%` nên rơi vào giữa nội dung. Đã gộp cả hai huy hiệu vào **một hàng phía trên tờ giấy** (`inset-x-0 -top-1 … -translate-y-full`, có `flex-wrap`), khung lề an toàn nét đứt bên trong giữ nguyên; vùng cuộn nhận `pt-9` khi bật hướng dẫn và `pt-4` khi tắt để không bị cắt.
+3. **Nhãn ô thống kê “Trong gia phả” bị treo chữ** (`ui.tsx`, thành phần `Stat` dùng chung cho trang chủ, danh sách thành viên, danh sách nhanh): ở 390 px nhãn xuống dòng thành “TRONG GIA” / “PHẢ” (một chữ lẻ). Thêm `text-balance` → chia đều “TRONG” / “GIA PHẢ”.
+
+Đi kèm, tiêu đề trang trong thanh trên (`app-shell.tsx`) bị chèn ép ở màn hẹp khiến “Cây gia phả” xuống dòng dù còn chỗ: giảm khoảng cách và lề ngang trên mobile (`gap-2 px-3 … sm:gap-3 sm:px-4`).
+
+Bằng chứng đo trên trình duyệt ngoài (`http://localhost:3001/gia-pha/mau-gia-pha/ve-pha-do`, production dựng sạch `BUILD_ID BaRv6W_hwFiwj1sYp0pI7`):
+
+- **Huy hiệu hướng dẫn:** tại 360, 390, 768, 1024, 1440 px đều trả `safeOverPaper:false`, `labelsVisible:true`; nhãn “Lề an toàn” luôn 1 dòng (`marginLines:1`). Trước khi sửa, mép nhãn vùng an toàn là 287 / 299 / 199 / 201 px so với mép trên giấy 283 / 293 / 194 / 193 px (390 / 768 / 1024 / 1440).
+- **Tắt/mở hướng dẫn:** bật → có nhãn, vùng cuộn `padding-top:36px`; tắt → không còn nhãn, `padding-top:16px`; bật lại → 36 px. Bề rộng tài liệu không đổi (1009 px ở khổ 1024).
+- **Nhãn thống kê thành viên** (390 px): trước là hai dòng rộng 67 + 25 px trong ô 83 px; sau là 42 + 50 px — cân đối, không còn chữ treo.
+- **Tiêu đề thanh trên** (390 px): ô tiêu đề từ 79 px lên 95 px, “Cây gia phả” cao 22 px (1 dòng). Ở 360 px vẫn xuống dòng như thiết kế `line-clamp-2`, chấp nhận.
+- **Quét hồi quy cuối** (9 trang × 390 px và 1440 px, 18 lượt tải trên bản production): cả 18 lượt đều `overflowX = 0` (không tràn ngang), 0 ảnh lỗi, 0 lỗi console. Các chỗ còn cắt bằng dấu “…” đều là thiết kế có chủ đích: phụ đề thanh trên (`truncate`), gợi ý thanh công cụ phả đồ, và chữ trong thẻ phả đồ giữ cỡ thẻ cố định (86–87 phần tử mỗi khổ ở trang cây gia phả).
+- Kiểm tra mã: `npm run typecheck`, `eslint` trên ba tệp sửa và build production không lỗi.
+
+### 6.8. Hoành phi: bấm để mở bảng và kéo lên/xuống bằng chuột — ngày 2026-11-07
+
+Bạn yêu cầu cho phép bấm và di chuyển (lên xuống) hoành phi bằng chuột. Đã bổ sung kéo dọc trực tiếp trên phả đồ, giữ nguyên phạm vi giới hạn cũ: mép trên không vượt khung hoa văn và không xuống quá 13% chiều cao giấy.
+
+- **Canvas** (`diagram-canvas.tsx`): thêm prop `bannerDrag` (mép trên xem trước, toạ độ giấy) để khi kéo thì cả cụm hoành phi vẽ tại vị trí tạm; toạ độ được chặn trong `[độ dày khung, 13% chiều cao giấy]`. Con trỏ đổi từ `pointer` sang `grab`, kèm `touch-action: none` như rồng/câu đối.
+- **Editor** (`diagram-editor-view.tsx`): thêm kiểu kéo `"banner"`. Bấm giữ hoành phi → chọn phạm vi “Hoành phi & câu đối” và ghi lại mép trên hiện tại; kéo dọc → xem trước vị trí mới theo đơn vị giấy (đã chia hệ số thu vừa khổ); thả chuột → chốt `banner.offsetRatio` (làm tròn 4 chữ số thập phân) vào thiết kế. Bấm mà không kéo chỉ mở bảng, không đổi vị trí.
+- **Đi kèm:** rồng và câu đối nằm trong cùng nhóm hoành phi nên dịch theo khi kéo; ngược lại, kéo rồng/câu đối vẫn `stopPropagation` như cũ nên không vô tình kéo hoành phi. Đường in/PNG không đổi — chỉ đọc `offsetRatio` đã chốt, không đọc vị trí xem trước.
+- **Inspector** (`diagram-inspector.tsx`): ghi chú dưới “Vị trí dọc” thêm “Kéo trực tiếp hoành phi trên phả đồ để chỉnh lên/xuống.”
+
+Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gia-pha/mau-gia-pha/ve-pha-do?bannerdrag=3`, production dựng sạch `BUILD_ID hUDWX65iyzkLNqioP3Puc200`, `viewBox 3486 × 2465,7`):
+
+- **Ban đầu:** nhóm hoành phi `transform="translate(1743, 148)"` = 6% chiều cao giấy (147,9 làm tròn 148); con trỏ `grab`.
+- **Bấm không kéo:** panel phải mở đúng “Hoành phi & câu đối” (có ô “Chữ trên hoành phi”), thanh “Vị trí dọc” = 6%, hoành phi đứng yên.
+- **Kéo xuống 40 px màn hình:** mép trên thành **299** (≈151 đơn vị giấy), thanh trượt **12%**; ảnh hoành phi và câu đối cùng dịch **+40,02 px**, giữ đúng khoảng cách tương đối.
+- **Kéo xuống thật xa:** dừng ở mép trên **321** = đúng 13% chiều cao giấy; thanh trượt 13% — không tràn xuống thêm.
+- **Kéo lên thật xa:** dừng ở mép trên **88** = độ dày khung hoa văn; thanh trượt 3,5% — không lọt ra ngoài khung trên.
+- **Kéo về:** trả đúng `translate(1743, 148)`, thanh trượt 6% như ban đầu.
+- **Bản in:** sau khi kéo chốt mép trên **254** (10,3%), mở “Xuất phả đồ → In / Lưu PDF": SVG trong cửa sổ in có nhóm hoành phi `translate(1743, 254)` — vị trí đã chốt, không dính vị trí xem trước. PNG dùng chung bản sao SVG này nên cũng theo `offsetRatio` đã lưu.
+- Console sạch; `npm run typecheck`, `eslint` trên ba tệp sửa và build production không lỗi.
+
+### 6.7. Sửa lỗi “font chữ câu đối không đúng”: bỏ bản Hải Yến 4 bị lỗi metric — ngày 2026-11-07
+
+Bạn báo “hiển thị font chữ câu đối không đúng” sau khi câu đối chuyển sang font Hải Yến. Kiểm tra trên trình duyệt cho thấy bản 1 hiển thị đúng, còn **bản 4 hiện thành một cục nét chồng nhau, không đọc được**.
+
+- **Nguyên nhân:** tệp `HY-Thu phap 4.otf` (upem 2048) có bề rộng ký tự (advance) nhỏ hơn nhiều so với khung nét vẽ. Ví dụ chữ `T` advance 304 đơn vị (0,148 em) nhưng nét rộng 1.433 đơn vị (0,70 em); `l` advance 142, `g` lệch trái −532. Trình duyệt xếp chữ theo advance nên mọi chữ vẽ đè lên nhau. Bản 1 cũng có nét vượt advance nhưng ở mức vừa phải, đúng kiểu thư pháp nên vẫn đọc được.
+- **Đã thử:** dựng lại tệp font 4 bằng fontTools với advance tính theo khung nét (`gioi-han = bbox + 2×8 đơn vị`, dịch nét theo lề trái) — chữ tách ra nhưng hình chữ vẫn không đọc được nên **không dùng bản 4**. Tệp gốc vẫn để trong `public/sites/PAT/fonts/HY-ThuPhap4.otf` (không còn khai báo) để sau này thay bằng bản sửa đúng.
+- **Sửa trong mã:** `CoupletFont = "hai-yen-1" | "thu-phap-viet"`; nhãn “Thư pháp Hải Yến” (mặc định) và “Thư pháp Việt (nét mềm)” (Dancing Script cũ); `normalizeCouplets` ánh xạ mọi giá trị khác — kể cả `"hai-yen-4"` đã lỡ lưu — về `hai-yen-1`; gỡ `@font-face` “HY Thu Phap 4” khỏi `globals.css`; gỡ bản 4 khỏi danh sách font nhúng khi in/xuất PNG (`export.ts`). Ghi chú trong inspector nói rõ bản 4 của bộ font bị lỗi khoảng cách chữ.
+- **Ảnh hưởng dữ liệu:** không cần lưu lại thiết kế; cây mẫu vốn không có trường `font` nên nhận mặc định Hải Yến.
+
+Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gia-pha/mau-gia-pha/ve-pha-do?fix=1`, production dựng sạch `BUILD_ID hlno7uktDjxL6To099hf7`):
+
+- Vẫn đúng 2 `text.pat-couplet`, `font-family = "'HY Thu Phap 1', 'Thu Phap Viet', cursive"`, `font-weight 400`, `font-size 32`; `document.fonts.check` = true; danh sách font của trang chỉ còn `HY Thu Phap 1:loaded` (không còn mặt chữ Hải Yến 4).
+- Ô “Kiểu chữ câu đối” còn đúng 2 lựa chọn: “Thư pháp Hải Yến” (đang chọn) và “Thư pháp Việt (nét mềm)”; ghi chú nêu rõ bản 4 bị lỗi. Đổi sang nét mềm → `font-family` thành `"Thu Phap Viet", "Dancing Script", cursive`, câu đối đọc rõ; đổi lại Hải Yến như cũ.
+- Mạng chỉ tải **một** tệp font (`HY-ThuPhap1.otf`, 200), không còn 404 hay yêu cầu tới HY4; console không lỗi.
+- Cửa sổ in thật (bấm Xuất phả đồ → In / Lưu PDF): `text.pat-couplet` vẫn là HY1, `document.fonts` chỉ có `HY Thu Phap 1:loaded`; CSS nhúng trong bản in chỉ có `@font-face` “HY Thu Phap 1” và “Thu Phap Viet”, không nhúng HY4.
+- Ảnh PNG 1× tải về (3486 × 2466 px, 2,7 MB): cắt vùng câu đối cho thấy đúng nét thư pháp Hải Yến, đủ dấu, không chồng chữ.
+- `npm run typecheck`, `eslint` và build production không lỗi.
+
+### 6.6. Câu đối dùng font thư pháp Hải Yến — ngày 2026-11-07
+
+Bạn gửi bộ `Font Thư Pháp - HẢI YẾN MTC` (HY-Thu Phap 1.otf và HY-Thu phap 4.otf) và yêu cầu câu đối dùng font này.
+
+- **Nạp font:** chép nguyên hai tệp vào `public/sites/PAT/fonts/HY-ThuPhap1.otf` (664.688 byte) và `HY-ThuPhap4.otf` (218.996 byte); khai báo `@font-face` tên “HY Thu Phap 1” / “HY Thu Phap 4”, `format("opentype")`, `font-weight: 400` trong `globals.css`. Cả hai font đều có đủ bảng chữ tiếng Việt (đã kiểm tra cmap: 347 và 391 glyph, không thiếu dấu nào trong câu đối mặc định).
+- **Mô hình** (`types.ts`): `CoupletSettings.font?: "hai-yen-1" | "hai-yen-4"`, mặc định `hai-yen-1`; `normalizeCouplets` chỉ nhận hai giá trị này; bảng `COUPLET_FONT_FAMILIES` gộp tên font và `COUPLET_FONT_LABELS` cho giao diện.
+- **Canvas** (`diagram-canvas.tsx`): `text.pat-couplet` lấy `font-family` theo lựa chọn, kèm `Thu Phap Viet` dự phòng; đổi `font-weight` từ 600 xuống **400** vì hai font chỉ có một độ đậm — giữ 600 sẽ khiến trình duyệt tự bôi đậm, nét thư pháp bị dày giả.
+- **Inspector** (`diagram-inspector.tsx`): thêm ô chọn “Kiểu chữ câu đối” với “Thư pháp Hải Yến 1” / “Thư pháp Hải Yến 4”; ghi chú trong mục cập nhật theo.
+- **In/PNG** (`export.ts`): nhúng cả hai font Hải Yến và Dancing Script dự phòng dạng data URI vào bản sao SVG trước khi in/xuất PNG, nên bản in giữ đúng kiểu chữ đang chọn.
+
+Bằng chứng kiểm tra trên trình duyệt (`http://localhost:3001/gia-pha/mau-gia-pha/ve-pha-do`, production `BUILD_ID 9uP90zxPSt9r04QsOvvMB`):
+
+- Hai tệp font trả `200` từ `/sites/PAT/fonts/…` đúng dung lượng; `document.fonts` báo **HY Thu Phap 1 loaded**.
+- `text.pat-couplet` có `font-family = "'HY Thu Phap 1', 'Thu Phap Viet', cursive"`, `font-weight = 400`; ảnh phóng 8× vùng câu đối cho thấy đúng nét thư pháp mảnh, các tiếng xếp dọc đủ dấu, không tràn khỏi khối.
+- Mở “Hoành phi & câu đối”: ô chọn có đúng 2 lựa chọn, đang là “Thư pháp Hải Yến 1”; đổi sang “Thư pháp Hải Yến 4” → `font-family` đổi sang `'HY Thu Phap 4'`, `document.fonts` báo HY Thu Phap 4 đã nạp; đổi lại bản 1 như ban đầu.
+- Cây mẫu không có trường `font` trong thiết kế đã lưu nên tự nhận mặc định Hải Yến 1, không phải lưu lại thiết kế; dữ liệu người dùng không bị đổi.
+- Console sạch; `tsc`, `eslint` và build production không lỗi.
+- Lưu ý: lần kiểm tra này chưa mở hộp thoại in thật; đường in/PNG đã nhúng cả hai font bằng data URI và hai tệp font tải được, nhưng bản in cần xem lại bằng mắt khi bạn in thử.
+- **Cập nhật ở mục 6.7:** lựa chọn “Hải Yến 4” đã bị gỡ vì tệp font 4 hiển thị chồng chữ; các câu mô tả hai lựa chọn ở trên chỉ còn giá trị lịch sử.
+
+### 6.5. Editor phải đồ dễ dùng hơn: bấm đâu sửa đó + dịch dọc dàn trang — ngày 2026-11-07
+
+Bạn yêu cầu rà soát phần vẽ biểu đồ: bấm vào đối tượng trên màn hình (thẻ thành viên, hoành phi, …) thì menu bên phải phải hiện đúng tính năng sửa đổi của đối tượng đó, đồng thời bỏ các phần không tác dụng; bổ sung điều chỉnh dọc cho thẻ đầu tiên để dàn trang. Đã duyệt và triển khai gói A+B+C+D:
+
+- **A — Phạm vi theo đối tượng bấm trên canvas:** bấm hoành phi/rồng/câu đối → panel phải chuyển sang phạm vi “Hoành phi & câu đối” (`BannerInspector`); bấm thẻ thành viên → phạm vi thành viên; bấm nhãn đời trên canvas → phạm vi đời; bấm nền trống → phạm vi cả phải đồ. Thanh bên trái có nút “Hoành phi & câu đối” để mở lại phạm vi này bất cứ lúc nào.
+- **B — Gọn section “Vị trí trên phả đồ” của thẻ:** chỉ còn dòng trạng thái (“Thẻ đang lệch …”) kèm nút “Về vị trí gốc”; toàn bộ section ẩn khi thẻ chưa bị kéo. Đã gỡ hai ô nhập Dịch ngang/Dịch dọc và nút “Áp cho cả nhánh con” (không còn tác dụng vì kéo thẻ chỉ đổi ngang theo cụm vợ/chồng).
+- **C — Panel “Cả phả đồ” gom 4 nhóm xếp:** “Giấy & bố cục” (mở sẵn), “Hoành phi & câu đối”, “Kiểu thẻ & chữ”, “Nền & khung”; mỗi nhóm thu gọn/mở được, giữ nguyên toàn bộ chức năng cũ.
+- **D — Dịch dọc toàn khối phải đồ (dàn trang):** thêm `tuning.contentShiftY` (mặc định 0). Kéo thẻ ở **hàng trên cùng** (thẻ có tọa độ `y` nhỏ nhất — với cây mẫu là Đại Tổ, kể cả khi là tiền tổ) theo phương dọc thì cả khối phải đồ dịch theo, giúp đẩy cây lên/xuống trong lòng giấy. Hoành phi, rồng, câu đối và khung hoa văn **không** dịch theo. Thanh trượt “Dịch dọc toàn bộ” trong nhóm “Giấy & bố cục” đồng bộ hai chiều; biên độ tự tính từ `treeTop`: không đẩy thẻ đầu quá mép trên giấy, không để đáy nội dung tràn mép dưới; hai đầu slider làm tròn về bội của 10 để giá trị 0 nằm đúng bước nhảy (sửa lỗi slider hiển thị −1 thay vì 0 do `min` lệch lưới bước 10).
+- **Sửa lỗi kèm theo:** điều kiện kích hoạt ban đầu dùng “đời nhỏ nhất” nên không ăn với tiền tổ (Đại Tổ mang đời âm nhưng `Math.min` theo số âm rơi vào đời khác); đã sửa thành so sánh `node.y === min(y)` — hàng trên cùng thật.
+
+Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gia-pha/mau-gia-pha/ve-pha-do`, production `BUILD_ID QchydfgWhC9SRmbyxKfHT`):
+
+- Bấm hoành phi/rồng/câu đối trên canvas → panel phải đổi sang phạm vi Hoành phi & câu đối; nút cùng tên trên thanh trái sáng khi đang ở phạm vi này.
+- Thẻ chưa kéo: không thấy section “Vị trí trên phả đồ”; sau khi kéo ngang thẻ mới hiện dòng lệch + nút “Về vị trí gốc”, bấm về gốc thì section ẩn lại.
+- Panel “Cả phả đồ”: đủ 4 nhóm, nhóm “Giấy & bố cục” mở sẵn, các nhóm kia đóng, bấm mở/thu từng nhóm được.
+- **Kéo dọc Đại Tổ (thẻ trên cùng, y = 220):** kéo xuống 12 px → khối nội dung `translate(0, 421,08)` → `translate(0, 565,08)` (+144 đơn vị); kéo lên 12 px → về nguyên `421,08`. Hoành phi giữ nguyên `translate(1743, 148)` ở cả hai chiều; vị trí ngang của Đại Tổ không bị đè khi kéo dọc. Kéo dọc Thủy Tổ (hàng 2) thì **không** dịch khối — đúng thiết kế.
+- Slider “Dịch dọc toàn bộ” đọc đúng giá trị tuning sau mỗi lần kéo; đưa slider về 0 trả bản vẽ về vị trí tự xếp.
+- Console và mạng sạch; `tsc`, `eslint`, build production không lỗi.
+- Dữ liệu người dùng (đã khôi phục): trong lúc kiểm thử, vị trí nháp của Đại Tổ (draft `t01`) bị kéo thử chạy về vị trí tự xếp; đã khôi phục lại đúng `t01 = (816, 220)` trong `phatue.diagramDraft.mau-gia-pha` và xác nhận thẻ vẽ lại ở x = 829.
+
+Lưu ý dùng: với cây mẫu hiện tại (9 hàng thẻ trên A0), cây cao vừa khít khổ giấy nên biên độ dịch xuống còn ít/không còn — đó là ràng buộc vật lý của khổ giấy, không phải lỗi; cây nhỏ hơn hoặc khổ lớn hơn sẽ dàn trang thoải mái hơn.
+
 ### 6.4. Khổ giấy cố định khi chỉnh chi tiết
 
 - **Mốc quy đổi:** `PAPER_UNITS_PER_MM = 3486 / 1189` (khổ A0 ngang: 1189 mm ↔ 3486 đơn vị, tương đương 0,3411 mm/đơn vị). Khổ A0 ngang vì vậy luôn là `viewBox 3486 × 2465,7` bất kể chi tiết đang chỉnh.
 - **Khung giấy** (`paperUnitsFor` trong `diagram-canvas.tsx`): kích thước = `max(khổ mm × mốc, bố cục chuẩn)`; bố cục chuẩn dựng bằng `DEFAULT_DESIGN` (không vị trí kéo tay, cỡ thẻ 1×, cỡ nhãn 1×, khung 1×). Nhờ đó cây nhỏ trên khổ nhỏ vẫn vừa như trước, còn đổi chi tiết thì không làm giấy co giãn.
 - **Chiều ngang/dọc** (`resolveOrientation` trong `export.ts`): khi bật tự xoay, chiều giấy xét theo bố cục chuẩn nói trên chứ không theo bố cục đang chỉnh, nên tăng cỡ thẻ không làm đảo khổ.
-- **Nội dung rộng hơn giấy:** `offsetX` neo về 0 (không còn căn giữa âm) để nhãn đời vẫn đúng 2,5 cm tính từ mép trong khung; phần nội dung vượt khổ bị cắt theo giấy như bản in thật.
+- **Nội dung rộng hơn giấy — tự thu vừa khổ** (`2026-11-07`): thay vì cắt mất thẻ, `diagramDimensions()` tính `fitScale = min(1, vùng đặt thẻ / bề rộng nội dung)` rồi `contentOrigin()` đặt khối nội dung bằng `translate(offsetX, treeTop + minY × (1 − fitScale)) scale(fitScale)`. Khổ giấy/`viewBox` giữ nguyên; nhãn đời **không** co mà vẫn neo theo giấy, nên khe khung–nhãn và nhãn–thẻ luôn ≥ 2,5 cm; mép trên thẻ đầu vẫn ở 26% chiều cao giấy. `offsetX` chừa đúng dải nhãn hai bên thay vì neo 0.
 - **Bằng chứng đo** (production `BUILD_ID GKVZ2iWnY5_0UxpsqbXME`): mặc định `viewBox 3486 × 2465,707`, nhãn `86 × 20` tại `x = 161 / 3239`; đổi “Cỡ nhãn đời” 1,2× → nhãn `103,2` vẫn ở `x = 161`, `viewBox` **không đổi**; đổi “Cỡ viền” 1,4× và “Cỡ thẻ” Đời 1 1,45× (thẻ 168 → 244) → `viewBox` vẫn `3486 × 2465,707`, nhãn phải vẫn cách mép trong khung đúng `labelGap`. Trả hết về mặc định: thẻ 168×74, nhãn 86×20, `viewBox 3486 × 2465,707`.
+- **Bằng chứng đo “Giãn ngang giữa anh em”** (production `BUILD_ID 1WmqVny1ItJncqo9EL_n4`, A0 ngang): giãn 26 → `translate(0, 421,08) scale(1)`, thẻ `[320, 3166]`, khe nhãn–thẻ `73 / 73`; giãn 60 → `scale(0,85551)`, thẻ bắt đầu `324`, mép phải vẫn `3166`; giãn 120 → `scale(0,67564)`, thẻ bắt đầu `354`, mép phải vẫn `3166`, mép trên thẻ đầu vẫn `641,1` (26%). `viewBox` không đổi ở mọi mức; console và mạng không có lỗi/404. Ghi chú dưới thanh trượt: “Nếu nội dung rộng quá khổ giấy, bản vẽ tự thu nhỏ để thẻ không tràn ra ngoài.”
 
 ## 7. Xuất PDF — so sánh nhanh
 

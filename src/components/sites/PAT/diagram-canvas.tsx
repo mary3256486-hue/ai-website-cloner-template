@@ -21,6 +21,7 @@ import {
   CARD_W,
   cardOrientationFor,
   cardScaleFor,
+  COUPLET_FONT_FAMILIES,
   DEFAULT_DESIGN,
   FRAME_CORNER_CLEARANCE,
   generationBandMetrics,
@@ -79,6 +80,8 @@ export interface DiagramDimensions {
   contentH: number;
   offsetX: number;
   offsetY: number;
+  /** Hệ số thu nhỏ nội dung để vừa bề rộng in được; 1 = giữ nguyên. */
+  fitScale: number;
 }
 
 /** Vị trí mép trên hoành phi theo tỉ lệ chiều cao giấy; tối đa 13%. */
@@ -106,11 +109,40 @@ export function bannerTopFor(width: number, height: number, design?: DesignSetti
 /** Mép trên thẻ thành viên đầu tiên tính theo tỉ lệ chiều cao giấy. */
 export const FIRST_CARD_TOP_RATIO = 0.26;
 
-/** Gốc dọc của khối nội dung: đặt hàng thẻ đầu tiên ở 26% chiều cao giấy. */
-export function treeTop(dimensions: DiagramDimensions, layout: TreeLayout) {
+/** Gốc dọc của khối nội dung: đặt hàng thẻ đầu tiên ở 26% chiều cao giấy, cộng thêm độ dịch dàn trang. */
+export function treeTop(dimensions: DiagramDimensions, layout: TreeLayout, shiftY = 0) {
   const minY = layout.nodes.length ? Math.min(...layout.nodes.map((node) => node.y)) : 0;
   const target = dimensions.height * FIRST_CARD_TOP_RATIO - minY;
-  return Math.max(0, Math.min(target, dimensions.height - layout.height - 8));
+  // Khi nội dung phải thu nhỏ, chiều cao chiếm chỗ cũng co theo hệ số thu.
+  const scaledBottom = minY + (layout.height - minY) * dimensions.fitScale;
+  const base = Math.max(0, Math.min(target, dimensions.height - scaledBottom - 8));
+  // Dịch dọc toàn khối chỉ đi trong lòng giấy: không đẩy thẻ đầu lên quá mép trên,
+  // không để đáy nội dung tràn mép dưới.
+  return Math.max(0, Math.min(base + shiftY, dimensions.height - scaledBottom - 8));
+}
+
+export interface ContentOrigin {
+  fitScale: number;
+  x: number;
+  y: number;
+}
+
+/**
+ * Gốc đặt khối nội dung trên giấy. Mép thẻ và hàng đầu tiên giữ nguyên vị trí,
+ * phần dư ra được thu đều để thẻ không tràn khỏi lòng giấy.
+ */
+export function contentOrigin(
+  dimensions: DiagramDimensions,
+  layout: TreeLayout,
+  shiftY = 0,
+): ContentOrigin {
+  const fitScale = dimensions.fitScale;
+  const minY = layout.nodes.length ? Math.min(...layout.nodes.map((node) => node.y)) : 0;
+  return {
+    fitScale,
+    x: dimensions.offsetX,
+    y: treeTop(dimensions, layout, shiftY) + minY * (1 - fitScale),
+  };
 }
 
 function clampValue(value: number, min: number, max: number) {
@@ -275,14 +307,24 @@ export function diagramDimensions(
   const baseH = Math.max(layout.height + contentTop(design) + 16, 420);
   const width = paper?.width ?? contentW;
   const height = paper?.height ?? baseH;
+  const nodeLeft = layout.nodes.length ? Math.min(...layout.nodes.map((node) => node.x)) : 0;
+  const nodeRight = layout.nodes.length
+    ? Math.max(...layout.nodes.map((node) => node.x + node.width))
+    : contentW;
+  const marginRight = Math.max(0, layout.width - nodeRight);
+  // Vùng đặt thẻ nằm giữa hai dải nhãn đời; giữ nguyên khoảng 2,5 cm tới nhãn.
+  const available = Math.max(1, width - nodeLeft - marginRight);
+  const span = Math.max(1, nodeRight - nodeLeft);
+  const fitScale = paper ? Math.min(1, available / span) : 1;
   return {
     width,
     height,
     contentW,
     contentH: baseH,
-    // Khi nội dung rộng hơn giấy, neo nội dung vào lề trái để nhãn đời vẫn đúng 2,5 cm.
-    offsetX: Math.max(0, (width - contentW) / 2),
+    // Khi nội dung rộng hơn giấy, thu đều vùng thẻ về giữa hai dải nhãn.
+    offsetX: nodeLeft * (1 - fitScale) + (available - span * fitScale) / 2,
     offsetY: (height - baseH) / 2,
+    fitScale,
   };
 }
 
@@ -385,10 +427,13 @@ interface DiagramCanvasProps {
   dragonDrag?: { x: number; y: number } | null;
   /** Vị trí câu đối đang kéo (độ dịch ra ngoài và dịch dọc). */
   coupletDrag?: { x: number; y: number } | null;
+  /** Mép trên hoành phi đang kéo (toạ độ giấy), thay cho vị trí đã lưu. */
+  bannerDrag?: { top: number } | null;
   onNodePointerDown?: (event: ReactPointerEvent<SVGGElement>, node: TreeNode) => void;
   onNodeResizeStart?: (event: ReactPointerEvent<SVGGElement>, node: TreeNode) => void;
   onDragonPointerDown?: (event: ReactPointerEvent<SVGGElement>, side: "left" | "right") => void;
   onCoupletPointerDown?: (event: ReactPointerEvent<SVGGElement>, side: "left" | "right") => void;
+  onBannerPointerDown?: (event: ReactPointerEvent<SVGGElement>) => void;
   onDecorationPointerDown?: (event: ReactPointerEvent<SVGGElement>, decoration: Decoration) => void;
   onDecorationResizeStart?: (event: ReactPointerEvent<SVGGElement>, decoration: Decoration) => void;
   onDeleteDecoration?: (id: string) => void;
@@ -415,10 +460,12 @@ export function DiagramCanvas({
   showDatesOverride,
   dragonDrag,
   coupletDrag,
+  bannerDrag,
   onNodePointerDown,
   onNodeResizeStart,
   onDragonPointerDown,
   onCoupletPointerDown,
+  onBannerPointerDown,
   onDecorationPointerDown,
   onDecorationResizeStart,
   onDeleteDecoration,
@@ -432,8 +479,8 @@ export function DiagramCanvas({
   const branchColor = new Map(tree.branches.map((branch) => [branch.id, branch.color]));
   const branchCode = new Map(tree.branches.map((branch) => [branch.id, branch.code]));
   const dimensions = diagramDimensions(layout, settings, paper);
-  const { width, height, contentW, offsetX } = dimensions;
-  const treeTopY = treeTop(dimensions, layout);
+  const { width, height, contentW } = dimensions;
+  const origin = contentOrigin(dimensions, layout, tuning.contentShiftY ?? 0);
   const banner = normalizeBanner(settings.banner);
   const bannerH = banner.enabled ? banner.width / BANNER_ASPECT : 0;
   const bgArt = normalizeBackgroundImage(settings.backgroundImage);
@@ -459,7 +506,13 @@ export function DiagramCanvas({
   // Độ dày khung ≈ 2,8% chiều rộng khổ in, nên in khổ lớn thì nét tự dày theo.
   const frameS = frameThickness(width, settings);
   // Mép trên hoành phi: mặc định 6% chiều cao giấy, không vượt khung trên và không quá 13%.
-  const bannerTopY = banner.enabled ? bannerTopFor(width, height, settings) : 0;
+  const bannerTopY = banner.enabled
+    ? bannerDrag
+      ? Math.round(
+          Math.max(frameS, Math.min(height * 0.13, bannerDrag.top)),
+        )
+      : bannerTopFor(width, height, settings)
+    : 0;
   const dragonBox = banner.enabled && banner.showDragons ? dragonBounds(width, height, bannerTopY, banner) : null;
   const dragonShift = dragonBox
     ? {
@@ -728,7 +781,17 @@ export function DiagramCanvas({
       </g>
 
       {banner.enabled ? (
-        <g transform={`translate(${width / 2}, ${bannerTopY})`}>
+        <g
+          transform={`translate(${width / 2}, ${bannerTopY})`}
+          onPointerDown={
+            interactive && onBannerPointerDown ? (event) => onBannerPointerDown(event) : undefined
+          }
+          style={
+            interactive && onBannerPointerDown
+              ? { cursor: "grab", touchAction: "none" }
+              : undefined
+          }
+        >
           {banner.showDragons && dragonBox ? (
             <>
               {(["left", "right"] as const).map((side) => {
@@ -827,8 +890,8 @@ export function DiagramCanvas({
                       textAnchor="middle"
                       fontSize={couplets.fontSize}
                       className="pat-couplet"
-                      fontFamily="'Thu Phap Viet', 'Dancing Script', cursive"
-                      fontWeight="600"
+                      fontFamily={COUPLET_FONT_FAMILIES[couplets.font ?? "hai-yen-1"]}
+                      fontWeight="400"
                       fill={couplets.color}
                     >
                       {words.map((word, index) => (
@@ -849,58 +912,27 @@ export function DiagramCanvas({
         </g>
       ) : null}
 
-      <g transform={`translate(${offsetX}, ${treeTopY})`}>
-        {guides?.length ? (
-          <g pointerEvents="none">
-            {guides.map((guide, index) =>
-              guide.x !== undefined ? (
-                <line
-                  key={`guide-x-${index}`}
-                  x1={guide.x}
-                  x2={guide.x}
-                  y1={0}
-                  y2={layout.height}
-                  stroke="#b3261e"
-                  strokeOpacity="0.55"
-                  strokeWidth="0.8"
-                  strokeDasharray="5 4"
-                />
-              ) : null,
-            )}
-            {guides.map((guide, index) =>
-              guide.y !== undefined ? (
-                <line
-                  key={`guide-y-${index}`}
-                  x1={0}
-                  x2={contentW}
-                  y1={guide.y}
-                  y2={guide.y}
-                  stroke="#b3261e"
-                  strokeOpacity="0.55"
-                  strokeWidth="0.8"
-                  strokeDasharray="5 4"
-                />
-              ) : null,
-            )}
-          </g>
-        ) : null}
-        {settings.showGenerationLabels
-          ? layout.generations.map((row) => {
+      {/* Nhãn đời neo theo giấy: khoảng 2,5 cm tới khung và tới thẻ không đổi khi nội dung thu vừa khổ. */}
+      {settings.showGenerationLabels ? (
+        <g pointerEvents="none">
+          {layout.generations.map((row) => {
               const label = row.label ?? bandLabelFor(tuning.generationBandLabel, row.generation);
               // Nhãn tự lớn theo cỡ thẻ của đời; khổ A0 giữ 2,5 cm tới khung và 2,5 cm tới thẻ.
               const band = generationBandMetrics(
                 label,
                 (tuning.generationLabelScale ?? 1) * cardScaleFor(settings, row.generation),
               );
-              const leftX = frameS + labelGap - offsetX;
-              const rightX = width - frameS - labelGap - offsetX - band.width;
+              const leftX = frameS + labelGap;
+              const rightX = width - frameS - labelGap - band.width;
               // Canh giữa nhãn theo chiều cao thẻ của đời này (không neo ở đỉnh hàng).
               const rowHeight = layout.nodes.reduce(
                 (max, node) => (node.generation === row.generation ? Math.max(max, node.height) : max),
                 0,
               );
-              const pillY = row.y + Math.max(0, rowHeight / 2 - band.height / 2);
-              const pillCenterY = pillY + band.height / 2;
+              const pillCenterY =
+                origin.y +
+                origin.fitScale * (row.y + Math.max(rowHeight / 2, band.height / 2));
+              const pillY = pillCenterY - band.height / 2;
               return (
                 <g key={`gen-${row.generation}`}>
                   <rect
@@ -962,8 +994,45 @@ export function DiagramCanvas({
                   />
                 </g>
               );
-            })
-          : null}
+            })}
+        </g>
+      ) : null}
+
+      <g transform={`translate(${origin.x}, ${origin.y}) scale(${origin.fitScale})`}>
+        {guides?.length ? (
+          <g pointerEvents="none">
+            {guides.map((guide, index) =>
+              guide.x !== undefined ? (
+                <line
+                  key={`guide-x-${index}`}
+                  x1={guide.x}
+                  x2={guide.x}
+                  y1={0}
+                  y2={layout.height}
+                  stroke="#b3261e"
+                  strokeOpacity="0.55"
+                  strokeWidth="0.8"
+                  strokeDasharray="5 4"
+                />
+              ) : null,
+            )}
+            {guides.map((guide, index) =>
+              guide.y !== undefined ? (
+                <line
+                  key={`guide-y-${index}`}
+                  x1={0}
+                  x2={contentW}
+                  y1={guide.y}
+                  y2={guide.y}
+                  stroke="#b3261e"
+                  strokeOpacity="0.55"
+                  strokeWidth="0.8"
+                  strokeDasharray="5 4"
+                />
+              ) : null,
+            )}
+          </g>
+        ) : null}
 
         <g>
           {layout.edges.filter(edgeVisible).map((edge) => {
@@ -1418,7 +1487,7 @@ export function DiagramCanvas({
           const size = decoration.type === "image" ? decoration.width ?? 120 : Math.max(80, decoration.content.length * 8);
           return (
             <g
-              transform={`translate(${offsetX + decoration.x + size + 6}, ${treeTopY + decoration.y - 14})`}
+              transform={`translate(${origin.x + origin.fitScale * (decoration.x + size + 6)}, ${origin.y + origin.fitScale * (decoration.y - 14)})`}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();

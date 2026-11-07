@@ -367,24 +367,37 @@ async function inlineDecorationImages(clone: SVGSVGElement) {
   );
 }
 
-const CALLIGRAPHY_FONT_SRC = "/sites/PAT/fonts/DancingScript-Vietnamese.ttf";
-let calligraphyFontUri: Promise<string | null> | null = null;
+const CALLIGRAPHY_FONTS = [
+  { family: "HY Thu Phap 1", src: "/sites/PAT/fonts/HY-ThuPhap1.otf", format: "opentype" },
+  { family: "Thu Phap Viet", src: "/sites/PAT/fonts/DancingScript-Vietnamese.ttf", format: "truetype" },
+] as const;
 
-function loadCalligraphyFont() {
-  if (!calligraphyFontUri) {
-    calligraphyFontUri = fetch(CALLIGRAPHY_FONT_SRC)
-      .then(async (response) => (response.ok ? blobToDataUri(await response.blob()) : null))
-      .catch(() => null);
+let calligraphyFontCss: Promise<string> | null = null;
+
+function loadCalligraphyFontCss() {
+  if (!calligraphyFontCss) {
+    calligraphyFontCss = Promise.all(
+      CALLIGRAPHY_FONTS.map(async (font) => {
+        try {
+          const response = await fetch(font.src);
+          if (!response.ok) return "";
+          const uri = await blobToDataUri(await response.blob());
+          return `@font-face{font-family:"${font.family}";src:url("${uri}") format("${font.format}");font-weight:400;font-style:normal;}`;
+        } catch {
+          return "";
+        }
+      }),
+    ).then((rules) => rules.join(""));
   }
-  return calligraphyFontUri;
+  return calligraphyFontCss;
 }
 
 /** Nhúng font thư pháp dạng base64 để bản in/PNG giữ đúng font câu đối. */
 async function inlineCalligraphyFont(clone: SVGSVGElement) {
-  const uri = await loadCalligraphyFont();
-  if (!uri) return;
+  const css = await loadCalligraphyFontCss();
+  if (!css) return;
   const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
-  style.textContent = `@font-face{font-family:"Thu Phap Viet";src:url("${uri}") format("truetype");font-weight:400 700;font-style:normal;}`;
+  style.textContent = css;
   clone.insertBefore(style, clone.firstChild);
 }
 

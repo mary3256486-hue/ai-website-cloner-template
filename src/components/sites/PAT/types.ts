@@ -150,6 +150,8 @@ export interface DiagramTuning {
   cardScale?: number;
   /** Cỡ nhãn đời, tự nhân với cỡ thẻ của từng đời (1 = mặc định). */
   generationLabelScale?: number;
+  /** Dịch cả khối nội dung theo chiều dọc (đơn vị phả đồ, 0 = mặc định); bị chặn trong lòng giấy khi vẽ. */
+  contentShiftY?: number;
   generationStyles?: Record<string, GenerationStyle>;
   personStyles?: Record<string, PersonStyle>;
 }
@@ -178,6 +180,23 @@ export interface BannerSettings {
   dragonOffsetY?: number;
 }
 
+/**
+ * Kiểu chữ thư pháp cho câu đối.
+ * Bản "HY-Thu phap 4" người dùng cung cấp có advance hẹp hơn nét vẽ (chữ T: 0,15 em so với
+ * nét rộng 0,70 em) nên mọi chữ chồng lên nhau, không đọc được — chỉ dùng bản 1.
+ */
+export type CoupletFont = "hai-yen-1" | "thu-phap-viet";
+
+export const COUPLET_FONT_FAMILIES: Record<CoupletFont, string> = {
+  "hai-yen-1": "'HY Thu Phap 1', 'Thu Phap Viet', cursive",
+  "thu-phap-viet": "'Thu Phap Viet', 'Dancing Script', cursive",
+};
+
+export const COUPLET_FONT_LABELS: Record<CoupletFont, string> = {
+  "hai-yen-1": "Thư pháp Hải Yến",
+  "thu-phap-viet": "Thư pháp Việt (nét mềm)",
+};
+
 /** Câu đối dọc hai bên rồng; hai vế luôn đối xứng qua trục giữa phả đồ. */
 export interface CoupletSettings {
   enabled: boolean;
@@ -185,6 +204,8 @@ export interface CoupletSettings {
   rightText: string;
   fontSize: number;
   color: string;
+  /** Kiểu chữ thư pháp; mặc định font Hải Yến. */
+  font?: CoupletFont;
   /** Khoảng dịch ra ngoài so với mép rồng; hai bên đối xứng. */
   offsetX?: number;
   /** Khoảng dịch dọc so với vị trí canh giữa rồng. */
@@ -197,6 +218,7 @@ export const DEFAULT_COUPLETS: CoupletSettings = {
   rightText: "Tông công hiển hách vạn đại vinh",
   fontSize: 32,
   color: "#8a1c15",
+  font: "hai-yen-1",
   offsetX: 0,
   offsetY: 0,
 };
@@ -692,6 +714,7 @@ export function normalizeCouplets(couplets?: Partial<CoupletSettings> | null): C
     rightText: couplets?.rightText ?? DEFAULT_COUPLETS.rightText,
     fontSize: clampNumber(couplets?.fontSize, DEFAULT_COUPLETS.fontSize, 12, 90),
     color: couplets?.color || DEFAULT_COUPLETS.color,
+    font: couplets?.font === "thu-phap-viet" ? "thu-phap-viet" : "hai-yen-1",
     offsetX: clampNumber(couplets?.offsetX, 0, 0, 10000),
     offsetY: clampNumber(couplets?.offsetY, 0, -10000, 10000),
   };
@@ -740,6 +763,7 @@ export const DEFAULT_TUNING: DiagramTuning = {
   patternScale: 1,
   cardScale: 1,
   generationLabelScale: 1,
+  contentShiftY: 0,
   generationStyles: {},
   personStyles: {},
 };
@@ -777,6 +801,7 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
       0.4,
       2,
     ),
+    contentShiftY: tuning?.contentShiftY ?? 0,
     generationStyles: tuning?.generationStyles ?? {},
     personStyles: tuning?.personStyles ?? {},
   };

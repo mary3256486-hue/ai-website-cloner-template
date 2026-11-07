@@ -1,12 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   Copy,
   Frame,
   ImagePlus,
@@ -42,6 +43,7 @@ import type {
 } from "./types";
 import {
   BAND_LABELS,
+  COUPLET_FONT_LABELS,
   EXTRA_FIELD_LABELS,
   generationTag,
   normalizeBackgroundImage,
@@ -113,6 +115,38 @@ function Section({
         {hint ? <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">{hint}</p> : null}
       </div>
       {children}
+    </section>
+  );
+}
+
+function SectionGroup({
+  title,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  icon?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="border-b border-[var(--pat-line)]/70">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-1.5 px-3.5 py-2.5 text-left text-[0.7rem] font-bold uppercase tracking-[0.16em] text-[var(--pat-red)] transition hover:bg-[#f6e9c8]/40"
+      >
+        {icon}
+        <span className="min-w-0 flex-1">{title}</span>
+        <ChevronDown
+          size={13}
+          className={`shrink-0 text-[var(--pat-muted)] transition-transform ${open ? "" : "-rotate-90"}`}
+        />
+      </button>
+      {open ? <div className="pb-1">{children}</div> : null}
     </section>
   );
 }
@@ -367,7 +401,7 @@ function BannerSection({
         max={13}
         step={0.5}
         suffix="%"
-        hint="Mép trên hoành phi tính từ mép trên giấy. Mặc định 6%; dịch lên tới sát khung trên, dịch xuống tối đa 13% chiều cao giấy."
+        hint="Mép trên hoành phi tính từ mép trên giấy. Mặc định 6%; dịch lên tới sát khung trên, dịch xuống tối đa 13% chiều cao giấy. Kéo trực tiếp hoành phi trên phả đồ để chỉnh lên/xuống."
         onChange={(value) => onChange({ offsetRatio: value / 100 })}
       />
       <ToggleRow
@@ -410,6 +444,23 @@ function BannerSection({
               className="pat-input min-h-[52px] resize-y px-2 py-1.5 text-xs"
             />
           </Field>
+          <Field label="Kiểu chữ câu đối">
+            <select
+              value={couplets.font ?? "hai-yen-1"}
+              onChange={(event) =>
+                onCouplets({
+                  font: event.target.value === "thu-phap-viet" ? "thu-phap-viet" : "hai-yen-1",
+                })
+              }
+              className="pat-input h-9 text-sm"
+            >
+              {(Object.keys(COUPLET_FONT_LABELS) as Array<keyof typeof COUPLET_FONT_LABELS>).map((key) => (
+                <option key={key} value={key}>
+                  {COUPLET_FONT_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </Field>
           <div className="grid grid-cols-2 gap-2">
             <SliderField
               label="Cỡ chữ câu đối"
@@ -427,12 +478,39 @@ function BannerSection({
             />
           </div>
           <p className="text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
-            Font Thư pháp Việt. Kéo trực tiếp một bên câu đối trên phả đồ để dịch trong khoảng từ cạnh rồng
-            tới mép trong khung; vế còn lại tự đối xứng qua trục giữa.
+            Font thư pháp Hải Yến do bạn cung cấp (bản 4 của bộ font bị lỗi khoảng cách chữ nên không
+            dùng được). Kéo trực tiếp một bên câu đối trên phả đồ để dịch trong khoảng từ cạnh rồng tới
+            mép trong khung; vế còn lại tự đối xứng qua trục giữa.
           </p>
         </>
       ) : null}
     </Section>
+  );
+}
+
+export function BannerInspector({
+  banner,
+  couplets,
+  onChange,
+  onCouplets,
+  onClose,
+}: {
+  banner: BannerSettings;
+  couplets: CoupletSettings;
+  onChange: (patch: Partial<BannerSettings>) => void;
+  onCouplets: (patch: Partial<CoupletSettings>) => void;
+  onClose?: () => void;
+}) {
+  return (
+    <div className="divide-y divide-[var(--pat-line)]/70">
+      <InspectorHeader
+        eyebrow="Phạm vi"
+        title="Hoành phi & câu đối"
+        subtitle="Bấm vào hoành phi, rồng hoặc câu đối trên phả đồ để mở lại bảng này"
+        onClose={onClose}
+      />
+      <BannerSection banner={banner} couplets={couplets} onChange={onChange} onCouplets={onCouplets} />
+    </div>
   );
 }
 
@@ -518,6 +596,7 @@ export function WholeDiagramInspector({
   tree,
   tuning,
   paper,
+  shiftRange,
   onTuning,
   onDesign,
   onReset,
@@ -525,6 +604,8 @@ export function WholeDiagramInspector({
   tree: FamilyTree;
   tuning: DiagramTuning;
   paper: { widthMm: number; heightMm: number };
+  /** Giới hạn dịch dọc toàn bộ suy ra từ khổ giấy hiện tại. */
+  shiftRange?: { min: number; max: number };
   onTuning: (patch: Partial<DiagramTuning>) => void;
   onDesign: (patch: Partial<DesignSettings>) => void;
   onReset: () => void;
@@ -598,6 +679,7 @@ export function WholeDiagramInspector({
         ).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} cm · ${tree.members.length} thành viên`}
       />
 
+      <SectionGroup title="Giấy & bố cục" icon={<Ruler size={13} />} defaultOpen>
       <Section
         title="Khổ giấy"
         icon={<Ruler size={13} />}
@@ -649,15 +731,6 @@ export function WholeDiagramInspector({
         </div>
       </Section>
 
-      <BannerSection
-        banner={banner}
-        couplets={couplets}
-        onChange={updateBanner}
-        onCouplets={updateCouplets}
-      />
-
-      <BackgroundSection pattern={tree.design.background} art={bgArt} onChange={updateBackground} />
-
       <Section
         title="Khoảng cách & lề"
         icon={<AlignHorizontalSpaceAround size={13} />}
@@ -677,6 +750,7 @@ export function WholeDiagramInspector({
           min={8}
           max={120}
           onChange={(siblingGap) => onTuning({ siblingGap })}
+          hint="Nếu nội dung rộng quá khổ giấy, bản vẽ tự thu nhỏ để thẻ không tràn ra ngoài."
         />
         <Field label="Chiều thứ tự anh em" hint="Chỉ đổi cách bày trên phả đồ, không đổi thứ tự sinh đã lưu.">
           <Segmented<DiagramTuning["siblingOrder"]>
@@ -694,6 +768,15 @@ export function WholeDiagramInspector({
           min={12}
           max={200}
           onChange={(branchGap) => onTuning({ branchGap })}
+        />
+        <SliderField
+          label="Dịch dọc toàn bộ"
+          value={Math.round(tuning.contentShiftY ?? 0)}
+          min={shiftRange?.min ?? -600}
+          max={shiftRange?.max ?? 600}
+          step={10}
+          onChange={(contentShiftY) => onTuning({ contentShiftY })}
+          hint="Dịch cả khối phả đồ lên/xuống để dàn trang; hoành phi, rồng, câu đối và khung giữ nguyên. Có thể kéo dọc thẻ đầu tiên trên phả đồ."
         />
         <div className="grid grid-cols-2 gap-2">
           {(
@@ -796,7 +879,18 @@ export function WholeDiagramInspector({
           đồ; chọn màu nếu muốn nhãn nổi hơn trên nền giấy.
         </p>
       </Section>
+      </SectionGroup>
 
+      <SectionGroup title="Hoành phi & câu đối" icon={<Frame size={13} />}>
+        <BannerSection
+          banner={banner}
+          couplets={couplets}
+          onChange={updateBanner}
+          onCouplets={updateCouplets}
+        />
+      </SectionGroup>
+
+      <SectionGroup title="Kiểu thẻ & chữ" icon={<TypeIcon size={13} />}>
       <Section
         title="Trình bày thẻ"
         icon={<TypeIcon size={13} />}
@@ -838,8 +932,12 @@ export function WholeDiagramInspector({
           </Field>
         </div>
       </Section>
+      </SectionGroup>
 
-      <Section title="Khung phả đồ" icon={<Frame size={13} />}>
+      <SectionGroup title="Nền & khung" icon={<Palette size={13} />}>
+        <BackgroundSection pattern={tree.design.background} art={bgArt} onChange={updateBackground} />
+
+        <Section title="Khung phả đồ" icon={<Frame size={13} />}>
         <SliderField
           label="Cỡ viền"
           value={tuning.frameScale}
@@ -854,7 +952,8 @@ export function WholeDiagramInspector({
           Phả đồ dùng khung hoa văn cố định; chỉ chỉnh được độ dày viền. Nội dung và dữ liệu
           thành viên giữ nguyên.
         </p>
-      </Section>
+        </Section>
+      </SectionGroup>
 
       <div className="px-3.5 py-3">
         <button
@@ -1100,10 +1199,7 @@ export function PersonInspector({
   member,
   generation,
   offsetX,
-  offsetY,
   style,
-  onOffset,
-  onApplyBranch,
   onResetPosition,
   onStyle,
   onResetStyle,
@@ -1114,10 +1210,7 @@ export function PersonInspector({
   member: Person;
   generation: number;
   offsetX: number;
-  offsetY: number;
   style: PersonStyle;
-  onOffset: (axis: "x" | "y", value: number) => void;
-  onApplyBranch: () => void;
   onResetPosition: () => void;
   onStyle: (patch: Partial<PersonStyle>) => void;
   onResetStyle?: () => void;
@@ -1159,34 +1252,16 @@ export function PersonInspector({
         </p>
       </Section>
 
-      <Section title="Vị trí trên phả đồ" icon={<MoveHorizontal size={13} />}>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Dịch ngang (px)">
-            <input
-              type="number"
-              value={Math.round(offsetX)}
-              onChange={(event) => onOffset("x", Number(event.target.value))}
-              className="pat-input h-9 text-sm tabular-nums"
-            />
-          </Field>
-          <Field label="Dịch dọc (px)">
-            <input
-              type="number"
-              value={Math.round(offsetY)}
-              onChange={(event) => onOffset("y", Number(event.target.value))}
-              className="pat-input h-9 text-sm tabular-nums"
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={onApplyBranch} className="pat-btn pat-btn-outline h-9 text-[0.68rem]">
-            Áp cho cả nhánh con
-          </button>
-          <button type="button" onClick={onResetPosition} className="pat-btn pat-btn-outline h-9 text-[0.68rem]">
+      {offsetX !== 0 ? (
+        <Section title="Vị trí trên phả đồ" icon={<MoveHorizontal size={13} />}>
+          <p className="text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
+            Thẻ đang lệch {Math.round(offsetX)} đơn vị so với vị trí tự xếp — kéo thẻ trên phả đồ để chỉnh lại.
+          </p>
+          <button type="button" onClick={onResetPosition} className="pat-btn pat-btn-outline h-9 w-full text-[0.68rem]">
             <RotateCcw size={12} /> Về vị trí gốc
           </button>
-        </div>
-      </Section>
+        </Section>
+      ) : null}
 
       <Section title="Màu & hiển thị" icon={<Palette size={13} />}>
         <ToggleRow

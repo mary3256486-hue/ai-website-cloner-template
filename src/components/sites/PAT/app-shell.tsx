@@ -62,7 +62,7 @@ export function TreeShell({
       <header className="pat-header sticky top-0 z-30 no-print">
         <div
           className={cn(
-            "mx-auto flex min-h-[76px] w-full items-center gap-3 px-4 py-3",
+            "mx-auto flex min-h-[76px] w-full items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4",
             wide ? "max-w-none" : "max-w-6xl",
           )}
         >

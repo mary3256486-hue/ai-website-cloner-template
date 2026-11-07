@@ -428,7 +428,9 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
           ) : null}
           <div
             ref={previewRef}
-            className="flex h-[max(360px,calc(100dvh-19rem))] overflow-auto bg-[#eadfc8] px-3 py-4"
+            className={`flex h-[max(360px,calc(100dvh-19rem))] overflow-auto bg-[#eadfc8] px-3 pb-4 ${
+              showGuides ? "pt-9" : "pt-4"
+            }`}
           >
             <div
               className="relative m-auto shrink-0"
@@ -461,15 +463,14 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                       bottom: `${safeY}%`,
                     }}
                   />
-                  <span className="pointer-events-none absolute -top-0.5 left-1/2 -translate-x-1/2 -translate-y-full rounded-full bg-[#8f2018] px-2 py-0.5 text-[0.6rem] font-semibold text-[#fff4df]">
-                    Đường cắt mép giấy
-                  </span>
-                  <span
-                    className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-2 py-0.5 text-[0.58rem] font-semibold text-[#8f2018]"
-                    style={{ top: `${safeY}%` }}
-                  >
-                    Vùng an toàn {safeMm} mm
-                  </span>
+                  <div className="pointer-events-none absolute inset-x-0 -top-1 flex -translate-y-full flex-wrap items-center justify-center gap-1">
+                    <span className="rounded-full bg-[#8f2018] px-2 py-0.5 text-[0.6rem] font-semibold text-[#fff4df]">
+                      Đường cắt mép giấy
+                    </span>
+                    <span className="rounded-full border border-[#b3261e]/40 bg-white/95 px-2 py-0.5 text-[0.58rem] font-semibold text-[#8f2018]">
+                      Vùng an toàn {safeMm} mm
+                    </span>
+                  </div>
                 </>
               ) : null}
             </div>
@@ -498,7 +499,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             >
               <ShieldCheck size={14} /> Khung giấy & vùng an toàn
             </button>
-            <label className="flex items-center gap-1 text-[0.7rem] text-[var(--pat-muted)]">
+            <label className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[0.7rem] text-[var(--pat-muted)]">
               Lề an toàn
               <input
                 type="number"

@@ -230,7 +230,9 @@ export function Stat({ value, label, tone = "normal" }: { value: ReactNode; labe
       <span className={cn("text-lg font-bold", tone === "red" ? "text-[var(--pat-red)]" : "text-[var(--pat-ink)]")}>
         {value}
       </span>
-      <span className="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-[var(--pat-muted)]">{label}</span>
+      <span className="text-balance text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-[var(--pat-muted)]">
+        {label}
+      </span>
     </div>
   );
 }

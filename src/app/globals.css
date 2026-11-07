@@ -11,6 +11,13 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "HY Thu Phap 1";
+  src: url("/sites/PAT/fonts/HY-ThuPhap1.otf") format("opentype");
+  font-weight: 400;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

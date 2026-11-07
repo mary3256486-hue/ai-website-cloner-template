@@ -26,6 +26,7 @@ import {
   Redo2,
   Rows3,
   Save,
+  ScrollText,
   Search,
   Trash2,
   Type,
@@ -63,6 +64,7 @@ import {
   bannerTopFor,
   coupletBounds,
   coupletOffsets,
+  contentOrigin,
   diagramDimensions,
   paperUnitsFor,
   dragonBounds,
@@ -83,6 +85,7 @@ import {
 } from "./export";
 import { TreeShell } from "./app-shell";
 import {
+  BannerInspector,
   DecorationInspector,
   GenerationInspector,
   PersonInspector,
@@ -132,10 +135,11 @@ type EditorScope =
   | { kind: "diagram" }
   | { kind: "generation"; generation: number }
   | { kind: "person"; memberId: string }
+  | { kind: "banner" }
   | { kind: "decoration"; decorationId: string };
 
 interface DragState {
-  kind: "node" | "decoration" | "resize" | "dragon" | "couplet" | "nodeResize" | "pan";
+  kind: "node" | "decoration" | "resize" | "dragon" | "couplet" | "banner" | "nodeResize" | "pan";
   id: string;
   startX: number;
   startY: number;
@@ -147,6 +151,7 @@ interface DragState {
   side?: "left" | "right";
   generation?: number;
   origScale?: number;
+  origShiftY?: number;
   unitId?: string;
   unitBase?: Record<string, number>;
   unitMinLeft?: number;
@@ -219,31 +224,6 @@ function unitDragRange(
   };
 }
 
-function descendantIds(rootId: string, members: Person[]) {
-  const children = new Map<string, string[]>();
-  for (const member of members) {
-    for (const parentId of [member.fatherId, member.motherId]) {
-      if (!parentId) continue;
-      const list = children.get(parentId) ?? [];
-      list.push(member.id);
-      children.set(parentId, list);
-    }
-  }
-  const result: string[] = [];
-  const queue = [rootId];
-  const seen = new Set([rootId]);
-  while (queue.length) {
-    const current = queue.shift()!;
-    for (const child of children.get(current) ?? []) {
-      if (seen.has(child)) continue;
-      seen.add(child);
-      result.push(child);
-      queue.push(child);
-    }
-  }
-  return result;
-}
-
 export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const router = useRouter();
   const { setPositions, setDecoration, removeDecoration, setDesign, updateTree } = useGenealogy();
@@ -264,6 +244,8 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const dragonPreviewRef = useRef<{ x: number; y: number } | null>(null);
   const [coupletPreview, setCoupletPreview] = useState<{ x: number; y: number } | null>(null);
   const coupletPreviewRef = useRef<{ x: number; y: number } | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<number | null>(null);
+  const bannerPreviewRef = useRef<number | null>(null);
   const [panning, setPanning] = useState(false);
   const movedRef = useRef(false);
   const [fitScale, setFitScale] = useState(0.2);
@@ -334,18 +316,19 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     }
     return counts;
   }, [clan, gens, tree.members]);
-  const treeTopY = treeTop(dims, layout);
+  const origin = contentOrigin(dims, layout, tuning.contentShiftY ?? 0);
+  const contentFit = dims.fitScale || 1;
   const safeMarginMm = Math.max(0, Math.min(40, tree.design.printSafeMarginMm ?? 10));
   const pageScale = Math.min(dims.width / paper.widthMm, dims.height / paper.heightMm);
   const safeInset = safeMarginMm * pageScale;
   const safeBox = useMemo<SafeBox>(
     () => ({
-      minX: safeInset - dims.offsetX,
-      maxX: dims.width - safeInset - dims.offsetX,
-      minY: safeInset - treeTopY,
-      maxY: dims.height - safeInset - treeTopY,
+      minX: (safeInset - origin.x) / contentFit,
+      maxX: (dims.width - safeInset - origin.x) / contentFit,
+      minY: (safeInset - origin.y) / contentFit,
+      maxY: (dims.height - safeInset - origin.y) / contentFit,
     }),
-    [safeInset, dims.width, dims.height, dims.offsetX, treeTopY],
+    [safeInset, dims.width, dims.height, contentFit, origin.x, origin.y],
   );
   useEffect(() => {
     decorationsRef.current = decorations;
@@ -577,9 +560,12 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     showToast("Đã sắp xếp lại theo thứ tự gia phả");
   };
 
-  const updateTuning = (patch: Partial<DiagramTuning>) => {
-    setDesign(tree.id, { tuning: { ...tuning, ...patch } });
-  };
+  const updateTuning = useCallback(
+    (patch: Partial<DiagramTuning>) => {
+      setDesign(tree.id, { tuning: { ...tuning, ...patch } });
+    },
+    [tuning, tree.id, setDesign],
+  );
 
   const updateGenerationStyle = useCallback(
     (generation: number, patch: Partial<GenerationStyle>) => {
@@ -626,20 +612,6 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     setDesign(tree.id, { tuning: undefined });
     setSaved(false);
     showToast("Đã trả bố cục và kiểu trình bày về mặc định");
-  };
-
-  const applyBranch = (memberId: string, dx: number, dy: number) => {
-    const member = tree.members.find((entry) => entry.id === memberId);
-    const units = new Set([memberId, ...descendantIds(memberId, tree.members)]);
-    const next = { ...overrides };
-    for (const node of baseLayout.nodes) {
-      if (!units.has(node.unitId)) continue;
-      next[node.id] = { x: node.x + dx, y: node.y + dy };
-    }
-    pushHistory(overrides);
-    setOverrides(next);
-    setSaved(false);
-    if (member) showToast(`Đã dịch cả dòng của ${member.name}`);
   };
 
   const resetPosition = (memberId: string) => {
@@ -705,6 +677,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       startY: event.clientY,
       origX: node.x,
       origY: node.y,
+      origShiftY: tuning.contentShiftY ?? 0,
       unitId: node.unitId,
       unitBase: Object.fromEntries(
         layout.nodes
@@ -761,11 +734,32 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     });
   };
 
+  const bannerDown = (event: ReactPointerEvent<SVGGElement>) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    movedRef.current = false;
+    selectScope({ kind: "banner" }, true);
+    const top = bannerTopFor(dims.width, dims.height, tree.design);
+    bannerPreviewRef.current = top;
+    setBannerPreview(top);
+    setDrag({
+      kind: "banner",
+      id: "banner",
+      startX: event.clientX,
+      startY: event.clientY,
+      origX: 0,
+      origY: top,
+      snapshot: overrides,
+    });
+  };
+
   const dragonDown = (event: ReactPointerEvent<SVGGElement>, side: "left" | "right") => {
     if (event.button !== 0) return;
     event.stopPropagation();
     event.preventDefault();
     movedRef.current = false;
+    selectScope({ kind: "banner" }, true);
     const banner = normalizeBanner(tree.design.banner);
     const bounds = dragonBounds(
       dims.width,
@@ -814,6 +808,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     const { bounds, couplets } = coupletBoundsNow();
     if (!couplets.enabled) return;
     movedRef.current = false;
+    selectScope({ kind: "banner" }, true);
     const { dx, dy } = coupletOffsets(bounds, couplets);
     coupletPreviewRef.current = { x: dx, y: dy };
     setCoupletPreview({ x: dx, y: dy });
@@ -884,12 +879,31 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         }
         return;
       }
-      const dx = (event.clientX - drag.startX) / scale;
-      const dy = (event.clientY - drag.startY) / scale;
-      if (Math.abs(dx) + Math.abs(dy) > 2) movedRef.current = true;
+      // Chuyển con trỏ sang đơn vị giấy; nội dung có thể đang thu vừa khổ nên chia thêm hệ số thu.
+      const dxPaper = (event.clientX - drag.startX) / scale;
+      const dyPaper = (event.clientY - drag.startY) / scale;
+      const dx = dxPaper / contentFit;
+      const dy = dyPaper / contentFit;
+      if (Math.abs(dxPaper) + Math.abs(dyPaper) > 2) movedRef.current = true;
       if (drag.kind === "node") {
         const node = layout.nodes.find((entry) => entry.id === drag.id);
         if (!node) return;
+        // Kéo dọc thẻ ở hàng trên cùng → dịch cả khối phả đồ (phục vụ dàn trang).
+        if (!branchScope && Math.abs(dyPaper) > Math.abs(dxPaper) && Math.abs(dyPaper) > 4) {
+          // "Thẻ đầu tiên" = thẻ có tọa độ y nhỏ nhất (hàng trên cùng), kể cả tiền tổ.
+          const topY = layout.nodes.length
+            ? Math.min(...layout.nodes.map((entry) => entry.y))
+            : node.y;
+          if (node.y === topY) {
+            const base = treeTop(dims, layout, 0);
+            const upper = treeTop(dims, layout, Number.MAX_SAFE_INTEGER);
+            const min = -Math.round(base);
+            const max = Math.round(upper - base);
+            const next = Math.max(min, Math.min(max, Math.round((drag.origShiftY ?? 0) + dyPaper)));
+            updateTuning({ contentShiftY: next });
+            return;
+          }
+        }
         const unitId = drag.unitId ?? node.unitId;
         const unit = layout.nodes.filter((entry) => entry.unitId === unitId);
         let x = Math.max(6, Math.round(drag.origX + dx));
@@ -953,22 +967,28 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           bannerTopFor(dims.width, dims.height, tree.design),
           banner,
         );
-        const outward = drag.side === "left" ? -dx : dx;
+        const outward = drag.side === "left" ? -dxPaper : dxPaper;
         const next = {
           x: Math.max(bounds.dxMin, Math.min(bounds.dxMax, drag.origX + outward)),
-          y: Math.max(bounds.dyMin, Math.min(bounds.dyMax, drag.origY + dy)),
+          y: Math.max(bounds.dyMin, Math.min(bounds.dyMax, drag.origY + dyPaper)),
         };
         dragonPreviewRef.current = next;
         setDragonPreview(next);
       } else if (drag.kind === "couplet") {
         const { bounds } = coupletBoundsNow();
-        const outward = drag.side === "left" ? -dx : dx;
+        const outward = drag.side === "left" ? -dxPaper : dxPaper;
         const next = {
           x: Math.max(bounds.dxMin, Math.min(bounds.dxMax, drag.origX + outward)),
-          y: Math.max(bounds.dyMin, Math.min(bounds.dyMax, drag.origY + dy)),
+          y: Math.max(bounds.dyMin, Math.min(bounds.dyMax, drag.origY + dyPaper)),
         };
         coupletPreviewRef.current = next;
         setCoupletPreview(next);
+      } else if (drag.kind === "banner") {
+        const minTop = frameThickness(dims.width, tree.design);
+        const maxTop = Math.max(minTop, dims.height * 0.13);
+        const next = Math.max(minTop, Math.min(maxTop, drag.origY + dyPaper));
+        bannerPreviewRef.current = next;
+        setBannerPreview(next);
       } else if (drag.kind === "nodeResize") {
         const own = Math.max(0.6, Math.min(1.8, drag.origScale ?? 1));
         const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
@@ -1036,13 +1056,26 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         }
         coupletPreviewRef.current = null;
         setCoupletPreview(null);
+      } else if (drag.kind === "banner") {
+        const preview = bannerPreviewRef.current;
+        if (preview != null && movedRef.current) {
+          setDesign(tree.id, {
+            banner: {
+              ...normalizeBanner(tree.design.banner),
+              offsetRatio: Math.round((preview / dims.height) * 10000) / 10000,
+            },
+          });
+          setSaved(false);
+        }
+        bannerPreviewRef.current = null;
+        setBannerPreview(null);
       } else if (drag.kind === "nodeResize") {
         if (movedRef.current) {
           setSaved(false);
           showToast(`Đã đổi cỡ thẻ cho ${generationTag(drag.generation ?? 0)} và toàn bộ thẻ cùng đời`);
         }
       } else if (drag.kind === "resize") {
-        const dx = (event.clientX - drag.startX) / scale;
+        const dx = (event.clientX - drag.startX) / (scale * contentFit);
         const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
         const { width, height } = resizeInSafeBox(
           drag.origW ?? 120,
@@ -1075,6 +1108,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   }, [
     drag,
     scale,
+    contentFit,
     pushHistory,
     selectScope,
     showToast,
@@ -1082,13 +1116,14 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     updateGenerationStyle,
     tree.id,
     tree.design,
-    dims.width,
-    dims.height,
+    dims,
     setDesign,
     setDecoration,
     snapToGrid,
-    layout.nodes,
+    layout,
     safeBox,
+    branchScope,
+    updateTuning,
   ]);
 
   const searchResults = useMemo(() => {
@@ -1107,10 +1142,13 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     const el = viewportRef.current;
     if (!node || !el) return;
     el.scrollTo({
-      left: Math.max(0, (dims.offsetX + node.x) * scale - el.clientWidth / 2 + (node.width * scale) / 2),
+      left: Math.max(
+        0,
+        (origin.x + contentFit * (node.x + node.width / 2)) * scale - el.clientWidth / 2,
+      ),
       top: Math.max(
         0,
-        (treeTopY + node.y) * scale - el.clientHeight / 2 + (node.height * scale) / 2,
+        (origin.y + contentFit * (node.y + node.height / 2)) * scale - el.clientHeight / 2,
       ),
       behavior: "smooth",
     });
@@ -1337,14 +1375,25 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const nonAncestorRows = layout.generations.filter((row) => !row.isAncestor);
   const ancestorRows = layout.generations.filter((row) => row.isAncestor);
 
+  // Biên độ dịch dọc toàn khối: từ vị trí tự xếp (shiftY = 0) tới đáy mép trong của khung.
+  // Làm tròn hai đầu về bội của 10 để giá trị 0 nằm đúng bước nhảy của slider (step 10).
+  const baseShiftY = treeTop(dims, layout, 0);
+  const maxShiftY = treeTop(dims, layout, Number.MAX_SAFE_INTEGER);
+  const shiftRange = {
+    min: Math.floor(-baseShiftY / 10) * 10,
+    max: Math.ceil((maxShiftY - baseShiftY) / 10) * 10,
+  };
+
   const scopeLabel =
     scope.kind === "generation"
       ? rowLabel(scope.generation)
       : scope.kind === "person"
         ? tree.members.find((member) => member.id === scope.memberId)?.name ?? "Thành viên"
-        : scope.kind === "decoration"
-          ? "Trang trí"
-          : "Cả phả đồ";
+        : scope.kind === "banner"
+          ? "Hoành phi & câu đối"
+          : scope.kind === "decoration"
+            ? "Trang trí"
+            : "Cả phả đồ";
 
   const hintText = (() => {
     if (branchScope) {
@@ -1356,6 +1405,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     }
     if (scope.kind === "person") {
       return `${scopeLabel} · kéo ô để đổi vị trí · bấm ra nền để chọn cả phả đồ`;
+    }
+    if (scope.kind === "banner") {
+      return "Đang chỉnh hoành phi & câu đối · kéo rồng/câu đối trên phả đồ để dịch vị trí";
     }
     if (scope.kind === "decoration") {
       return "Đang chỉnh trang trí · kéo để di chuyển, kéo ô vuông góc để đổi kích thước";
@@ -1398,26 +1450,12 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       if (member && base) {
         const override = overrides[member.id];
         const offsetX = override ? override.x - base.x : 0;
-        const offsetY = override ? override.y - base.y : 0;
         return (
           <PersonInspector
             member={member}
             generation={gens.get(member.id) ?? 1}
             offsetX={offsetX}
-            offsetY={offsetY}
             style={tuning.personStyles?.[member.id] ?? {}}
-            onOffset={(axis, value) => {
-              const current = overrides[member.id] ?? { x: base.x, y: base.y };
-              setOverrides((prev) => ({
-                ...prev,
-                [member.id]: {
-                  x: axis === "x" ? base.x + value : current.x,
-                  y: axis === "y" ? base.y + value : current.y,
-                },
-              }));
-              setSaved(false);
-            }}
-            onApplyBranch={() => applyBranch(member.id, offsetX, offsetY)}
             onResetPosition={() => resetPosition(member.id)}
             onStyle={(patch) => updatePersonStyle(member.id, patch)}
             onResetStyle={() => resetPersonStyle(member.id)}
@@ -1427,6 +1465,19 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           />
         );
       }
+    }
+    if (scope.kind === "banner") {
+      const banner = normalizeBanner(tree.design.banner);
+      const couplets = normalizeCouplets(tree.design.couplets);
+      return (
+        <BannerInspector
+          banner={banner}
+          couplets={couplets}
+          onChange={(patch) => setDesign(tree.id, { banner: { ...banner, ...patch } })}
+          onCouplets={(patch) => setDesign(tree.id, { couplets: { ...couplets, ...patch } })}
+          onClose={onClose}
+        />
+      );
     }
     if (scope.kind === "decoration") {
       const index = decorations.findIndex((entry) => entry.id === scope.decorationId);
@@ -1453,6 +1504,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
         tree={tree}
         tuning={tuning}
         paper={paper}
+        shiftRange={shiftRange}
         onTuning={updateTuning}
         onDesign={(patch) => setDesign(tree.id, patch)}
         onReset={resetDiagram}
@@ -1467,9 +1519,11 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       ? rowLabel(scope.generation)
       : scope.kind === "person"
         ? tree.members.find((member) => member.id === scope.memberId)?.name ?? "Thành viên"
-        : scope.kind === "decoration"
-          ? "Trang trí"
-          : "Cả phả đồ";
+        : scope.kind === "banner"
+          ? "Hoành phi & câu đối"
+          : scope.kind === "decoration"
+            ? "Trang trí"
+            : "Cả phả đồ";
 
   const sidebar = (
     <div className="space-y-4">
@@ -1519,6 +1573,17 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             }`}
           >
             <Frame size={13} /> Cả phả đồ
+          </button>
+          <button
+            type="button"
+            onClick={() => selectScope({ kind: "banner" }, true)}
+            className={`flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs font-semibold transition ${
+              scope.kind === "banner"
+                ? "border-[var(--pat-red)] bg-[#f9e3df]/60 text-[var(--pat-red)]"
+                : "border-[var(--pat-line)] bg-white/60 hover:bg-[#f6e9c8]/50"
+            }`}
+          >
+            <ScrollText size={13} /> Hoành phi & câu đối
           </button>
           {layout.generations.map((row) => {
             const selected = scope.kind === "generation" && scope.generation === row.generation;
@@ -1827,8 +1892,12 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                     }
                     dragonDrag={branchScope ? null : dragonPreview}
                     coupletDrag={branchScope ? null : coupletPreview}
+                    bannerDrag={
+                      branchScope || bannerPreview == null ? null : { top: bannerPreview }
+                    }
                     onNodePointerDown={branchScope ? undefined : nodeDown}
                     onNodeResizeStart={branchScope ? undefined : nodeResizeDown}
+                    onBannerPointerDown={branchScope ? undefined : bannerDown}
                     onDragonPointerDown={branchScope ? undefined : dragonDown}
                     onCoupletPointerDown={branchScope ? undefined : coupletDown}
                     onDecorationPointerDown={branchScope ? undefined : decorationDown}
