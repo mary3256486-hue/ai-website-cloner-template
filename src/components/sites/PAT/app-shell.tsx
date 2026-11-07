@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import {
   ArrowLeft,
-  BookOpen,
   Download,
+  FolderOpen,
   GitBranch,
   Home,
   Menu,
@@ -27,7 +27,7 @@ const sections = [
   { key: "chinh-sua-voi-cay-gia-pha", label: "Cây gia phả", icon: Network, short: "Cây gia phả" },
   { key: "ve-pha-do", label: "Vẽ phả đồ", icon: PenTool, short: "Vẽ phả đồ" },
   { key: "giao-dien", label: "Thiết kế bản in", icon: Palette, short: "Bản in" },
-  { key: "pha-ky", label: "Phả ký", icon: BookOpen, short: "Phả ký" },
+  { key: "tu-lieu", label: "Tư liệu", icon: FolderOpen, short: "Tư liệu" },
   { key: "cong-cu", label: "Công cụ", icon: Wrench, short: "Công cụ" },
 ];
 
@@ -171,12 +171,12 @@ export function TreeShell({
           </SheetGroup>
           <SheetGroup label="Bản in">
             <SheetRow icon={<Palette size={18} />} title="Thiết kế bản in" subtitle="Khổ giấy, lề, màu sắc, xem trước in" onClick={() => go("giao-dien")} />
-            <SheetRow icon={<BookOpen size={18} />} title="Phả ký" subtitle="Viết lịch sử dòng họ" onClick={() => go("pha-ky")} />
           </SheetGroup>
           <SheetGroup label="Tra cứu">
             <SheetRow icon={<Wrench size={18} />} title="Công cụ" subtitle="Đổi ngày Âm – Dương, tra cứu niên hiệu" onClick={() => go("cong-cu")} />
           </SheetGroup>
           <SheetGroup label="Dữ liệu">
+            <SheetRow icon={<FolderOpen size={18} />} title="Tư liệu" subtitle="Ảnh, giấy tờ, sắc phong của dòng họ" onClick={() => go("tu-lieu")} />
             <SheetRow icon={<Download size={18} />} title="Xuất dữ liệu" subtitle="Excel (CSV), JSON, GEDCOM" onClick={() => go("danh-sach-thanh-vien")} />
           </SheetGroup>
         </div>

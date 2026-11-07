@@ -11,7 +11,7 @@ const labels: Record<string, string> = {
   "chinh-sua-voi-cay-gia-pha": "Cây gia phả",
   "ve-pha-do": "Vẽ phả đồ",
   "giao-dien": "Thiết kế bản in",
-  "pha-ky": "Phả ký",
+  "tu-lieu": "Tư liệu",
 };
 
 export function ComingSoon({ tree, section }: { tree: FamilyTree; section: string }) {

@@ -871,7 +871,7 @@ export function WholeDiagramInspector({
           max={2}
           step={0.05}
           suffix="×"
-          hint="Nhãn tự nhân theo cỡ thẻ của từng đời. Khổ A0: nhãn cách mép trong khung 2,5 cm và cách mép thẻ 2,5 cm."
+          hint="Nhãn dùng chung một cỡ ở mọi đời (tương ứng cỡ thẻ 1,5×). Khổ A0: nhãn cách mép trong khung 2,5 cm và cách mép thẻ 2,5 cm."
           onChange={(generationLabelScale) => onTuning({ generationLabelScale })}
         />
         <p className="text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">

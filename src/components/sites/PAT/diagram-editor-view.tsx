@@ -47,8 +47,9 @@ import type {
 } from "./types";
 import {
   cardOrientationFor,
-  cardScaleFor,
+  defaultGenerationCardScale,
   FRAME_CORNER_CLEARANCE,
+  GENERATION_LABEL_CARD_SCALE,
   generationBandMetrics,
   generationTag,
   normalizeBanner,
@@ -602,7 +603,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       fontSize: style.fontSize ?? tuning.fontSize,
       lineCount: style.lineCount ?? tuning.lineCount,
       cardColor: style.cardColor,
-      cardScale: style.cardScale ?? 1,
+      cardScale: style.cardScale ?? defaultGenerationCardScale(generation, layout.topGenerations),
     };
   };
 
@@ -662,7 +663,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                   (row) =>
                     generationBandMetrics(
                       row.label ?? generationTag(row.generation),
-                      (tuning.generationLabelScale ?? 1) * cardScaleFor(tree.design, row.generation),
+                      (tuning.generationLabelScale ?? 1) * GENERATION_LABEL_CARD_SCALE,
                     ).width,
                 ),
               ) +
@@ -843,7 +844,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       origW: node.width,
       origH: node.height,
       aspect: node.height > 0 ? node.width / node.height : 1,
-      origScale: tuning.generationStyles?.[String(node.generation)]?.cardScale ?? 1,
+      origScale:
+        tuning.generationStyles?.[String(node.generation)]?.cardScale ??
+        defaultGenerationCardScale(node.generation, layout.topGenerations),
       snapshot: overrides,
     });
   };

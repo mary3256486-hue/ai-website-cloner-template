@@ -14,6 +14,7 @@ import { DEFAULT_DESIGN, FAMILY_TREE_SCHEMA_VERSION } from "./types";
 import { ensurePersonCodes, nextPersonCode, uid } from "./utils";
 import { foldOutsideMembers } from "./clan";
 import { createDemoTree } from "./seed";
+import { deleteTreeDocuments } from "./document-store";
 
 export const STORAGE_KEY = "phatue.familyTrees.v1";
 const TRASH_KEY = "phatue.familyTrees.trash.v1";
@@ -470,6 +471,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
   );
 
   const purgeTree = useCallback((id: string) => {
+    void deleteTreeDocuments(id);
     setArchived((prev) => {
       const next = prev.filter((item) => item.tree.id !== id);
       persistArchived(next);
@@ -479,6 +481,7 @@ export function GenealogyProvider({ children }: { children: ReactNode }) {
 
   const purgeAllArchived = useCallback(() => {
     setArchived((prev) => {
+      for (const item of prev) void deleteTreeDocuments(item.tree.id);
       persistArchived([]);
       return prev.length ? [] : prev;
     });

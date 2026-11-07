@@ -3,11 +3,12 @@ import {
   ancestorLabelFor,
   bandLabelFor,
   cardDimsFor,
-  cardScaleFor,
   FRAME_CORNER_CLEARANCE,
+  GENERATION_LABEL_CARD_SCALE,
   generationBandMetrics,
   normalizeTuning,
   SPOUSE_GAP,
+  TOP_CARD_SCALE_GENERATIONS,
 } from "./types";
 import { classifyClan, type ClanIndex } from "./clan";
 import {
@@ -40,6 +41,9 @@ export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): 
   }
   const inset = Math.round(FRAME_CORNER_CLEARANCE * tuning.frameScale);
   const cardScale = tuning.cardScale ?? 1;
+  // Bốn đời trên cùng theo đúng thứ tự trình bày (tiền tổ xếp trước) được phóng thẻ mặc định.
+  const generationKeys = Array.from(counts.keys()).sort(sortGenerations);
+  const topGenerations = generationKeys.slice(0, TOP_CARD_SCALE_GENERATIONS);
   const marginTop = tuning.marginTop + inset;
   const marginBottom = tuning.marginBottom + inset;
   const ancestorTitles = new Map<number, string[]>();
@@ -65,17 +69,15 @@ export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): 
   // Khổ A0: nhãn cách mép trong khung 2,5 cm (khoảng 73 đơn vị) và cách mép thẻ 2,5 cm.
   const labelGap = Math.round(73 * tuning.frameScale);
   const frameGuess = Math.round((FRAME_CORNER_CLEARANCE * tuning.frameScale * 92) / 180);
-  const labelScaleFor = (generation: number) =>
-    (tuning.generationLabelScale ?? 1) * cardScaleFor(tree.design, generation);
-  const bandPillWidth = (label: string, generation: number) =>
-    generationBandMetrics(label, labelScaleFor(generation)).width;
+  const labelScaleFor = () => (tuning.generationLabelScale ?? 1) * GENERATION_LABEL_CARD_SCALE;
+  const bandPillWidth = (label: string) => generationBandMetrics(label, labelScaleFor()).width;
   // Chừa đủ chỗ cho nhãn: khung + 2,5 cm + nhãn + 2,5 cm tới mép thẻ.
   const bandGutter = tree.design.showGenerationLabels
     ? Math.round(
         frameGuess +
           labelGap +
           Array.from(counts.keys()).reduce(
-            (max, generation) => Math.max(max, bandPillWidth(rowLabel(generation), generation)),
+            (max, generation) => Math.max(max, bandPillWidth(rowLabel(generation))),
             0,
           ) +
           labelGap,
@@ -123,7 +125,13 @@ export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): 
 
   const measure = (person: Person): Measure => {
     const generation = generations.get(person.id) ?? 1;
-    const { width: cardW } = cardDimsFor(tree.design, generation, counts.get(generation), cardScale);
+    const { width: cardW } = cardDimsFor(
+      tree.design,
+      generation,
+      counts.get(generation),
+      cardScale,
+      topGenerations,
+    );
     const spouses = orderedSpouses(person, tree.members).filter(
       (spouse) => inScope(spouse.id) && isUnitSpouse(person, spouse),
     );
@@ -140,14 +148,13 @@ export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): 
   const measured = roots.map(measure);
   const nodes: TreeNode[] = [];
 
-  const generationKeys = Array.from(new Set(Array.from(counts.keys()))).sort(sortGenerations);
   const rowTop = new Map<number, number>();
   let rowCursor = marginTop;
   for (const generation of generationKeys) {
     rowTop.set(generation, rowCursor);
     rowCursor +=
-      cardDimsFor(tree.design, generation, counts.get(generation), cardScale).height +
-      Math.max(tuning.generationGap, 36);
+      cardDimsFor(tree.design, generation, counts.get(generation), cardScale, topGenerations)
+        .height + Math.max(tuning.generationGap, 36);
   }
 
   const place = (m: Measure, left: number) => {
@@ -158,6 +165,7 @@ export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): 
       generation,
       counts.get(generation),
       cardScale,
+      topGenerations,
     );
     const y = rowTop.get(generation) ?? marginTop;
     const add = (person: Person, x: number, isSpouse: boolean) => {
@@ -247,6 +255,7 @@ export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): 
       nodes: [],
       edges: [],
       generations: [],
+      topGenerations: [],
       width: marginLeft + marginRight,
       height: marginTop + marginBottom,
     };
@@ -333,6 +342,7 @@ export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): 
     nodes,
     edges,
     generations: genRows,
+    topGenerations,
     width: Math.max(width, marginLeft + marginRight),
     height: Math.max(height, marginTop + marginBottom),
   };

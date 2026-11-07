@@ -18,6 +18,7 @@ import {
   FileSpreadsheet,
   FileText,
   FileWarning,
+  FolderOpen,
   GitBranch,
   HelpCircle,
   History,
@@ -2670,7 +2671,7 @@ function SampleTab({
     },
     { icon: GitBranch, label: `${sample.branches.length} chi phái`, hint: "Chi phái tách rõ, có trưởng chi phái" },
     { icon: PenTool, label: "Phả đồ in sẵn", hint: "Khung ngang/dọc, xuất PDF và PNG" },
-    { icon: BookOpen, label: "Phả ký mẫu", hint: "Bài viết mẫu về lịch sử dòng họ" },
+    { icon: FolderOpen, label: "Kho tư liệu", hint: "Lưu ảnh, giấy tờ, sắc phong của dòng họ" },
     { icon: Info, label: "Cách tính đời", hint: "Sơ tổ là đời đầu tiên, tiền tổ ở bậc âm" },
   ];
 

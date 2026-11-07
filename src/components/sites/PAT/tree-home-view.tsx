@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
-  BookOpen,
   CalendarDays,
   ChevronRight,
   Crown,
   Download,
+  FolderOpen,
   GitBranch,
   Info,
   MapPin,
@@ -67,11 +67,11 @@ const features = [
     caption: "Khổ giấy, màu sắc",
   },
   {
-    key: "chronicle",
-    href: "pha-ky",
-    icon: BookOpen,
-    label: "Phả ký",
-    caption: "Lịch sử dòng họ",
+    key: "documents",
+    href: "tu-lieu",
+    icon: FolderOpen,
+    label: "Tư liệu",
+    caption: "Ảnh, giấy tờ, sắc phong",
   },
   {
     key: "branches",
@@ -607,7 +607,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
           />
           <SheetRow icon={<PenTool size={18} />} title="Vẽ phả đồ" onClick={() => open("ve-pha-do")} />
           <SheetRow icon={<Palette size={18} />} title="Thiết kế bản in" onClick={() => open("giao-dien")} />
-          <SheetRow icon={<BookOpen size={18} />} title="Phả ký" onClick={() => open("pha-ky")} />
+          <SheetRow icon={<FolderOpen size={18} />} title="Tư liệu" onClick={() => open("tu-lieu")} />
           <SheetRow icon={<GitBranch size={18} />} title="Chi phái" onClick={() => open("danh-sach-nhanh")} />
           <SheetRow
             icon={<Trash2 size={18} />}

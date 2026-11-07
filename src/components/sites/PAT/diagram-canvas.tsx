@@ -20,10 +20,10 @@ import {
   CARD_VERTICAL_W,
   CARD_W,
   cardOrientationFor,
-  cardScaleFor,
   COUPLET_FONT_FAMILIES,
   DEFAULT_DESIGN,
   FRAME_CORNER_CLEARANCE,
+  GENERATION_LABEL_CARD_SCALE,
   generationBandMetrics,
   generationTag,
   normalizeBackgroundImage,
@@ -917,10 +917,10 @@ export function DiagramCanvas({
         <g pointerEvents="none">
           {layout.generations.map((row) => {
               const label = row.label ?? bandLabelFor(tuning.generationBandLabel, row.generation);
-              // Nhãn tự lớn theo cỡ thẻ của đời; khổ A0 giữ 2,5 cm tới khung và 2,5 cm tới thẻ.
+              // Nhãn đời dùng chung một cỡ (tương ứng cỡ thẻ 1,5); khổ A0 giữ 2,5 cm tới khung và 2,5 cm tới thẻ.
               const band = generationBandMetrics(
                 label,
-                (tuning.generationLabelScale ?? 1) * cardScaleFor(settings, row.generation),
+                (tuning.generationLabelScale ?? 1) * GENERATION_LABEL_CARD_SCALE,
               );
               const leftX = frameS + labelGap;
               const rightX = width - frameS - labelGap - band.width;

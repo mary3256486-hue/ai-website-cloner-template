@@ -148,7 +148,7 @@ export interface DiagramTuning {
   patternScale?: number;
   /** Phóng to/thu nhỏ toàn bộ thẻ thành viên (1 = mặc định). */
   cardScale?: number;
-  /** Cỡ nhãn đời, tự nhân với cỡ thẻ của từng đời (1 = mặc định). */
+  /** Cỡ nhãn đời, nhân với cỡ nhãn chuẩn (tương ứng cỡ thẻ 1,5); giống nhau ở mọi đời. */
   generationLabelScale?: number;
   /** Dịch cả khối nội dung theo chiều dọc (đơn vị phả đồ, 0 = mặc định); bị chặn trong lòng giấy khi vẽ. */
   contentShiftY?: number;
@@ -170,7 +170,7 @@ export interface BannerSettings {
   textSize: number;
   textColor: string;
   textOffsetY: number;
-  /** Vị trí mép trên hoành phi theo tỉ lệ chiều cao giấy; 0,06 = mặc định, tối đa 0,13. */
+  /** Vị trí mép trên hoành phi theo tỉ lệ chiều cao giấy; 0,10 = mặc định, tối đa 0,13. */
   offsetRatio: number;
   showDragons: boolean;
   dragonScale: number;
@@ -214,13 +214,14 @@ export interface CoupletSettings {
 
 export const DEFAULT_COUPLETS: CoupletSettings = {
   enabled: true,
-  leftText: "Tổ đức lưu phương thiên niên thịnh",
-  rightText: "Tông công hiển hách vạn đại vinh",
-  fontSize: 32,
+  leftText: "Tổ Công Tông Đức Thiên Niên Thịnh",
+  rightText: "Tử Hiếu Tôn Hiền Vạn Đại Xương",
+  fontSize: 67,
   color: "#8a1c15",
   font: "hai-yen-1",
-  offsetX: 0,
-  offsetY: 0,
+  /** Đẩy hai vế ra sát khung giấy như bản tham chiếu trong trình duyệt ngoài. */
+  offsetX: 264,
+  offsetY: 163,
 };
 
 export interface BackgroundImageSettings {
@@ -498,6 +499,8 @@ export interface TreeLayout {
   nodes: TreeNode[];
   edges: TreeEdge[];
   generations: { generation: number; count: number; y: number; label?: string; isAncestor?: boolean }[];
+  /** Bốn đời hiển thị trên cùng, xếp từ trên xuống, gồm cả đời âm của tiền tổ. */
+  topGenerations: number[];
   width: number;
   height: number;
 }
@@ -527,15 +530,30 @@ export function cardOrientationFor(
   return (memberCount ?? 0) >= AUTO_VERTICAL_FROM ? "vertical" : "horizontal";
 }
 
-/** Cỡ thẻ hiệu dụng của một đời: cỡ chung nhân cỡ riêng đã lưu. */
-export function cardScaleFor(
-  design: Partial<DesignSettings> | null | undefined,
+/**
+ * Bốn đời hiển thị trên cùng (kể cả các bậc tiền tổ) được phóng thẻ lên 1,8 lần.
+ * Danh sách đời lấy từ bố cục thực tế nên cây có hay không có tiền tổ đều đúng.
+ */
+export const TOP_CARD_SCALE_GENERATIONS = 4;
+export const TOP_CARD_SCALE = 1.8;
+/** Nhãn đời dùng chung một cỡ, tương ứng cỡ thẻ 1,5, không đổi theo đời. */
+export const GENERATION_LABEL_CARD_SCALE = 1.5;
+
+/** Cỡ thẻ mặc định của một đời khi người dùng chưa đặt riêng. */
+export function defaultGenerationCardScale(
   generation: number,
+  topGenerations?: readonly number[] | null,
 ): number {
-  const tuning = design?.tuning;
-  const global = clampNumber(tuning?.cardScale, 1, 0.7, 1.5);
-  const own = clampNumber(tuning?.generationStyles?.[String(generation)]?.cardScale, 1, 0.6, 1.8);
-  return global * own;
+  return topGenerations?.includes(generation) ? TOP_CARD_SCALE : 1;
+}
+
+function generationCardScale(
+  tuning: Partial<DiagramTuning> | null | undefined,
+  generation: number,
+  topGenerations?: readonly number[] | null,
+) {
+  const own = tuning?.generationStyles?.[String(generation)]?.cardScale;
+  return clampNumber(own, defaultGenerationCardScale(generation, topGenerations), 0.6, 1.8);
 }
 
 export function cardDimsFor(
@@ -543,14 +561,14 @@ export function cardDimsFor(
   generation: number,
   memberCount?: number,
   scale = 1,
+  topGenerations?: readonly number[] | null,
 ) {
   const base =
     cardOrientationFor(design, generation, memberCount) === "vertical"
       ? { width: CARD_VERTICAL_W, height: CARD_VERTICAL_H }
       : { width: CARD_W, height: CARD_H };
   const global = Number.isFinite(scale) && scale > 0 ? scale : 1;
-  const own = clampNumber(design?.tuning?.generationStyles?.[String(generation)]?.cardScale, 1, 0.6, 1.8);
-  const factor = global * own;
+  const factor = global * generationCardScale(design?.tuning, generation, topGenerations);
   return { width: Math.round(base.width * factor), height: Math.round(base.height * factor) };
 }
 
@@ -657,7 +675,7 @@ export const DEFAULT_BANNER: BannerSettings = {
   textSize: 34,
   textColor: "#f7e3b5",
   textOffsetY: 0,
-  offsetRatio: 0.06,
+  offsetRatio: 0.1,
   showDragons: true,
   dragonScale: 1,
   dragonOffsetX: 0,
@@ -764,6 +782,7 @@ export const DEFAULT_TUNING: DiagramTuning = {
   cardScale: 1,
   generationLabelScale: 1,
   contentShiftY: 0,
+  // Cỡ thẻ 1,8 không lưu ở đây: bốn đời trên cùng được tính từ bố cục (kể cả tiền tổ).
   generationStyles: {},
   personStyles: {},
 };
@@ -771,6 +790,14 @@ export const DEFAULT_TUNING: DiagramTuning = {
 function clampNumber(value: number | undefined, fallback: number, min: number, max: number) {
   if (value === undefined || Number.isNaN(value)) return fallback;
   return Math.min(max, Math.max(min, value));
+}
+
+function mergeGenerationStyles(styles?: Record<string, GenerationStyle>) {
+  const merged: Record<string, GenerationStyle> = { ...(DEFAULT_TUNING.generationStyles ?? {}) };
+  for (const [key, style] of Object.entries(styles ?? {})) {
+    merged[key] = { ...(merged[key] ?? {}), ...style };
+  }
+  return merged;
 }
 
 export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): DiagramTuning {
@@ -802,7 +829,7 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
       2,
     ),
     contentShiftY: tuning?.contentShiftY ?? 0,
-    generationStyles: tuning?.generationStyles ?? {},
+    generationStyles: mergeGenerationStyles(tuning?.generationStyles),
     personStyles: tuning?.personStyles ?? {},
   };
 }

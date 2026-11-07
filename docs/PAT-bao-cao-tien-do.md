@@ -295,6 +295,105 @@ Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gi
 
 Lưu ý: các số đo nhãn ở mục 6.2 (`x = 206 / 3162`) là **trước** thay đổi này; số hiện hành là `x = 161 / 3239` như trên. Khổ giấy được cố định theo mục 6.4 nên đổi cỡ thẻ/cỡ nhãn không còn nới `viewBox`; hai nhãn vẫn giữ khe 2,5 cm ở cả hai phía.
 
+### 6.12. Sửa lại bốn mặc định phả đồ: cỡ thẻ tính từ thẻ trên cùng, nhãn cố định 1,5×, câu đối 67 px, vị trí theo ảnh tham chiếu — ngày 2026-11-07
+
+Bốn yêu cầu của bạn:
+
+1. **Bốn đời đầu tiên tính từ thẻ trên cùng (kể cả tiền tổ)** được phóng thẻ 1,8×.
+2. **Cỡ nhãn đời cố định**, không đổi giữa các đời, tương ứng cỡ thẻ **1,5×**.
+3. **Cỡ chữ câu đối mặc định 67**.
+4. **Vị trí hoành phi, rồng, câu đối mặc định như trình duyệt bên ngoài** — bạn gửi ảnh tham khảo vì không có số chính xác.
+
+**Về việc đọc số từ “trình duyệt bên ngoài”:** không đọc được trực tiếp. Chrome/Edge của bạn không mở cổng gỡ lỗi, và gia phả mẫu trên app.phatue.vn chỉ tồn tại trong phiên nên không có bản lưu `localStorage` để sao chép thông số. Vì vậy vị trí được căn theo ảnh chụp bạn gửi (đo tỉ lệ điểm mực trên ảnh) rồi đối chiếu trên bản dựng thật.
+
+**Thay đổi mã**
+
+- `types.ts` — bỏ cách gán cứng `cardScale: 1.8` cho các đời 0–3. Thêm `TOP_CARD_SCALE_GENERATIONS = 4`, `TOP_CARD_SCALE = 1.8`, `GENERATION_LABEL_CARD_SCALE = 1.5` và hàm `defaultGenerationCardScale(đời, topGenerations)`: chỉ bốn đời nằm trong danh sách đầu mới mặc định 1,8×. `DEFAULT_TUNING.generationStyles` trả về `{}`; `cardDimsFor` nhận thêm `topGenerations`; `normalizeTuning` không còn gộp mặc định theo đời.
+- `layout.ts` — sau khi có thứ tự đời (`sortGenerations`, tiền tổ âm xếp trước), lấy **bốn đời hiển thị trên cùng** vào `layout.topGenerations` và truyền cho cả ba lượt đo thẻ (đo cây, chiều cao hàng, đặt thẻ). Nhờ vậy bố cục tính khoảng cách hàng theo đúng cỡ 1,8×, không còn trường hợp hàng đầu chồng lên nhau.
+- `layout.ts` + `diagram-canvas.tsx` + `diagram-editor-view.tsx` — mọi nơi tính nhãn đời dùng `(generationLabelScale ?? 1) × 1,5`; bề rộng nhãn, cỡ chữ nhãn và lề tránh nhãn cũng theo cùng hệ số. Nhãn **không còn nhân theo cỡ thẻ của từng đời**.
+- `diagram-editor-view.tsx` — bảng thuộc tính của một đời và tay nắm kéo cỡ thẻ đọc mặc định từ `defaultGenerationCardScale(đời, layout.topGenerations)`; nút “Bỏ ghi đè của đời này” trả về 1,8× ở bốn đời đầu, 1× ở các đời sau.
+- `types.ts` — `DEFAULT_COUPLETS.fontSize` **67**; `DEFAULT_BANNER.offsetRatio` **0,10** (trước 0,06; giới hạn vẫn tối đa 0,13).
+- `DEFAULT_COUPLETS.offsetX = 264`, `offsetY = 163` để hai vế ra sát mép trong khung như ảnh tham chiếu; rồng giữ 1×, dịch ngang/dọc 0.
+- `diagram-inspector.tsx` — ghi chú mục cỡ nhãn đổi thành “Nhãn dùng chung một cỡ ở mọi đời (tương ứng cỡ thẻ 1,5×). Khổ A0: nhãn cách mép trong khung 2,5 cm và cách mép thẻ 2,5 cm.”
+
+**Bằng chứng trên trình duyệt ngoài**, bản production dựng sạch tại `http://localhost:3001`, `BUILD_ID Ozq4A3JWWNQtn0aiSN0az` (trang `giao-dien` và `ve-pha-do`, cùng `viewBox 3572 × 2526,54`):
+
+- **Cỡ thẻ:** 7 thẻ **302 × 133** = đúng 168×74 × 1,8, rơi đúng bốn hàng trên cùng: Đại Tổ 1 thẻ, Thủy Tổ 1, Sơ Tổ + vợ 2, Đời 1 3 thẻ. Từ Đời 2 trở xuống vẫn 168×74 (ngang) và 75×150 (dọc). Bảng thuộc tính: Đại Tổ 1,8 / Đời 1 1,8 / Đời 2 1. Đặt thử 1,2 → cả hàng Đời 1 thành 202×89; bấm “Bỏ ghi đè của đời này” trả lại 302×133 và thanh trượt đọc 1,8.
+- **Nhãn đời:** tất cả nhãn dải (Đại Tổ → Đời 4) cùng `font-size 10,8` = 1,5 × 7,2, dù hàng Đời 1 có thẻ 1,8× còn Đời 2 là 1×. Bề rộng nhãn không đổi theo đời; nhãn trái ở 5,5–5,8%, nhãn phải ở 92,9–93,2% bề rộng giấy.
+- **Câu đối:** đúng 2 `text.pat-couplet`, `font-size 67`; vế trái `x 19,20–22,20%`, vế phải `77,75–80,94%`, dải dọc `13,17–36,98%` chiều cao giấy. Không chạm hoành phi (39,36–60,64%) và không chạm rồng (30,02–39,04% và 60,96–69,98%); kiểm tra lại ở khung hẹp 420×900 cho cùng tỉ lệ, không tràn khung.
+- **Hoành phi và rồng:** hoành phi cao `15,40%`, mép trên **10,01%** chiều cao giấy (ảnh tham chiếu đo được ≈ 10,1%); rồng cao `15,71%`, mép trên `10,63%`, hai bên đối xứng qua trục giữa.
+- **Đối chiếu ảnh bạn gửi:** dải dọc điểm mực câu đối trong ảnh là 14,56–35,44% (bản dựng 13,17–36,98%); thứ tự và khoảng cách tương đối hoành phi – rồng – câu đối khớp. Khác biệt nhỏ còn lại do ảnh chụp bị cắt bớt phần dưới nên tỉ lệ chiều cao không cùng mẫu số.
+- **Kiểm tra mã:** `npm run lint`, `npm run typecheck`, `npm run build` đều sạch; trang production không lỗi console.
+- **In/PNG:** đường xuất dùng lại chính SVG đang vẽ (ảnh hoành phi/rồng và font thư pháp được nhúng vào bản sao trước khi in), nên bốn mặc định trên đi theo bản in/xuất; phần cơ chế in giữ nguyên như mục 6.3/6.11.
+
+### 6.11. Chốt thông số mặc định phả đồ: hoành phi, rồng, câu đối và cỡ thẻ bốn đời đầu — ngày 2026-11-07
+
+> Phần **cỡ thẻ bốn đời** và **nhãn đời co theo cỡ thẻ** trong mục này đã được thay thế bằng mục 6.12 (bốn đời tính từ thẻ trên cùng, nhãn cố định 1,5×). Các mục còn lại (nội dung câu đối, cơ chế ghi đè) vẫn đúng.
+
+
+Theo yêu cầu chốt các thông số đang hiển thị ở trang Vẽ phả đồ làm mặc định, kèm nội dung câu đối mới và cỡ thẻ 1,8× cho bốn đời đầu.
+
+**Đã kiểm tra thông số hiện tại** (đọc trực tiếp bảng “Hoành phi & câu đối” trên bản production):
+
+- Hoành phi: rộng **760 px**, vị trí dọc **6%** mép trên giấy, chữ “GIA PHẢ” màu `#f7e3b5`, dịch chữ dọc 0, bật hoành phi.
+- Rồng: bật, cỡ **1×**, dịch ngang/dọc 0.
+- Câu đối: bật, font **Thư pháp Hải Yến** (`hai-yen-1`), cỡ **32 px**, màu `#8a1c15`, lệch 0.
+- Các giá trị này vốn đã nằm trong `DEFAULT_BANNER` / `DEFAULT_COUPLETS` nên được giữ nguyên làm mặc định, không phải sửa số.
+
+**Thay đổi mã**
+
+- `types.ts` — `DEFAULT_COUPLETS`: vế trái **“Tổ Công Tông Đức Thiên Niên Thịnh”**, vế phải **“Tử Hiếu Tôn Hiền Vạn Đại Xương”** (thay nội dung cũ “Tổ đức lưu phương…” / “Tông công hiển hách…”).
+- `types.ts` — `DEFAULT_TUNING.generationStyles` đặt `cardScale: 1.8` cho các đời **0, 1, 2, 3** (Sơ Tổ và Đời 1–3); các đời sau vẫn 1×. Hai bậc tiền tổ (Đại Tổ, Thủy Tổ) có đời âm nên không đổi.
+- Thêm `generationCardScale` dùng chung cho `cardScaleFor`/`cardDimsFor`: khi gia phả chưa tự đặt cỡ cho một đời thì lấy cỡ mặc định của đời đó, nên cả bản vẽ, bản in và bản xuất đều nhất quán.
+- `mergeGenerationStyles` trong `normalizeTuning`: gộp mặc định theo từng đời rồi mới áp giá trị người dùng đã lưu, để bảng thuộc tính hiển thị đúng 1,8× và nút “Bỏ ghi đè của đời này” trả về đúng mặc định mới.
+
+Bằng chứng trên trình duyệt ngoài, bản production dựng sạch (`http://localhost:3001/gia-pha/mau-gia-pha/ve-pha-do`, `BUILD_ID cx6vS23b9M_7S26lT9xZm`):
+
+- **Câu đối:** đúng 2 `text.pat-couplet`, nội dung lần lượt “Tổ Công Tông Đức Thiên Niên Thịnh” và “Tử Hiếu Tôn Hiền Vạn Đại Xương”, cỡ 32, màu `#8a1c15`, font `hai-yen-1`; hai vế vẫn đối xứng qua trục giữa.
+- **Cỡ thẻ theo đời:** bảng thuộc tính trả “Cỡ thẻ” = **1,8** cho SƠ TỔ, ĐỜI 1, ĐỜI 2, ĐỜI 3 và **1** cho ĐỜI 4, ĐỜI 5.
+- **Kích thước thẻ đo trong SVG:** 13 thẻ ngang **302 × 133** và 19 thẻ dọc **135 × 270** (đúng 168×74 và 75×150 nhân 1,8) = 32 thẻ của bốn đời đầu (2 + 3 + 8 + 19 thành viên); phần còn lại vẫn 168×74 / 75×150.
+- **Bố cục:** mọi thẻ hiển thị nằm trong khung giấy (`insidePaper: true`), `overflowX = 0`; trang “Thiết kế bản in” cho cùng nội dung câu đối và cùng bộ kích thước thẻ, 0 lỗi console.
+- Kiểm tra mã: `npm run typecheck`, `eslint` tệp `types.ts` và `npm run build` đều sạch.
+
+Lưu ý: gia phả đã lưu trên máy cũng nhận mặc định mới ở bốn đời đầu nếu trước đó chưa đặt cỡ riêng cho các đời này; đời nào đã có cỡ riêng thì giữ nguyên cỡ đã đặt. Bản mẫu tự làm mới mỗi lần tải nên thấy ngay.
+
+### 6.10. Bỏ tab Phả ký, thay bằng tab Tư liệu — ngày 2026-11-07
+
+Theo yêu cầu “Bỏ Tab Phả ký, thay bằng Tab Tư liệu để upload tư liệu”, tab Phả ký được gỡ khỏi toàn bộ điều hướng và thay bằng một kho tư liệu của dòng họ.
+
+**Gỡ Phả ký**
+
+- Thanh tab trên cùng (`app-shell.tsx`): mục “Phả ký” (biểu tượng `BookOpen`) đổi thành “Tư liệu” (`FolderOpen`), đường dẫn `tu-lieu`.
+- Menu mobile: bỏ dòng Phả ký ở nhóm “Bản in”, thêm dòng “Tư liệu — Ảnh, giấy tờ, sắc phong của dòng họ” ở nhóm “Dữ liệu”.
+- Trang chủ gia phả (`tree-home-view.tsx`): lối tắt nhanh “Phả ký” đổi thành “Tư liệu”, dòng trong sheet “Thêm” cũng đổi theo.
+- Trang chủ danh sách (`home-view.tsx`): ô giới thiệu “Phả ký mẫu” đổi thành “Kho tư liệu”.
+- Xoá hẳn `chronicle-view.tsx` và toàn bộ CSS in của phả ký trong `globals.css` (`.chronicle-pages`, `.chronicle-page`, `.chronicle-book-title`, `@page`/`@page chronicle`); các quy tắc in còn lại (`.no-print`, `.print-only`, `.print-area`) giữ nguyên.
+- Đường dẫn cũ `/gia-pha/mau-gia-pha/pha-ky` không còn trang riêng, rơi về khung “Tính năng đang được dựng” với tiêu đề “Gia phả” — không lỗi 404.
+
+**Kho tư liệu mới**
+
+- **Lưu trữ tách hai tầng** (`document-store.ts`): danh mục (tên, tệp gốc, MIME, kích thước, loại, ghi chú, ngày thêm) nằm trong `localStorage` khoá `phatue.treeDocuments.v1`; tệp gốc nằm trong IndexedDB `phatue-documents` / object store `files`, khoá `${treeId}:${docId}`; ảnh còn có thêm bản thu nhỏ `${treeId}:${docId}:thumb` (JPEG cạnh dài 480 px, chất lượng 0,82) để lưới thẻ nhẹ. Cách chia này giúp kho tư liệu chạy được cả với gia phả mẫu (không ghi vào `localStorage` của cây) và không ăn hạn mức ~5 MB của `localStorage`.
+- **Giới hạn và thông báo:** tối đa 25 MB mỗi tệp; sai loại/quá cỡ bị từ chối và liệt kê lý do theo từng tệp; thanh tiến trình “Đang lưu n/N tệp…”. Ghi danh mục thất bại (hết chỗ) thì xoá luôn blob vừa ghi để không mồ côi.
+- **Trang Tư liệu** (`documents-view.tsx`): vùng kéo thả + nút “Chọn tệp từ máy”; tìm theo tên/tệp/ghi chú; chip lọc Tất cả / Hình ảnh / PDF / Word / Excel / Khác kèm số lượng; lưới thẻ 3 cột (2 cột ở tablet, 1 cột ở mobile) có ảnh thu nhỏ hoặc biểu tượng loại tệp.
+- **Xem trước:** ảnh mở trong sheet bằng blob URL; PDF mở bằng `iframe`; các loại khác chỉ tải về. Sheet có sửa thông tin (tên + ghi chú, tên không được rỗng) và tải về máy.
+- **Xoá:** xác nhận trong sheet, xoá cả metadata lẫn blob gốc + bản thu nhỏ.
+- **Dọn theo gia phả:** `store.tsx` gọi `deleteTreeDocuments(treeId)` khi xoá vĩnh viễn một gia phả trong thùng rác và khi “Dọn tất cả”, nên không còn blob mồ côi.
+- **Lưu ý hiển thị trong trang:** tư liệu chỉ nằm trong trình duyệt này và **không** nằm trong tệp sao lưu JSON; người dùng cần tải từng tệp về máy để lưu trữ lâu dài.
+
+Bằng chứng đo trên trình duyệt ngoài, bản production dựng sạch (`http://localhost:3001/gia-pha/mau-gia-pha/tu-lieu`, `BUILD_ID wYH6n68tKqAYiAVf5K-zZ`):
+
+- **Điều hướng:** 8 tab “Tổng quan, Phả hệ, Chi phái, Cây gia phả, Vẽ phả đồ, Thiết kế bản in, Tư liệu, Công cụ”; không còn chuỗi “Phả ký” trong trang. Ở 390 px vẫn đủ tab qua thanh dưới, `overflowX = 0`.
+- **Tải lên:** thả 2 tệp (một PNG 640×400 và một PDF) → 2 thẻ đúng thứ tự mới nhất trước, ảnh có bản thu nhỏ `naturalWidth 480`, tiêu đề trang “2 tệp · 272.9 KB”, metadata ghi `kind` = `pdf`/`image` và kích thước `192`/`279266` byte.
+- **Xem trước ảnh:** sheet mở đúng tên, ảnh blob `640×400`; PDF dùng khung nhúng riêng.
+- **Sửa và ghi chú:** đổi tên “Bia ký đình làng” → “Bia ký đình làng Đông”, thêm ghi chú → thẻ và metadata đều cập nhật; tải lại toàn trang vẫn còn 2 thẻ, ảnh thu nhỏ tải được, ghi chú hiển thị.
+- **Tải về:** CDP ghi nhận `Browser.downloadWillBegin` với `suggestedFilename: "Sắc phong 1952.pdf"` và chuyển đủ `192/192` byte. Chrome headless sau đó tự huỷ lượt lưu ra đĩa; thử nghiệm đối chứng với một blob `text/plain` thuần cũng bị huỷ y hệt, nên đây là hành vi của môi trường headless, không phải lỗi ứng dụng.
+- **Xoá:** xác nhận trong sheet → còn 1 thẻ, metadata còn 1 mục, tên đã xoá không còn trong trang; IndexedDB chỉ còn khoá của tệp PDF (`mau-gia-pha:<id>`), blob gốc + thumb của ảnh đã bị xoá.
+- **Đường dẫn cũ:** `/gia-pha/mau-gia-pha/pha-ky` trả khung “Tính năng đang được dựng”, `h1` = “Gia phả”.
+- **Lỗi console:** 0 ở cả 3 lượt tải (desktop, mobile, đường dẫn cũ).
+- Kiểm tra mã: `npm run typecheck`, `eslint` trên 8 tệp liên quan và `npm run build` đều sạch.
+
+Chưa commit thay đổi này (chờ bạn duyệt giao diện kho tư liệu trước).
+
 ### 6.9. Sửa lỗi hiển thị còn lại trên toàn giao diện — ngày 2026-11-07
 
 Rà soát bằng trình duyệt thật (360, 390, 768, 1024, 1440 px) trên toàn bộ trang: trang chủ, trang chủ mẫu, danh sách thành viên, danh sách nhanh, chỉnh sửa với cây gia phả, vẽ phả đồ, giao diện, phả ký, công cụ — kèm các trạng thái đang mở (bảng thuộc tính phả đồ, bảng xuất, chi tiết thành viên, menu thêm, cuối trang thiết kế, bảng hoành phi trên desktop). Không có tràn ngang cấp trang, không có ảnh lỗi, không có chữ bị cắt, console sạch. Ba lỗi hiển thị thật đã tìm thấy và sửa:
