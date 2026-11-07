@@ -295,6 +295,22 @@ Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gi
 
 Lưu ý: các số đo nhãn ở mục 6.2 (`x = 206 / 3162`) là **trước** thay đổi này; số hiện hành là `x = 161 / 3239` như trên. Khổ giấy được cố định theo mục 6.4 nên đổi cỡ thẻ/cỡ nhãn không còn nới `viewBox`; hai nhãn vẫn giữ khe 2,5 cm ở cả hai phía.
 
+### 6.13. Review commit fdc517b và sửa bốn điểm sót — ngày 2026-11-07
+
+Rà soát toàn bộ thay đổi của commit `fdc517b` (tab Tư liệu thay Phả ký + bốn mặc định phả đồ). Phần lớn sạch; bốn điểm cần chỉnh đã sửa:
+
+1. **Quy tắc `@page` toàn cục bị xóa nhầm** (`src/app/globals.css`): khi gỡ CSS phả ký, commit xóa luôn `@page { size: A4 portrait; margin: 0; }` — quy tắc này đỡ bản in danh sách/chi tiết thành viên (in bằng `window.print()` ngay trên trang). Đã khôi phục. Hai đường in phả đồ không bị ảnh hưởng: `printSvgDiagram` mở cửa sổ riêng có `@page` riêng, `printDiagram` chèn thẻ style sau stylesheet nên vẫn đè được quy tắc toàn cục.
+2. **Xoá tư liệu an toàn khi bộ nhớ đầy** (`document-store.ts` + `documents-view.tsx`): trước đây `removeTreeDocument` xóa blob trong IndexedDB ngay cả khi ghi metadata thất bại (bộ nhớ đầy) → danh mục còn nhưng tệp mất, và `confirmDelete` không báo lỗi. Nay hàm trả `boolean`, chỉ xóa blob khi ghi metadata thành công; khi trả `false`, trang hiện banner “Bộ nhớ trình duyệt đã đầy, chưa xoá được tư liệu.” và giữ nguyên tư liệu trong danh sách.
+3. **`openDb` cache lỗi vĩnh viễn** (`document-store.ts`): promise mở IndexedDB bị từ chối một lần được giữ mãi, mọi lần thử sau đều thất bại theo. Nay reset `dbPromise = null` khi lỗi để lần sau mở lại.
+4. **Trường phả ký chết trong model** (`types.ts`): gỡ `completedYear`, `writtenPlace`, `chronicleStyle`, `colophon`, `showColophon`, `colophonDate`, `coverEmblem`, `chronicleFormat`, `chronicleColumns`, `chronicleChildNumbers`, `chronicleHideLivingBirth`, `chronicleMargins`, `chronicleTexts` — không còn nơi nào dùng sau khi gỡ tab Phả ký. Nhập bản sao lưu cũ vẫn an toàn vì `import.ts` spread toàn bộ đối tượng, không mất dữ liệu cũ.
+
+**Bằng chứng kiểm tra** trên bản production dựng lại tại `http://localhost:3001`, `BUILD_ID 3u79StLbkyiAWxk_K0E0l`:
+
+- **Tư liệu** (`/gia-pha/mau-gia-pha/tu-lieu`, 1440×900): tải PNG 40×30 → metadata + blob + thumbnail đủ trong IndexedDB; xem trước hiện ảnh; sửa tên/ghi chú lưu đúng; **giả lập bộ nhớ đầy** (chặn `localStorage.setItem` riêng khoá danh mục) rồi bấm xoá → banner lỗi hiện, tư liệu và cả hai blob còn nguyên; bỏ chặn rồi xoá thường → metadata và blob biến mất. Console 0 lỗi. Ảnh: `pat-audit/review-docs-1-uploaded.png`, `review-docs-2-delete-blocked.png`, `review-docs-3-deleted.png`.
+- **In thành viên** (`/gia-pha/mau-gia-pha/danh-sach-thanh-vien`): `Page.printToPDF` với `preferCSSPageSize` cho 2 trang **594,96 × 841,92 pt = A4 dọc**, lề 0; khối `print-only` hiện đủ bảng 58 thành viên (STT · Họ tên · Giới tính · Đời · Sinh · Mất · Cha · Mẹ · Phạm vi · Chi phái). Tệp: `pat-audit/review-member-print.pdf`.
+- **Editor phả đồ** (`giao-dien`): tải sạch, 58 thẻ, console 0 lỗi — mặc định mục 6.12 không đổi.
+- **Kiểm tra mã:** `npm run lint`, `npm run typecheck`, `npm run build` đều sạch.
+
 ### 6.12. Sửa lại bốn mặc định phả đồ: cỡ thẻ tính từ thẻ trên cùng, nhãn cố định 1,5×, câu đối 67 px, vị trí theo ảnh tham chiếu — ngày 2026-11-07
 
 Bốn yêu cầu của bạn:

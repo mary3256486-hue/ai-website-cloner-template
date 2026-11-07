@@ -379,41 +379,6 @@ export interface FamilyTree {
   /** Kho tư liệu tham khảo của cả gia phả. */
   documents?: ReferenceDocument[];
   sample?: boolean;
-  /** Năm hoàn thành in trên trang bìa và lời bạt; mặc định là năm hiện tại. */
-  completedYear?: number;
-  /** Nơi viết ghi trên lời tựa và lời bạt. */
-  writtenPlace?: string;
-  /** Cỡ chữ và giãn dòng nội dung phả ký khi in. */
-  chronicleStyle?: { fontSize: number; lineHeight: number };
-  /** Lời bạt tự soạn, đoạn cách nhau một dòng trống; để trống thì dùng mẫu mặc định. */
-  colophon?: string;
-  /** Ẩn trang lời bạt khi in; mặc định vẫn in. */
-  showColophon?: boolean;
-  /** Ngày ghi trên lời bạt: ngày in hay năm hoàn thành. */
-  colophonDate?: "print" | "completed";
-  /** Hoa văn chữ Hán trên trang bìa phả ký. */
-  coverEmblem?: "none" | "jiapu" | "pham";
-  /** Khổ giấy in phả ký. */
-  chronicleFormat?: "a4" | "a5";
-  /** Bố cục danh sách thế thứ trong phả ký; mặc định 2 cột. */
-  chronicleColumns?: 1 | 2;
-  /** Đánh số thứ tự thành viên trong từng danh sách thế thứ; mặc định tắt. */
-  chronicleChildNumbers?: boolean;
-  /** Ẩn năm sinh của thành viên còn sống trong danh sách thế thứ; mặc định tắt. */
-  chronicleHideLivingBirth?: boolean;
-  /** Lề trang in phả ký (mm): trên · phải · dưới · trái; mặc định 25 · 20 · 25 · 25. */
-  chronicleMargins?: { top: number; right: number; bottom: number; left: number };
-  /** Tuỳ chỉnh các dòng chữ mẫu trong sách phả ký; để trống thì dùng mặc định. */
-  chronicleTexts?: {
-    coverEyebrow?: string;
-    tocTitle?: string;
-    prefaceEyebrow?: string;
-    prefaceTitle?: string;
-    originsEyebrow?: string;
-    originsTitle?: string;
-    colophonEyebrow?: string;
-    colophonTitle?: string;
-  };
   /** Chế độ riêng tư khi in và xuất dữ liệu. */
   privacy?: PrivacySettings;
   /** Thành viên đã xoá, giữ 30 ngày để hoàn tác. */

@@ -104,6 +104,9 @@ function openDb() {
       request.onerror = () =>
         reject(new DocumentStoreError("Không mở được kho tư liệu trong trình duyệt."));
     });
+    dbPromise.catch(() => {
+      dbPromise = null;
+    });
   }
   return dbPromise;
 }
@@ -226,8 +229,11 @@ export function updateTreeDocument(
 export async function removeTreeDocument(treeId: string, documentId: string) {
   const map = readMeta();
   const list = map[treeId] ?? [];
-  writeMeta({ ...map, [treeId]: list.filter((item) => item.id !== documentId) });
+  if (!writeMeta({ ...map, [treeId]: list.filter((item) => item.id !== documentId) })) {
+    return false;
+  }
   await deleteKeys([fileKey(treeId, documentId), thumbKey(treeId, documentId)]).catch(() => undefined);
+  return true;
 }
 
 export async function deleteTreeDocuments(treeId: string) {

@@ -228,7 +228,12 @@ export function DocumentsView({ tree }: { tree: FamilyTree }) {
   const confirmDelete = async () => {
     if (!deleting) return;
     const target = deleting;
-    await removeTreeDocument(tree.id, target.id);
+    const ok = await removeTreeDocument(tree.id, target.id);
+    if (!ok) {
+      setError("Bộ nhớ trình duyệt đã đầy, chưa xoá được tư liệu.");
+      setDeleting(null);
+      return;
+    }
     setDocuments((prev) => prev.filter((item) => item.id !== target.id));
     if (preview?.id === target.id) setPreview(null);
     setDeleting(null);
