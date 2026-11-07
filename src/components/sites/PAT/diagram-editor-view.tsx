@@ -44,11 +44,32 @@ import type {
   PersonStyle,
   TreeNode,
 } from "./types";
-import { cardOrientationFor, generationTag, normalizeTuning } from "./types";
+import {
+  cardOrientationFor,
+  cardScaleFor,
+  FRAME_CORNER_CLEARANCE,
+  generationBandMetrics,
+  generationTag,
+  normalizeBanner,
+  normalizeCouplets,
+  normalizeTuning,
+} from "./types";
 import { computeGenerations, sortPersons, uid } from "./utils";
 import { classifyClan } from "./clan";
 import { computeLayout } from "./layout";
-import { DiagramCanvas, contentTop, diagramDimensions } from "./diagram-canvas";
+import { computeBranchScope, parseBranchView, type BranchViewOptions } from "./branch-view";
+import {
+  DiagramCanvas,
+  bannerTopFor,
+  coupletBounds,
+  coupletOffsets,
+  diagramDimensions,
+  paperUnitsFor,
+  dragonBounds,
+  dragonOffsets,
+  frameThickness,
+  treeTop,
+} from "./diagram-canvas";
 import { DECOR_CATEGORIES, DECOR_ITEMS, type DecorSlot } from "./decor-library";
 import { customToDecorItem, useCustomDecor } from "./decor-library-store";
 import {
@@ -114,7 +135,7 @@ type EditorScope =
   | { kind: "decoration"; decorationId: string };
 
 interface DragState {
-  kind: "node" | "decoration" | "resize" | "pan";
+  kind: "node" | "decoration" | "resize" | "dragon" | "couplet" | "nodeResize" | "pan";
   id: string;
   startX: number;
   startY: number;
@@ -123,11 +144,47 @@ interface DragState {
   origW?: number;
   origH?: number;
   aspect?: number;
+  side?: "left" | "right";
+  generation?: number;
+  origScale?: number;
   unitId?: string;
   unitBase?: Record<string, number>;
   unitMinLeft?: number;
   unitMaxLeft?: number;
   snapshot: Positions;
+}
+
+interface SafeBox {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+function decorationBox(item: Decoration) {
+  if (item.type === "image") {
+    return { w: item.width ?? 120, h: item.height ?? 90 };
+  }
+  return { w: Math.max(80, item.content.length * 8), h: Math.max(20, (item.fontSize ?? 16) * 1.4) };
+}
+
+function clampToSafeBox(x: number, y: number, w: number, h: number, box: SafeBox) {
+  return {
+    x: Math.round(Math.min(Math.max(x, box.minX), Math.max(box.minX, box.maxX - w))),
+    y: Math.round(Math.min(Math.max(y, box.minY), Math.max(box.minY, box.maxY - h))),
+  };
+}
+
+function resizeInSafeBox(origW: number, dx: number, aspect: number, x: number, y: number, box: SafeBox) {
+  const maxWidth = Math.max(24, Math.min(640, Math.floor(box.maxX - x)));
+  const maxHeight = Math.max(12, Math.floor(box.maxY - y));
+  let width = Math.max(24, Math.min(maxWidth, Math.round(origW + dx)));
+  let height = Math.max(12, Math.round(width / aspect));
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = Math.max(24, Math.round(height * aspect));
+  }
+  return { width, height };
 }
 
 const MIN_UNIT_GAP = 16;
@@ -203,6 +260,10 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [saved, setSaved] = useState(true);
   const [toast, setToast] = useState("");
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [dragonPreview, setDragonPreview] = useState<{ x: number; y: number } | null>(null);
+  const dragonPreviewRef = useRef<{ x: number; y: number } | null>(null);
+  const [coupletPreview, setCoupletPreview] = useState<{ x: number; y: number } | null>(null);
+  const coupletPreviewRef = useRef<{ x: number; y: number } | null>(null);
   const [panning, setPanning] = useState(false);
   const movedRef = useRef(false);
   const [fitScale, setFitScale] = useState(0.2);
@@ -225,23 +286,43 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const [pngScale, setPngScale] = useState(2);
   const [exporting, setExporting] = useState<{ step: number; label: string } | null>(null);
   const [dropActive, setDropActive] = useState(false);
+  const [branchParams, setBranchParams] = useState<BranchViewOptions | null>(null);
+  const [branchTitleDraft, setBranchTitleDraft] = useState<string | null>(null);
 
   const tuning = useMemo(() => normalizeTuning(tree.design.tuning), [tree.design.tuning]);
-  const baseLayout = useMemo(() => computeLayout({ ...tree, positions: {} }), [tree]);
-  const layout = useMemo(() => computeLayout({ ...tree, positions: overrides }), [tree, overrides]);
-  const paper = useMemo(() => paperDimensions(tree, baseLayout), [tree, baseLayout]);
+  const branchScope = useMemo(
+    () => (branchParams ? computeBranchScope(tree, branchParams) : null),
+    [tree, branchParams],
+  );
+  const scopedTree = useMemo(
+    () => (branchScope ? { ...tree, positions: {} } : tree),
+    [tree, branchScope],
+  );
+  const baseLayout = useMemo(
+    () => computeLayout(scopedTree, branchScope?.ids),
+    [scopedTree, branchScope],
+  );
+  const layout = useMemo(
+    () => (branchScope ? baseLayout : computeLayout({ ...tree, positions: overrides }, undefined)),
+    [tree, overrides, branchScope, baseLayout],
+  );
+  const paper = useMemo(() => paperDimensions(tree), [tree]);
   const paperAspect = paper.widthMm / paper.heightMm;
+  const paperUnits = useMemo(() => paperUnitsFor(tree, paper), [tree, paper]);
   const paperLabel = `${Math.round(paper.widthMm)} × ${Math.round(paper.heightMm)} mm`;
   const contentDims = useMemo(
     () => diagramDimensions(baseLayout, tree.design),
     [baseLayout, tree.design],
   );
-  const dims = diagramDimensions(layout, tree.design, paperAspect);
+  const dims = diagramDimensions(layout, tree.design, paperUnits);
   const gens = useMemo(() => computeGenerations(tree.members, tree.founderId), [tree.members, tree.founderId]);
   const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
   const displayedCount = useMemo(
-    () => tree.members.filter((member) => clan.isDisplayed(member.id)).length,
-    [clan, tree.members],
+    () =>
+      branchScope
+        ? branchScope.ids.size
+        : tree.members.filter((member) => clan.isDisplayed(member.id)).length,
+    [branchScope, clan, tree.members],
   );
   const genCounts = useMemo(() => {
     const counts = new Map<number, number>();
@@ -253,8 +334,19 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     }
     return counts;
   }, [clan, gens, tree.members]);
-  const top = contentTop(tree.design);
-
+  const treeTopY = treeTop(dims, layout);
+  const safeMarginMm = Math.max(0, Math.min(40, tree.design.printSafeMarginMm ?? 10));
+  const pageScale = Math.min(dims.width / paper.widthMm, dims.height / paper.heightMm);
+  const safeInset = safeMarginMm * pageScale;
+  const safeBox = useMemo<SafeBox>(
+    () => ({
+      minX: safeInset - dims.offsetX,
+      maxX: dims.width - safeInset - dims.offsetX,
+      minY: safeInset - treeTopY,
+      maxY: dims.height - safeInset - treeTopY,
+    }),
+    [safeInset, dims.width, dims.height, dims.offsetX, treeTopY],
+  );
   useEffect(() => {
     decorationsRef.current = decorations;
   }, [decorations]);
@@ -289,6 +381,13 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     setInspectorCollapsed(readFlag(`phatue.diagramInspector.${tree.id}`, false));
     setLastSavedAt(readText(`phatue.diagramSavedAt.${tree.id}`));
   }, [tree.id]);
+
+  useEffect(() => {
+    const parsed = parseBranchView(window.location.search);
+    if (!parsed) return;
+    setBranchParams(parsed);
+    setBranchTitleDraft(parsed.title || null);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -421,7 +520,13 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     setSaved(false);
   };
 
+  const branchTitle = branchTitleDraft ?? branchScope?.title ?? "";
+
   const save = () => {
+    if (branchScope) {
+      showToast("Chế độ xem chi — lựa chọn và bố cục không được lưu.");
+      return;
+    }
     setPositions(tree.id, overrides);
     const now = new Date().toISOString();
     setLastSavedAt(now);
@@ -476,12 +581,15 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     setDesign(tree.id, { tuning: { ...tuning, ...patch } });
   };
 
-  const updateGenerationStyle = (generation: number, patch: Partial<GenerationStyle>) => {
-    const styles = { ...(tuning.generationStyles ?? {}) };
-    const key = String(generation);
-    styles[key] = { ...(styles[key] ?? {}), ...patch };
-    updateTuning({ generationStyles: styles });
-  };
+  const updateGenerationStyle = useCallback(
+    (generation: number, patch: Partial<GenerationStyle>) => {
+      const styles = { ...(tuning.generationStyles ?? {}) };
+      const key = String(generation);
+      styles[key] = { ...(styles[key] ?? {}), ...patch };
+      setDesign(tree.id, { tuning: { ...tuning, generationStyles: styles } });
+    },
+    [tuning, tree.id, setDesign],
+  );
 
   const resetGenerationStyle = (generation: number) => {
     const styles = { ...(tuning.generationStyles ?? {}) };
@@ -508,6 +616,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       fontSize: style.fontSize ?? tuning.fontSize,
       lineCount: style.lineCount ?? tuning.lineCount,
       cardColor: style.cardColor,
+      cardScale: style.cardScale ?? 1,
     };
   };
 
@@ -556,6 +665,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
 
   const nodeDown = (event: ReactPointerEvent<SVGGElement>, node: TreeNode) => {
     if (event.button !== 0) return;
+    if (branchScope) return;
     event.stopPropagation();
     event.preventDefault();
     if (event.shiftKey) {
@@ -568,19 +678,25 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     movedRef.current = false;
     setFocusId(node.id);
     selectScope({ kind: "person", memberId: node.id }, true);
+    const labelGap = Math.round(73 * tuning.frameScale);
     const bandLeft =
       tree.design.showGenerationLabels !== false
         ? Math.round(
-          34 +
-            Math.max(
-              0,
-              ...layout.generations.map((row) =>
-                Math.max(86, Math.min(160, (row.label ?? "").length * 5.4 + 18)),
-              ),
-            ) +
-            12,
-        )
-      : 6;
+            Math.round((FRAME_CORNER_CLEARANCE * tuning.frameScale * 92) / 180) +
+              labelGap +
+              Math.max(
+                0,
+                ...layout.generations.map(
+                  (row) =>
+                    generationBandMetrics(
+                      row.label ?? generationTag(row.generation),
+                      (tuning.generationLabelScale ?? 1) * cardScaleFor(tree.design, row.generation),
+                    ).width,
+                ),
+              ) +
+              labelGap,
+          )
+        : 6;
     const range = unitDragRange(layout, node, bandLeft);
     setDrag({
       kind: "node",
@@ -641,6 +757,98 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       origW: width,
       origH: height,
       aspect: height > 0 ? width / height : 1,
+      snapshot: overrides,
+    });
+  };
+
+  const dragonDown = (event: ReactPointerEvent<SVGGElement>, side: "left" | "right") => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    movedRef.current = false;
+    const banner = normalizeBanner(tree.design.banner);
+    const bounds = dragonBounds(
+      dims.width,
+      dims.height,
+      bannerTopFor(dims.width, dims.height, tree.design),
+      banner,
+    );
+    const { dx, dy } = dragonOffsets(bounds, banner);
+    dragonPreviewRef.current = { x: dx, y: dy };
+    setDragonPreview({ x: dx, y: dy });
+    setDrag({
+      kind: "dragon",
+      id: side,
+      side,
+      startX: event.clientX,
+      startY: event.clientY,
+      origX: dx,
+      origY: dy,
+      snapshot: overrides,
+    });
+  };
+
+  const coupletBoundsNow = useCallback(() => {
+    const banner = normalizeBanner(tree.design.banner);
+    const bannerTop = bannerTopFor(dims.width, dims.height, tree.design);
+    const box = dragonBounds(dims.width, dims.height, bannerTop, banner);
+    const dragon = dragonOffsets(box, banner);
+    const couplets = normalizeCouplets(tree.design.couplets);
+    const bounds = coupletBounds(
+      dims.width,
+      dims.height,
+      bannerTop,
+      frameThickness(dims.width, tree.design),
+      banner,
+      box,
+      dragon,
+      couplets,
+    );
+    return { bounds, couplets };
+  }, [tree.design, dims.width, dims.height]);
+
+  const coupletDown = (event: ReactPointerEvent<SVGGElement>, side: "left" | "right") => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    event.preventDefault();
+    const { bounds, couplets } = coupletBoundsNow();
+    if (!couplets.enabled) return;
+    movedRef.current = false;
+    const { dx, dy } = coupletOffsets(bounds, couplets);
+    coupletPreviewRef.current = { x: dx, y: dy };
+    setCoupletPreview({ x: dx, y: dy });
+    setDrag({
+      kind: "couplet",
+      id: side,
+      side,
+      startX: event.clientX,
+      startY: event.clientY,
+      origX: dx,
+      origY: dy,
+      snapshot: overrides,
+    });
+  };
+
+  const nodeResizeDown = (event: ReactPointerEvent<SVGGElement>, node: TreeNode) => {
+    if (event.button !== 0) return;
+    if (branchScope) return;
+    event.stopPropagation();
+    event.preventDefault();
+    movedRef.current = false;
+    setFocusId(node.id);
+    selectScope({ kind: "person", memberId: node.id }, true);
+    setDrag({
+      kind: "nodeResize",
+      id: node.id,
+      generation: node.generation,
+      startX: event.clientX,
+      startY: event.clientY,
+      origX: node.x,
+      origY: node.y,
+      origW: node.width,
+      origH: node.height,
+      aspect: node.height > 0 ? node.width / node.height : 1,
+      origScale: tuning.generationStyles?.[String(node.generation)]?.cardScale ?? 1,
       snapshot: overrides,
     });
   };
@@ -725,20 +933,62 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           return next;
         });
       } else if (drag.kind === "resize") {
-        const width = Math.max(24, Math.min(640, Math.round((drag.origW ?? 120) + dx)));
         const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
-        const height = Math.max(12, Math.round(width / aspect));
+        const { width, height } = resizeInSafeBox(
+          drag.origW ?? 120,
+          dx,
+          aspect,
+          drag.origX,
+          drag.origY,
+          safeBox,
+        );
         setDecorations((prev) =>
           prev.map((item) => (item.id === drag.id ? { ...item, width, height } : item)),
         );
+      } else if (drag.kind === "dragon") {
+        const banner = normalizeBanner(tree.design.banner);
+        const bounds = dragonBounds(
+          dims.width,
+          dims.height,
+          bannerTopFor(dims.width, dims.height, tree.design),
+          banner,
+        );
+        const outward = drag.side === "left" ? -dx : dx;
+        const next = {
+          x: Math.max(bounds.dxMin, Math.min(bounds.dxMax, drag.origX + outward)),
+          y: Math.max(bounds.dyMin, Math.min(bounds.dyMax, drag.origY + dy)),
+        };
+        dragonPreviewRef.current = next;
+        setDragonPreview(next);
+      } else if (drag.kind === "couplet") {
+        const { bounds } = coupletBoundsNow();
+        const outward = drag.side === "left" ? -dx : dx;
+        const next = {
+          x: Math.max(bounds.dxMin, Math.min(bounds.dxMax, drag.origX + outward)),
+          y: Math.max(bounds.dyMin, Math.min(bounds.dyMax, drag.origY + dy)),
+        };
+        coupletPreviewRef.current = next;
+        setCoupletPreview(next);
+      } else if (drag.kind === "nodeResize") {
+        const own = Math.max(0.6, Math.min(1.8, drag.origScale ?? 1));
+        const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
+        const deltaW = Math.abs(dx) >= Math.abs(dy * aspect) ? dx : dy * aspect;
+        const ratio = 1 + deltaW / Math.max(1, drag.origW ?? 168);
+        const nextScale = Math.max(0.6, Math.min(1.8, own * ratio));
+        updateGenerationStyle(drag.generation ?? 0, { cardScale: Math.round(nextScale * 20) / 20 });
       } else {
-        let x = Math.max(6, Math.round(drag.origX + dx));
-        let y = Math.max(6, Math.round(drag.origY + dy));
+        let x = Math.round(drag.origX + dx);
+        let y = Math.round(drag.origY + dy);
         if (snapToGrid) {
           x = Math.round(x / SNAP_SIZE) * SNAP_SIZE;
           y = Math.round(y / SNAP_SIZE) * SNAP_SIZE;
         }
-        setDecorations((prev) => prev.map((item) => (item.id === drag.id ? { ...item, x, y } : item)));
+        const item = decorationsRef.current.find((entry) => entry.id === drag.id);
+        const { w, h } = decorationBox(item ?? { id: drag.id, type: "image", content: "", x: 0, y: 0 });
+        const next = clampToSafeBox(x, y, w, h, safeBox);
+        setDecorations((prev) =>
+          prev.map((entry) => (entry.id === drag.id ? { ...entry, ...next } : entry)),
+        );
       }
     };
     const onUp = (event: PointerEvent) => {
@@ -758,11 +1008,50 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           pushHistory(drag.snapshot);
           setSaved(false);
         }
+      } else if (drag.kind === "dragon") {
+        const preview = dragonPreviewRef.current;
+        if (preview && movedRef.current) {
+          setDesign(tree.id, {
+            banner: {
+              ...normalizeBanner(tree.design.banner),
+              dragonOffsetX: Math.round(preview.x * 10) / 10,
+              dragonOffsetY: Math.round(preview.y * 10) / 10,
+            },
+          });
+          setSaved(false);
+        }
+        dragonPreviewRef.current = null;
+        setDragonPreview(null);
+      } else if (drag.kind === "couplet") {
+        const preview = coupletPreviewRef.current;
+        if (preview && movedRef.current) {
+          setDesign(tree.id, {
+            couplets: {
+              ...normalizeCouplets(tree.design.couplets),
+              offsetX: Math.round(preview.x * 10) / 10,
+              offsetY: Math.round(preview.y * 10) / 10,
+            },
+          });
+          setSaved(false);
+        }
+        coupletPreviewRef.current = null;
+        setCoupletPreview(null);
+      } else if (drag.kind === "nodeResize") {
+        if (movedRef.current) {
+          setSaved(false);
+          showToast(`Đã đổi cỡ thẻ cho ${generationTag(drag.generation ?? 0)} và toàn bộ thẻ cùng đời`);
+        }
       } else if (drag.kind === "resize") {
         const dx = (event.clientX - drag.startX) / scale;
-        const width = Math.max(24, Math.min(640, Math.round((drag.origW ?? 120) + dx)));
         const aspect = drag.aspect && drag.aspect > 0 ? drag.aspect : 1;
-        const height = Math.max(12, Math.round(width / aspect));
+        const { width, height } = resizeInSafeBox(
+          drag.origW ?? 120,
+          dx,
+          aspect,
+          drag.origX,
+          drag.origY,
+          safeBox,
+        );
         const current = decorationsRef.current.find((item) => item.id === drag.id);
         if (current) {
           const decoration = { ...current, width, height };
@@ -783,7 +1072,24 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
     };
-  }, [drag, scale, pushHistory, selectScope, tree.id, setDecoration, snapToGrid, layout.nodes]);
+  }, [
+    drag,
+    scale,
+    pushHistory,
+    selectScope,
+    showToast,
+    coupletBoundsNow,
+    updateGenerationStyle,
+    tree.id,
+    tree.design,
+    dims.width,
+    dims.height,
+    setDesign,
+    setDecoration,
+    snapToGrid,
+    layout.nodes,
+    safeBox,
+  ]);
 
   const searchResults = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -804,7 +1110,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       left: Math.max(0, (dims.offsetX + node.x) * scale - el.clientWidth / 2 + (node.width * scale) / 2),
       top: Math.max(
         0,
-        (top + dims.offsetY + node.y) * scale - el.clientHeight / 2 + (node.height * scale) / 2,
+        (treeTopY + node.y) * scale - el.clientHeight / 2 + (node.height * scale) / 2,
       ),
       behavior: "smooth",
     });
@@ -853,6 +1159,12 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     setExportOpen(false);
   };
 
+  const exitBranchView = () => {
+    setBranchParams(null);
+    setBranchTitleDraft(null);
+    router.replace(`/gia-pha/${tree.id}/ve-pha-do`);
+  };
+
   const openDecor = (mode: "library" | "text" | "image") => {
     setDecorMode(mode);
     setDecorOpen(true);
@@ -879,7 +1191,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       x = Math.max(24, dims.contentW - width - 56);
       y = 8;
     }
-    const decoration: Decoration = {
+    const draft: Decoration = {
       id: uid("dec"),
       type: input.type,
       content: input.content,
@@ -891,6 +1203,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       height: input.type === "image" ? height : undefined,
       flip: input.flip,
     };
+    const box = decorationBox(draft);
+    const placed = clampToSafeBox(draft.x, draft.y, box.w, box.h, safeBox);
+    const decoration: Decoration = { ...draft, x: placed.x, y: placed.y };
     const next = [...decorations, decoration];
     setDecorations(next);
     setDecoration(tree.id, decoration);
@@ -1032,6 +1347,9 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           : "Cả phả đồ";
 
   const hintText = (() => {
+    if (branchScope) {
+      return `${branchTitle || branchScope.title} · ${branchScope.count} thành viên nội tộc · chỉ xem, không lưu thay đổi`;
+    }
     if (scope.kind === "generation") {
       const row = layout.generations.find((entry) => entry.generation === scope.generation);
       return `Đang chỉnh ${row?.label ?? rowLabel(scope.generation)} · ${row?.count ?? 0} thành viên · bấm ra nền để chọn cả phả đồ`;
@@ -1250,19 +1568,25 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     <TreeShell
       tree={tree}
       section="ve-pha-do"
-      title="Vẽ phả đồ"
-      subtitle={`${paperLabel} · ${displayedCount} thành viên`}
+      title={branchScope ? "Phả đồ chi" : "Vẽ phả đồ"}
+      subtitle={
+        branchScope
+          ? `${branchTitle || branchScope.title} · ${branchScope.count} thành viên nội tộc`
+          : `${paperLabel} · ${displayedCount} thành viên`
+      }
       wide
       actions={
         <>
-          <button
-            type="button"
-            onClick={() => setSideOpen(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 xl:hidden"
-            aria-label="Đời, bộ lọc và trang trí"
-          >
-            <Search size={17} />
-          </button>
+          {branchScope ? null : (
+            <button
+              type="button"
+              onClick={() => setSideOpen(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90 xl:hidden"
+              aria-label="Đời, bộ lọc và trang trí"
+            >
+              <Search size={17} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => router.push(`/gia-pha/${tree.id}/giao-dien`)}
@@ -1285,20 +1609,67 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
     >
       <div
         className={`grid gap-3 ${
-          sideCollapsed && inspectorCollapsed
+          branchScope
             ? "xl:grid-cols-1"
-            : sideCollapsed
-              ? "xl:grid-cols-[minmax(0,1fr)_340px]"
-              : inspectorCollapsed
-                ? "xl:grid-cols-[250px_minmax(0,1fr)]"
-                : "xl:grid-cols-[250px_minmax(0,1fr)_340px]"
+            : sideCollapsed && inspectorCollapsed
+              ? "xl:grid-cols-1"
+              : sideCollapsed
+                ? "xl:grid-cols-[minmax(0,1fr)_340px]"
+                : inspectorCollapsed
+                  ? "xl:grid-cols-[250px_minmax(0,1fr)]"
+                  : "xl:grid-cols-[250px_minmax(0,1fr)_340px]"
         }`}
       >
-        {sideCollapsed ? null : (
+        {branchScope || sideCollapsed ? null : (
           <aside className="pat-card hidden self-start px-3 py-3 no-print xl:block">{sidebar}</aside>
         )}
 
         <div className="min-w-0 space-y-2">
+          {branchScope ? (
+            <div className="pat-card flex flex-wrap items-center gap-2 px-2 py-1.5 no-print">
+              <span className="rounded-full bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-bold uppercase tracking-[0.1em] text-[#7a5a10]">
+                Xem theo chi
+              </span>
+              <span className="text-xs font-semibold text-[var(--pat-ink)]">{branchScope.head.name}</span>
+              <span className="text-[0.66rem] text-[var(--pat-muted)]">
+                {branchScope.count} thành viên nội tộc · {branchScope.ids.size} người hiển thị ·{" "}
+                {branchScope.generationSpan} đời
+                {branchScope.options.ancestorGenerations
+                  ? ` · ${branchScope.options.ancestorGenerations} đời trên`
+                  : ""}
+                {branchScope.options.generationLimit
+                  ? ` · giới hạn ${branchScope.options.generationLimit} đời`
+                  : ""}
+              </span>
+              <label className="ml-auto flex items-center gap-1.5 text-[0.68rem]">
+                <span className="font-semibold text-[var(--pat-ink)]">Hoành phi</span>
+                <input
+                  value={branchTitle}
+                  onChange={(event) => setBranchTitleDraft(event.target.value)}
+                  placeholder={branchScope.title}
+                  aria-label="Chữ hoành phi của chi"
+                  className="h-8 w-40 rounded-lg border border-[var(--pat-line)] bg-white px-2 text-[0.7rem] outline-none focus:border-[var(--pat-red)] sm:w-52"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setExportOpen(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--pat-line)] px-2.5 py-1 text-[0.68rem] font-semibold text-[var(--pat-red)]"
+              >
+                <Download size={12} /> Xuất / In
+              </button>
+              <button
+                type="button"
+                onClick={exitBranchView}
+                className="inline-flex items-center gap-1 rounded-full bg-[#8f2018] px-2.5 py-1 text-[0.68rem] font-semibold text-[#fff4df]"
+              >
+                Xem toàn bộ
+              </button>
+              <p className="w-full text-[0.64rem] leading-snug text-[var(--pat-muted)]">
+                Chế độ này chỉ để xem và in; lựa chọn chi, bố cục và chữ hoành phi không được lưu vào gia phả.
+              </p>
+            </div>
+          ) : (
           <div className="pat-card flex flex-wrap items-center gap-1 px-1.5 py-1.5 no-print">
             <span className="rounded-full bg-[#f6e9c8] px-1.5 py-0.5 text-[0.56rem] font-bold uppercase tracking-[0.1em] text-[#7a5a10]">
               Sửa
@@ -1390,21 +1761,25 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               </button>
             </span>
           </div>
+          )}
 
           <div
             ref={viewportRef}
             onPointerDown={panDown}
             onDragOver={(event) => {
+              if (branchScope) return;
               if (!event.dataTransfer.types.includes("Files")) return;
               event.preventDefault();
               event.dataTransfer.dropEffect = "copy";
               setDropActive(true);
             }}
             onDragLeave={(event) => {
+              if (branchScope) return;
               if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
               setDropActive(false);
             }}
             onDrop={(event) => {
+              if (branchScope) return;
               if (!event.dataTransfer.files.length) return;
               event.preventDefault();
               setDropActive(false);
@@ -1434,21 +1809,35 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                   <DiagramCanvas
                     tree={tree}
                     layout={layout}
-                    decorations={decorations}
+                    decorations={branchScope ? [] : decorations}
                     svgId="pat-diagram-svg"
                     idPrefix="editor"
                     focusId={focusId}
-                    selectedIds={selectedIds}
+                    selectedIds={branchScope ? [] : selectedIds}
                     guides={guides}
-                    selectedDecorationId={scope.kind === "decoration" ? scope.decorationId : null}
+                    selectedDecorationId={
+                      !branchScope && scope.kind === "decoration" ? scope.decorationId : null
+                    }
                     showGrid={showGrid}
-                    interactive
-                    paperAspect={paperAspect}
-                    onNodePointerDown={nodeDown}
-                    onDecorationPointerDown={decorationDown}
-                    onDecorationResizeStart={decorationResizeDown}
-                    onDeleteDecoration={deleteDecoration}
-                    style={{ cursor: drag?.kind === "node" ? "grabbing" : "grab", touchAction: "none" }}
+                    interactive={!branchScope}
+                    paper={paperUnits}
+                    bannerTextOverride={branchScope ? branchTitle : null}
+                    showDatesOverride={
+                      branchScope ? branchScope.options.cardStyle === "full" : null
+                    }
+                    dragonDrag={branchScope ? null : dragonPreview}
+                    coupletDrag={branchScope ? null : coupletPreview}
+                    onNodePointerDown={branchScope ? undefined : nodeDown}
+                    onNodeResizeStart={branchScope ? undefined : nodeResizeDown}
+                    onDragonPointerDown={branchScope ? undefined : dragonDown}
+                    onCoupletPointerDown={branchScope ? undefined : coupletDown}
+                    onDecorationPointerDown={branchScope ? undefined : decorationDown}
+                    onDecorationResizeStart={branchScope ? undefined : decorationResizeDown}
+                    onDeleteDecoration={branchScope ? undefined : deleteDecoration}
+                    style={{
+                      cursor: branchScope ? "grab" : drag?.kind === "node" ? "grabbing" : "grab",
+                      touchAction: "none",
+                    }}
                   />
                 </div>
               </div>
@@ -1523,7 +1912,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           </div>
         </div>
 
-        {inspectorCollapsed ? null : (
+        {branchScope || inspectorCollapsed ? null : (
           <aside className="pat-card hidden max-h-[calc(100dvh-11rem)] self-start overflow-y-auto no-print xl:block">
             {inspectorContent}
           </aside>
@@ -1552,13 +1941,20 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
       <Sheet
         open={exportOpen}
         onClose={() => setExportOpen(false)}
-        title="Xuất phả đồ"
-        subtitle="Miễn phí, không cần đăng nhập hay mua xu"
+        title={branchScope ? "Xuất phả đồ chi" : "Xuất phả đồ"}
+        subtitle={
+          branchScope
+            ? "Chỉ in đúng phạm vi chi đang xem, không lưu thay đổi"
+            : "Miễn phí, không cần đăng nhập hay mua xu"
+        }
       >
         <div className="mb-3 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2">
           <p className="text-[0.72rem] font-semibold text-[var(--pat-red)]">
-            {paperLabel} · {displayedCount} thành viên · {nonAncestorRows.length} đời
-            {ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""}
+            {branchScope
+              ? `${branchTitle || branchScope.title} · ${branchScope.count} thành viên nội tộc · ${branchScope.ids.size} người hiển thị`
+              : `${paperLabel} · ${displayedCount} thành viên · ${nonAncestorRows.length} đời${
+                  ancestorRows.length ? ` · ${ancestorRows.length} bậc tiền tổ` : ""
+                }`}
           </p>
           {paper.widthMm > 1500 || paper.heightMm > 1500 ? (
             <p className="mt-1 text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
@@ -1602,33 +1998,37 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
             subtitle={`In đúng ${paperLabel}`}
             onClick={() => void printDiagram()}
           />
-          <SheetRow
-            icon={<FileSpreadsheet size={18} />}
-            title="CSV danh sách thành viên"
-            subtitle="Bảng phẳng mở bằng Excel — không phải bản vẽ phả đồ"
-            onClick={() => {
-              exportMembersCsv(tree);
-              setExportOpen(false);
-            }}
-          />
-          <SheetRow
-            icon={<FileJson size={18} />}
-            title="Sao lưu JSON"
-            subtitle="Tệp khôi phục đầy đủ — không mở bằng Excel"
-            onClick={() => {
-              exportBackup(tree);
-              setExportOpen(false);
-            }}
-          />
-          <SheetRow
-            icon={<Palette size={18} />}
-            title="Thiết kế bản in"
-            subtitle="Khổ giấy, nền, hoa văn, hoành phi"
-            onClick={() => {
-              setExportOpen(false);
-              router.push(`/gia-pha/${tree.id}/giao-dien`);
-            }}
-          />
+          {branchScope ? null : (
+            <>
+              <SheetRow
+                icon={<FileSpreadsheet size={18} />}
+                title="CSV danh sách thành viên"
+                subtitle="Bảng phẳng mở bằng Excel — không phải bản vẽ phả đồ"
+                onClick={() => {
+                  exportMembersCsv(tree);
+                  setExportOpen(false);
+                }}
+              />
+              <SheetRow
+                icon={<FileJson size={18} />}
+                title="Sao lưu JSON"
+                subtitle="Tệp khôi phục đầy đủ — không mở bằng Excel"
+                onClick={() => {
+                  exportBackup(tree);
+                  setExportOpen(false);
+                }}
+              />
+              <SheetRow
+                icon={<Palette size={18} />}
+                title="Thiết kế bản in"
+                subtitle="Khổ giấy, nền, hoa văn, hoành phi"
+                onClick={() => {
+                  setExportOpen(false);
+                  router.push(`/gia-pha/${tree.id}/giao-dien`);
+                }}
+              />
+            </>
+          )}
         </div>
 
         {exporting ? (

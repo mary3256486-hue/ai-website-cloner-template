@@ -4,6 +4,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "Thu Phap Viet";
+  src: url("/sites/PAT/fonts/DancingScript-Vietnamese.ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

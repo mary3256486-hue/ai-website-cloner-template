@@ -95,6 +95,8 @@ export function isDeceasedStatus(status: LifeStatus): boolean {
 
 export interface GenerationStyle {
   orientation?: CardOrientation;
+  /** Cỡ thẻ riêng của đời, nhân với cỡ thẻ chung; áp dụng cho mọi thẻ cùng đời. */
+  cardScale?: number;
   showAvatar?: boolean;
   showTitle?: boolean;
   showName?: boolean;
@@ -112,6 +114,9 @@ export interface PersonStyle {
   color?: string;
   lineColor?: string;
 }
+
+/** Khối góc khung hoa văn rộng 180/92 lần dải viền, nên lề phải chừa theo khối góc. */
+export const FRAME_CORNER_CLEARANCE = 172;
 
 export interface DiagramTuning {
   generationGap: number;
@@ -132,7 +137,6 @@ export interface DiagramTuning {
   siblingOrder: "asc" | "desc";
   generationBandLabel: GenerationBandLabel;
   generationBandColor?: string;
-  frameStyle: "none" | "wood" | "meander";
   frameScale: number;
   fontFamily: string;
   fontSize: number;
@@ -144,6 +148,8 @@ export interface DiagramTuning {
   patternScale?: number;
   /** Phóng to/thu nhỏ toàn bộ thẻ thành viên (1 = mặc định). */
   cardScale?: number;
+  /** Cỡ nhãn đời, tự nhân với cỡ thẻ của từng đời (1 = mặc định). */
+  generationLabelScale?: number;
   generationStyles?: Record<string, GenerationStyle>;
   personStyles?: Record<string, PersonStyle>;
 }
@@ -162,9 +168,38 @@ export interface BannerSettings {
   textSize: number;
   textColor: string;
   textOffsetY: number;
+  /** Vị trí mép trên hoành phi theo tỉ lệ chiều cao giấy; 0,06 = mặc định, tối đa 0,13. */
+  offsetRatio: number;
   showDragons: boolean;
   dragonScale: number;
+  /** Độ dịch ra ngoài của cặp rồng so với vị trí sát hoành phi; hai bên đối xứng. */
+  dragonOffsetX?: number;
+  /** Độ dịch dọc của cặp rồng so với vị trí mặc định. */
+  dragonOffsetY?: number;
 }
+
+/** Câu đối dọc hai bên rồng; hai vế luôn đối xứng qua trục giữa phả đồ. */
+export interface CoupletSettings {
+  enabled: boolean;
+  leftText: string;
+  rightText: string;
+  fontSize: number;
+  color: string;
+  /** Khoảng dịch ra ngoài so với mép rồng; hai bên đối xứng. */
+  offsetX?: number;
+  /** Khoảng dịch dọc so với vị trí canh giữa rồng. */
+  offsetY?: number;
+}
+
+export const DEFAULT_COUPLETS: CoupletSettings = {
+  enabled: true,
+  leftText: "Tổ đức lưu phương thiên niên thịnh",
+  rightText: "Tông công hiển hách vạn đại vinh",
+  fontSize: 32,
+  color: "#8a1c15",
+  offsetX: 0,
+  offsetY: 0,
+};
 
 export interface BackgroundImageSettings {
   src: string;
@@ -288,8 +323,8 @@ export interface DesignSettings {
   showDates: boolean;
   showDeathAnniversary: boolean;
   showAvatar: boolean;
-  borderStyle: "none" | "simple" | "ornate";
   banner?: BannerSettings;
+  couplets?: CoupletSettings;
   customPaper?: CustomPaper | null;
   /** Hiện thứ tự con (Con thứ n) trên thẻ thành viên. */
   showBirthOrder?: boolean;
@@ -337,6 +372,12 @@ export interface FamilyTree {
   coverEmblem?: "none" | "jiapu" | "pham";
   /** Khổ giấy in phả ký. */
   chronicleFormat?: "a4" | "a5";
+  /** Bố cục danh sách thế thứ trong phả ký; mặc định 2 cột. */
+  chronicleColumns?: 1 | 2;
+  /** Đánh số thứ tự thành viên trong từng danh sách thế thứ; mặc định tắt. */
+  chronicleChildNumbers?: boolean;
+  /** Ẩn năm sinh của thành viên còn sống trong danh sách thế thứ; mặc định tắt. */
+  chronicleHideLivingBirth?: boolean;
   /** Lề trang in phả ký (mm): trên · phải · dưới · trái; mặc định 25 · 20 · 25 · 25. */
   chronicleMargins?: { top: number; right: number; bottom: number; left: number };
   /** Tuỳ chỉnh các dòng chữ mẫu trong sách phả ký; để trống thì dùng mặc định. */
@@ -464,6 +505,17 @@ export function cardOrientationFor(
   return (memberCount ?? 0) >= AUTO_VERTICAL_FROM ? "vertical" : "horizontal";
 }
 
+/** Cỡ thẻ hiệu dụng của một đời: cỡ chung nhân cỡ riêng đã lưu. */
+export function cardScaleFor(
+  design: Partial<DesignSettings> | null | undefined,
+  generation: number,
+): number {
+  const tuning = design?.tuning;
+  const global = clampNumber(tuning?.cardScale, 1, 0.7, 1.5);
+  const own = clampNumber(tuning?.generationStyles?.[String(generation)]?.cardScale, 1, 0.6, 1.8);
+  return global * own;
+}
+
 export function cardDimsFor(
   design: Partial<DesignSettings> | null | undefined,
   generation: number,
@@ -474,8 +526,22 @@ export function cardDimsFor(
     cardOrientationFor(design, generation, memberCount) === "vertical"
       ? { width: CARD_VERTICAL_W, height: CARD_VERTICAL_H }
       : { width: CARD_W, height: CARD_H };
-  const factor = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const global = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const own = clampNumber(design?.tuning?.generationStyles?.[String(generation)]?.cardScale, 1, 0.6, 1.8);
+  const factor = global * own;
   return { width: Math.round(base.width * factor), height: Math.round(base.height * factor) };
+}
+
+/** Kích thước nhãn đời theo cỡ chữ gốc 7,2 và chiều cao 20. */
+export function generationBandMetrics(label: string, scale = 1) {
+  const factor = clampNumber(scale, 1, 0.4, 2.6);
+  return {
+    width: Math.max(86, Math.min(160, label.length * 5.4 + 18)) * factor,
+    height: 20 * factor,
+    fontSize: 7.2 * factor,
+    radius: 10 * factor,
+    letterSpacing: 0.8 * factor,
+  };
 }
 
 export const ANCESTOR_TITLES = [
@@ -569,8 +635,11 @@ export const DEFAULT_BANNER: BannerSettings = {
   textSize: 34,
   textColor: "#f7e3b5",
   textOffsetY: 0,
+  offsetRatio: 0.06,
   showDragons: true,
   dragonScale: 1,
+  dragonOffsetX: 0,
+  dragonOffsetY: 0,
 };
 
 export const DEFAULT_DESIGN: DesignSettings = {
@@ -593,8 +662,8 @@ export const DEFAULT_DESIGN: DesignSettings = {
   showDates: true,
   showDeathAnniversary: false,
   showAvatar: true,
-  borderStyle: "ornate",
   banner: DEFAULT_BANNER,
+  couplets: DEFAULT_COUPLETS,
   showBirthOrder: false,
   showGenderSymbol: false,
   printSafeMarginMm: 10,
@@ -608,7 +677,23 @@ export function normalizeBanner(banner?: Partial<BannerSettings> | null): Banner
     width: clampNumber(banner?.width, DEFAULT_BANNER.width, 400, 2200),
     textSize: clampNumber(banner?.textSize, DEFAULT_BANNER.textSize, 12, 90),
     textOffsetY: clampNumber(banner?.textOffsetY, 0, -120, 120),
+    offsetRatio: clampNumber(banner?.offsetRatio, DEFAULT_BANNER.offsetRatio, 0, 0.13),
     dragonScale: clampNumber(banner?.dragonScale, DEFAULT_BANNER.dragonScale, 0.6, 1.8),
+    dragonOffsetX: clampNumber(banner?.dragonOffsetX, 0, 0, 10000),
+    dragonOffsetY: clampNumber(banner?.dragonOffsetY, 0, -10000, 10000),
+  };
+}
+
+export function normalizeCouplets(couplets?: Partial<CoupletSettings> | null): CoupletSettings {
+  return {
+    ...DEFAULT_COUPLETS,
+    ...couplets,
+    leftText: couplets?.leftText ?? DEFAULT_COUPLETS.leftText,
+    rightText: couplets?.rightText ?? DEFAULT_COUPLETS.rightText,
+    fontSize: clampNumber(couplets?.fontSize, DEFAULT_COUPLETS.fontSize, 12, 90),
+    color: couplets?.color || DEFAULT_COUPLETS.color,
+    offsetX: clampNumber(couplets?.offsetX, 0, 0, 10000),
+    offsetY: clampNumber(couplets?.offsetY, 0, -10000, 10000),
   };
 }
 
@@ -646,7 +731,6 @@ export const DEFAULT_TUNING: DiagramTuning = {
   siblingOrder: "asc",
   generationBandLabel: "ordinal",
   generationBandColor: "",
-  frameStyle: "none",
   frameScale: 1,
   fontFamily: "'Be Vietnam Pro', sans-serif",
   fontSize: 10.5,
@@ -655,6 +739,7 @@ export const DEFAULT_TUNING: DiagramTuning = {
   patternOpacity: 1,
   patternScale: 1,
   cardScale: 1,
+  generationLabelScale: 1,
   generationStyles: {},
   personStyles: {},
 };
@@ -686,6 +771,12 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
     patternOpacity: clampNumber(tuning?.patternOpacity, DEFAULT_TUNING.patternOpacity ?? 1, 0.2, 2),
     patternScale: clampNumber(tuning?.patternScale, DEFAULT_TUNING.patternScale ?? 1, 0.5, 2.5),
     cardScale: clampNumber(tuning?.cardScale, DEFAULT_TUNING.cardScale ?? 1, 0.7, 1.5),
+    generationLabelScale: clampNumber(
+      tuning?.generationLabelScale,
+      DEFAULT_TUNING.generationLabelScale ?? 1,
+      0.4,
+      2,
+    ),
     generationStyles: tuning?.generationStyles ?? {},
     personStyles: tuning?.personStyles ?? {},
   };

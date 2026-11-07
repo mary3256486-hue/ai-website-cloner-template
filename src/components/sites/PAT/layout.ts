@@ -1,5 +1,14 @@
 import type { FamilyTree, Person, TreeEdge, TreeLayout, TreeNode } from "./types";
-import { ancestorLabelFor, bandLabelFor, cardDimsFor, normalizeTuning, SPOUSE_GAP } from "./types";
+import {
+  ancestorLabelFor,
+  bandLabelFor,
+  cardDimsFor,
+  cardScaleFor,
+  FRAME_CORNER_CLEARANCE,
+  generationBandMetrics,
+  normalizeTuning,
+  SPOUSE_GAP,
+} from "./types";
 import { classifyClan, type ClanIndex } from "./clan";
 import {
   computeGenerations,
@@ -18,23 +27,24 @@ interface Measure {
   children: Measure[];
 }
 
-export function computeLayout(tree: FamilyTree): TreeLayout {
+export function computeLayout(tree: FamilyTree, scopeIds?: Set<string> | null): TreeLayout {
   const tuning = normalizeTuning(tree.design.tuning);
   const clan = classifyClan(tree.members, tree.founderId);
   const generations = computeGenerations(tree.members, tree.founderId);
+  const inScope = (id: string) => !scopeIds || scopeIds.has(id);
   const counts = new Map<number, number>();
   for (const member of tree.members) {
-    if (!clan.isDisplayed(member.id)) continue;
+    if (!clan.isDisplayed(member.id) || !inScope(member.id)) continue;
     const generation = generations.get(member.id) ?? 1;
     counts.set(generation, (counts.get(generation) ?? 0) + 1);
   }
-  const inset = tuning.frameStyle === "meander" ? Math.round(88 * tuning.frameScale) : 0;
+  const inset = Math.round(FRAME_CORNER_CLEARANCE * tuning.frameScale);
   const cardScale = tuning.cardScale ?? 1;
   const marginTop = tuning.marginTop + inset;
   const marginBottom = tuning.marginBottom + inset;
   const ancestorTitles = new Map<number, string[]>();
   for (const member of tree.members) {
-    if (!clan.isDisplayed(member.id)) continue;
+    if (!clan.isDisplayed(member.id) || !inScope(member.id)) continue;
     const generation = generations.get(member.id);
     if (generation === undefined || generation >= 0) continue;
     const title = member.title?.trim();
@@ -52,16 +62,23 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     }
     return bandLabelFor(tuning.generationBandLabel, generation);
   };
-  const bandPillWidth = (label: string) => Math.max(86, Math.min(160, label.length * 5.4 + 18));
-  // Dải đời nằm sát mép trái/phải; chừa vùng này để thẻ không bao giờ đè lên nhãn đời.
+  // Khổ A0: nhãn cách mép trong khung 2,5 cm (khoảng 73 đơn vị) và cách mép thẻ 2,5 cm.
+  const labelGap = Math.round(73 * tuning.frameScale);
+  const frameGuess = Math.round((FRAME_CORNER_CLEARANCE * tuning.frameScale * 92) / 180);
+  const labelScaleFor = (generation: number) =>
+    (tuning.generationLabelScale ?? 1) * cardScaleFor(tree.design, generation);
+  const bandPillWidth = (label: string, generation: number) =>
+    generationBandMetrics(label, labelScaleFor(generation)).width;
+  // Chừa đủ chỗ cho nhãn: khung + 2,5 cm + nhãn + 2,5 cm tới mép thẻ.
   const bandGutter = tree.design.showGenerationLabels
     ? Math.round(
-        34 +
+        frameGuess +
+          labelGap +
           Array.from(counts.keys()).reduce(
-            (max, generation) => Math.max(max, bandPillWidth(rowLabel(generation))),
+            (max, generation) => Math.max(max, bandPillWidth(rowLabel(generation), generation)),
             0,
           ) +
-          12,
+          labelGap,
       )
     : 0;
   const marginLeft = Math.max(tuning.marginLeft + inset, bandGutter);
@@ -74,6 +91,7 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
    * của tiền tổ cùng hàng tiền tổ cũng đứng cạnh nhau.
    */
   const isUnitSpouse = (person: Person, spouse: Person) => {
+    if (!inScope(spouse.id)) return false;
     const role = clan.roleOf(spouse.id);
     if (role === "inLaw") return true;
     if (role === "ancestor" && clan.roleOf(person.id) === "ancestor") {
@@ -83,11 +101,13 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   };
 
   const rootCandidates = tree.members
-    .filter(
-      (person) =>
-        (clan.roleOf(person.id) === "ancestor" || clan.roleOf(person.id) === "clan") &&
-        !clan.lineParent(person),
-    )
+    .filter((person) => {
+      if (!inScope(person.id)) return false;
+      const role = clan.roleOf(person.id);
+      if (role !== "ancestor" && role !== "clan") return false;
+      const parent = clan.lineParent(person);
+      return !parent || !inScope(parent);
+    })
     .sort(sortPersons);
   const rootIds = new Set(rootCandidates.map((person) => person.id));
   const absorbed = new Set<string>();
@@ -104,10 +124,12 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
   const measure = (person: Person): Measure => {
     const generation = generations.get(person.id) ?? 1;
     const { width: cardW } = cardDimsFor(tree.design, generation, counts.get(generation), cardScale);
-    const spouses = orderedSpouses(person, tree.members).filter((spouse) =>
-      isUnitSpouse(person, spouse),
+    const spouses = orderedSpouses(person, tree.members).filter(
+      (spouse) => inScope(spouse.id) && isUnitSpouse(person, spouse),
     );
-    const children = orderSiblings(clan.clanChildren.get(person.id) ?? []).map(measure);
+    const children = orderSiblings(clan.clanChildren.get(person.id) ?? [])
+      .filter((child) => inScope(child.id))
+      .map(measure);
     const unitWidth = cardW + spouses.length * (SPOUSE_GAP + cardW);
     const childWidth =
       children.reduce((sum, c) => sum + c.width, 0) +
@@ -230,56 +252,60 @@ export function computeLayout(tree: FamilyTree): TreeLayout {
     };
   }
 
-  // Áp vị trí đã lưu theo cả cụm vợ/chồng: một thẻ lệch thì cả cụm dịch theo,
-  // tránh trường hợp dữ liệu cũ làm vợ/chồng chồng lên nhau. Chỉ nhận trục x
-  // vì thẻ chỉ được di chuyển ngang, và giữ nguyên hàng đời để không đè nhãn đời.
-  const units = new Map<string, TreeNode[]>();
-  for (const node of nodes) {
-    const list = units.get(node.unitId) ?? [];
-    list.push(node);
-    units.set(node.unitId, list);
-  }
-  for (const [unitId, members] of units) {
-    const owner = members.find((member) => member.id === unitId) ?? members[0];
-    const ownerOverride = tree.positions[owner.id];
-    let shift: number | undefined;
-    if (ownerOverride) {
-      shift = ownerOverride.x - owner.x;
-    } else {
-      for (const member of members) {
-        const override = tree.positions[member.id];
-        if (!override) continue;
-        shift = override.x - member.x;
-        break;
-      }
+  // Phạm vi chi luôn xếp lại từ đầu để bản xem chi gọn, không phụ thuộc vị trí
+  // kéo tay của phả đồ toàn dòng họ.
+  if (!scopeIds) {
+    // Áp vị trí đã lưu theo cả cụm vợ/chồng: một thẻ lệch thì cả cụm dịch theo,
+    // tránh trường hợp dữ liệu cũ làm vợ/chồng chồng lên nhau. Chỉ nhận trục x
+    // vì thẻ chỉ được di chuyển ngang, và giữ nguyên hàng đời để không đè nhãn đời.
+    const units = new Map<string, TreeNode[]>();
+    for (const node of nodes) {
+      const list = units.get(node.unitId) ?? [];
+      list.push(node);
+      units.set(node.unitId, list);
     }
-    if (shift === undefined || !Number.isFinite(shift)) continue;
-    for (const member of members) member.x += shift;
-  }
-
-  // Vị trí đã lưu từ bản cũ có thể để hai cụm cùng đời chồng nhau; xếp lại theo
-  // thứ tự ngang và giữ khoảng hở tối thiểu để không chèn vào cụm khác.
-  const overriddenGenerations = new Set<number>();
-  for (const node of nodes) {
-    if (tree.positions[node.id]) overriddenGenerations.add(node.generation);
-  }
-  for (const generation of overriddenGenerations) {
-    const rows = Array.from(units.values())
-      .filter((members) => members[0]?.generation === generation)
-      .map((members) => ({
-        members,
-        left: Math.min(...members.map((member) => member.x)),
-        right: Math.max(...members.map((member) => member.x + member.width)),
-      }))
-      .sort((a, b) => a.left - b.left);
-    let cursor = bandGutter;
-    for (const row of rows) {
-      const target = Math.max(row.left, cursor);
-      const adjust = target - row.left;
-      if (adjust > 0) {
-        for (const member of row.members) member.x += adjust;
+    for (const [unitId, members] of units) {
+      const owner = members.find((member) => member.id === unitId) ?? members[0];
+      const ownerOverride = tree.positions[owner.id];
+      let shift: number | undefined;
+      if (ownerOverride) {
+        shift = ownerOverride.x - owner.x;
+      } else {
+        for (const member of members) {
+          const override = tree.positions[member.id];
+          if (!override) continue;
+          shift = override.x - member.x;
+          break;
+        }
       }
-      cursor = row.right + adjust + 12;
+      if (shift === undefined || !Number.isFinite(shift)) continue;
+      for (const member of members) member.x += shift;
+    }
+
+    // Vị trí đã lưu từ bản cũ có thể để hai cụm cùng đời chồng nhau; xếp lại theo
+    // thứ tự ngang và giữ khoảng hở tối thiểu để không chèn vào cụm khác.
+    const overriddenGenerations = new Set<number>();
+    for (const node of nodes) {
+      if (tree.positions[node.id]) overriddenGenerations.add(node.generation);
+    }
+    for (const generation of overriddenGenerations) {
+      const rows = Array.from(units.values())
+        .filter((members) => members[0]?.generation === generation)
+        .map((members) => ({
+          members,
+          left: Math.min(...members.map((member) => member.x)),
+          right: Math.max(...members.map((member) => member.x + member.width)),
+        }))
+        .sort((a, b) => a.left - b.left);
+      let cursor = bandGutter;
+      for (const row of rows) {
+        const target = Math.max(row.left, cursor);
+        const adjust = target - row.left;
+        if (adjust > 0) {
+          for (const member of row.members) member.x += adjust;
+        }
+        cursor = row.right + adjust + 12;
+      }
     }
   }
   if (bandGutter > 0) {

@@ -227,12 +227,14 @@ export function HomeView() {
   const [history, setHistory] = useState<ImportHistoryEntry[]>([]);
   const [rollbackTarget, setRollbackTarget] = useState<ImportHistoryEntry | null>(null);
   const [report, setReport] = useState<ImportReportState | null>(null);
+  const [reportBackupDone, setReportBackupDone] = useState(false);
   const parseRun = useRef(0);
   const spreadsheetRef = useRef<HTMLInputElement>(null);
   const backupRef = useRef<HTMLInputElement>(null);
   const gedcomRef = useRef<HTMLInputElement>(null);
 
   const sample = useMemo(() => trees.find((tree) => tree.sample), [trees]);
+  const reportTree = report ? trees.find((tree) => tree.id === report.entry.treeId) : undefined;
   const ownTrees = useMemo(
     () => trees.filter((tree) => !tree.sample).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [trees],
@@ -744,6 +746,7 @@ export function HomeView() {
       setHistory(stored.entries);
     }
     if (historyEntry) {
+      setReportBackupDone(false);
       setReport({
         entry: historyEntry,
         result,
@@ -785,6 +788,7 @@ export function HomeView() {
 
   const openHistoryReport = (entry: ImportHistoryEntry) => {
     setHistoryOpen(false);
+    setReportBackupDone(false);
     setReport({ entry });
   };
 
@@ -1640,6 +1644,37 @@ export function HomeView() {
                 </div>
               ))}
             </div>
+            {report.result && reportTree ? (
+              <div className="rounded-xl border border-[#e3cd92] bg-[#f9edcf]/70 px-3 py-2.5">
+                <div className="flex items-start gap-2">
+                  <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[var(--pat-gold)]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-[#7a5a10]">Nên sao lưu ngay sau khi nhập</p>
+                    <p className="mt-0.5 text-[0.68rem] leading-relaxed text-[#8a5a10]">
+                      Dữ liệu chỉ nằm trong trình duyệt trên thiết bị này. Tải bản sao lưu JSON để giữ đầy đủ thành
+                      viên, thiết kế phả đồ và phả ký của “{reportTree.name}”.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="pat-btn pat-btn-red h-9 px-3 text-xs"
+                    onClick={() => {
+                      exportBackup(reportTree);
+                      setReportBackupDone(true);
+                    }}
+                  >
+                    <Download size={13} /> Sao lưu ngay
+                  </button>
+                  {reportBackupDone ? (
+                    <span className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[#2f6b3f]">
+                      <CheckCircle2 size={12} /> Đã tải tệp JSON
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <p className="text-[0.72rem] text-[var(--pat-muted)]">
               {report.entry.tool} · {report.entry.mode === "update" ? "cập nhật" : "tạo mới"} · {report.entry.treeName}
               {report.info?.sheetName ? ` · trang “${report.info.sheetName}”` : ""}

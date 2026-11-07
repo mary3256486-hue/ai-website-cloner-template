@@ -14,7 +14,7 @@ import { BookOpen, Check, Feather, GitBranch, Printer, Sparkles, Users } from "l
 import Image from "next/image";
 import { useGenealogy } from "./store";
 import type { FamilyTree, Person } from "./types";
-import { generationTag } from "./types";
+import { generationTag, lifeStatusOf } from "./types";
 import {
   branchHeadcounts,
   buildFamilyIndex,
@@ -130,18 +130,27 @@ function MemberLine({
   generation,
   measure,
   privacy,
+  ordinal,
+  hideLivingBirth,
 }: {
   person: Person;
   generation: number;
   measure?: boolean;
   privacy?: FamilyTree["privacy"];
+  ordinal?: number;
+  hideLivingBirth?: boolean;
 }) {
+  const lifespan =
+    hideLivingBirth && lifeStatusOf(person) === "alive" ? "Còn sống" : displayLifeSpan(person, privacy);
   return (
     <li
       data-measure-item={measure ? "" : undefined}
       className="flex items-baseline justify-between gap-3 border-b border-dashed border-[#c9a227]/25 py-1.5 text-sm"
     >
       <span className="min-w-0">
+        {ordinal ? (
+          <span className="mr-1.5 text-[0.7rem] font-semibold tabular-nums text-[#8a6a52]">{ordinal}.</span>
+        ) : null}
         <span className="font-semibold text-[var(--pat-ink)]">{person.name}</span>
         {person.title ? <span className="ml-1.5 text-[0.68rem] text-[#8a6a52]">({person.title})</span> : null}
         {nameAliases(person) ? (
@@ -149,7 +158,7 @@ function MemberLine({
         ) : null}
       </span>
       <span className="shrink-0 text-[0.7rem] text-[var(--pat-muted)]">
-        {generationTag(generation)} · {displayLifeSpan(person, privacy)}
+        {generationTag(generation)} · {lifespan}
       </span>
     </li>
   );
@@ -208,14 +217,25 @@ function GenerationPages({
   members,
   onPageCount,
   privacy,
+  columns,
+  numbering,
+  hideLivingBirth,
 }: {
   generation: number;
   members: Person[];
   onPageCount: (generation: number, count: number) => void;
   privacy?: FamilyTree["privacy"];
+  columns: 1 | 2;
+  numbering: boolean;
+  hideLivingBirth: boolean;
 }) {
   const measureRef = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<Person[][]>([members]);
+  const ordinals = useMemo(
+    () => new Map(members.map((person, position) => [person.id, position + 1])),
+    [members],
+  );
+  const listClass = columns === 2 ? "grid gap-x-8 sm:grid-cols-2" : "grid gap-x-8";
 
   useEffect(() => {
     const node = measureRef.current;
@@ -293,7 +313,7 @@ function GenerationPages({
     observer.observe(node);
     void document.fonts?.ready.then(measure);
     return () => observer.disconnect();
-  }, [members, generation, onPageCount]);
+  }, [members, generation, onPageCount, columns]);
 
   return (
     <div className="relative">
@@ -302,9 +322,17 @@ function GenerationPages({
           <div data-measure-heading>
             <PageHeading eyebrow="Thế thứ" title={generationTitle(generation, members)} />
           </div>
-          <ul data-measure-list className="grid gap-x-8 sm:grid-cols-2">
+          <ul data-measure-list className={listClass}>
             {members.map((person) => (
-              <MemberLine key={person.id} person={person} generation={generation} measure privacy={privacy} />
+              <MemberLine
+                key={person.id}
+                person={person}
+                generation={generation}
+                measure
+                privacy={privacy}
+                ordinal={numbering ? ordinals.get(person.id) : undefined}
+                hideLivingBirth={hideLivingBirth}
+              />
             ))}
           </ul>
         </Page>
@@ -318,9 +346,16 @@ function GenerationPages({
             }`}
             title={generationTitle(generation, members)}
           />
-          <ul className="grid gap-x-8 sm:grid-cols-2">
+          <ul className={listClass}>
             {page.map((person) => (
-              <MemberLine key={person.id} person={person} generation={generation} privacy={privacy} />
+              <MemberLine
+                key={person.id}
+                person={person}
+                generation={generation}
+                privacy={privacy}
+                ordinal={numbering ? ordinals.get(person.id) : undefined}
+                hideLivingBirth={hideLivingBirth}
+              />
             ))}
           </ul>
         </Page>
@@ -391,6 +426,9 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
     : [];
 
   const showColophon = tree.showColophon !== false;
+  const columns: 1 | 2 = tree.chronicleColumns === 1 ? 1 : 2;
+  const numbering = tree.chronicleChildNumbers === true;
+  const hideLivingBirth = tree.chronicleHideLivingBirth === true;
   const bookStyle = {
     fontSize: tree.chronicleStyle?.fontSize ?? 16,
     lineHeight: tree.chronicleStyle?.lineHeight ?? 1.9,
@@ -822,6 +860,38 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
                     ]}
                   />
                 </Field>
+                <Field label="Bố cục danh sách thế thứ">
+                  <Segmented
+                    value={columns === 1 ? "1" : "2"}
+                    onChange={(value) =>
+                      updateTree(tree.id, { chronicleColumns: value === "1" ? 1 : 2 })
+                    }
+                    options={[
+                      { value: "1", label: "1 cột" },
+                      { value: "2", label: "2 cột" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Số thứ tự trong danh sách">
+                  <Segmented
+                    value={numbering ? "on" : "off"}
+                    onChange={(value) => updateTree(tree.id, { chronicleChildNumbers: value === "on" })}
+                    options={[
+                      { value: "off", label: "Không" },
+                      { value: "on", label: "Đánh số" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Năm sinh người còn sống" hint="Áp dụng cho danh sách thế thứ khi in phả ký.">
+                  <Segmented
+                    value={hideLivingBirth ? "hide" : "show"}
+                    onChange={(value) => updateTree(tree.id, { chronicleHideLivingBirth: value === "hide" })}
+                    options={[
+                      { value: "show", label: "Hiện" },
+                      { value: "hide", label: "Ẩn" },
+                    ]}
+                  />
+                </Field>
               </div>
               <Field label="Lề trang in (mm)" hint="Mặc định: trên 25 · phải 20 · dưới 25 · trái 25.">
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1058,6 +1128,9 @@ export function ChronicleView({ tree }: { tree: FamilyTree }) {
               members={members}
               onPageCount={handleGenPageCount}
               privacy={tree.privacy}
+              columns={columns}
+              numbering={numbering}
+              hideLivingBirth={hideLivingBirth}
             />
           ))}
 

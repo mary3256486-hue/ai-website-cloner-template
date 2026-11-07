@@ -21,10 +21,11 @@ import {
 } from "lucide-react";
 import { useGenealogy } from "./store";
 import type { Branch, FamilyTree, Person } from "./types";
-import { branchHeadcounts, computeGenerations, initials, sortPersons } from "./utils";
+import { branchHeadcounts, computeGenerations, descendants, initials, sortPersons } from "./utils";
 import { classifyClan } from "./clan";
+import { branchViewHref, computeBranchScope, type BranchCardStyle } from "./branch-view";
 import { TreeShell } from "./app-shell";
-import { Avatar, Badge, EmptyState, Field, SectionTitle, Sheet } from "./ui";
+import { Avatar, Badge, EmptyState, Field, SectionTitle, Segmented, Sheet } from "./ui";
 
 const BRANCH_COLORS = ["#8a1c15", "#b7791f", "#2f6f5e", "#6b4c9a", "#1f6b7a", "#9a4a1f"];
 
@@ -42,6 +43,15 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
   const [manQuery, setManQuery] = useState("");
   const [highlightUnassigned, setHighlightUnassigned] = useState(false);
   const unassignedRef = useRef<HTMLElement>(null);
+  const viewSectionRef = useRef<HTMLElement>(null);
+
+  const [viewBranchId, setViewBranchId] = useState("");
+  const [viewHeadId, setViewHeadId] = useState("");
+  const [viewHeadQuery, setViewHeadQuery] = useState("");
+  const [viewAncestors, setViewAncestors] = useState(3);
+  const [viewLimit, setViewLimit] = useState(3);
+  const [viewCardStyle, setViewCardStyle] = useState<BranchCardStyle>("compact");
+  const [viewTitle, setViewTitle] = useState("");
 
   const gens = useMemo(() => computeGenerations(tree.members, tree.founderId), [tree.members, tree.founderId]);
   const clan = useMemo(() => classifyClan(tree.members, tree.founderId), [tree.members, tree.founderId]);
@@ -65,6 +75,36 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
   const activeBranch = tree.branches.find((branch) => branch.id === activeBranchId) ?? null;
   const selectableMen = selectedMen.filter((id) => unassignedMen.some((person) => person.id === id));
   const activeBulkBranchId = tree.branches.some((branch) => branch.id === bulkBranchId) ? bulkBranchId : "";
+
+  const viewBranch = tree.branches.find((branch) => branch.id === viewBranchId) ?? null;
+  const viewBranchHeadId = viewBranch?.headId;
+  const viewHead = tree.members.find((person) => person.id === viewHeadId) ?? null;
+  const viewCandidateIds = useMemo(() => {
+    if (!viewBranchHeadId) return null;
+    const set = descendants(tree.members, viewBranchHeadId, tree.founderId);
+    set.add(viewBranchHeadId);
+    return set;
+  }, [viewBranchHeadId, tree.members, tree.founderId]);
+  const viewHeadCandidates = useMemo(() => {
+    const needle = viewHeadQuery.trim().toLowerCase();
+    return tree.members
+      .filter((person) => clan.roleOf(person.id) === "clan")
+      .filter((person) => !viewCandidateIds || viewCandidateIds.has(person.id))
+      .filter((person) => !needle || person.name.toLowerCase().includes(needle))
+      .sort((a, b) => (gens.get(a.id) ?? 99) - (gens.get(b.id) ?? 99) || sortPersons(a, b));
+  }, [tree.members, clan, viewCandidateIds, viewHeadQuery, gens]);
+  const viewScope = useMemo(() => {
+    if (!viewHead) return null;
+    return computeBranchScope(tree, {
+      headId: viewHead.id,
+      ancestorGenerations: viewAncestors,
+      generationLimit: viewLimit,
+      cardStyle: viewCardStyle,
+      title: viewTitle,
+    });
+  }, [tree, viewHead, viewAncestors, viewLimit, viewCardStyle, viewTitle]);
+  const viewHref = (section: string) =>
+    viewScope ? branchViewHref(`/gia-pha/${tree.id}/${section}`, viewScope.options) : "";
 
   useEffect(() => {
     if (!undoDelete) return;
@@ -95,6 +135,21 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
     unassignedRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     setHighlightUnassigned(true);
     window.setTimeout(() => setHighlightUnassigned(false), 1800);
+  };
+
+  const pickViewBranch = (branchId: string) => {
+    setViewBranchId(branchId);
+    const branch = tree.branches.find((item) => item.id === branchId);
+    if (!branch) return;
+    const head = tree.members.find((member) => member.id === branch.headId);
+    setViewHeadId(head && clan.roleOf(head.id) === "clan" ? head.id : "");
+  };
+
+  const openBranchView = (branch: Branch) => {
+    setViewBranchId(branch.id);
+    const head = tree.members.find((member) => member.id === branch.headId);
+    setViewHeadId(head && clan.roleOf(head.id) === "clan" ? head.id : "");
+    window.setTimeout(() => viewSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
   };
 
   const assignMen = (ids: string[], branchId: string) => {
@@ -188,6 +243,161 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
           <p className="mt-2 border-t border-[var(--pat-line)] pt-2 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
             Chi phái chỉ tính người nam thuộc nội tộc, không tính dâu/rể, con của con gái hay hồ sơ tham khảo. Con gái
             vẫn thuộc gia phả nhưng không tính vào số nam của chi phái.
+          </p>
+        </section>
+
+        <section ref={viewSectionRef} className="pat-card scroll-mt-24 px-4 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <SectionTitle icon={<GitBranch size={13} />} title="Xem theo chi" />
+            <span className="rounded-full bg-[#f6e9c8] px-2 py-0.5 text-[0.6rem] font-semibold text-[#7a5a10]">
+              Chỉ để xem, không lưu
+            </span>
+          </div>
+          <p className="mt-1 text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+            Chọn một người làm trưởng chi để xem toàn bộ hậu duệ của người đó. Chi tính cả nam và nữ nội tộc; dâu/rể
+            hiện cạnh người hôn phối; con của con gái hiện một đời nhưng không tính vào số lượng chi.
+          </p>
+          <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+            <Field label="Chi phái" hint="Chọn chi để gợi ý đúng trưởng chi; vẫn có thể chọn người khác.">
+              <select
+                className="pat-input"
+                value={viewBranchId}
+                onChange={(event) => pickViewBranch(event.target.value)}
+              >
+                <option value="">— Tất cả nội tộc —</option>
+                {tree.branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.code ? `${branch.code} · ` : ""}
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Trưởng chi *" hint="Chi gồm toàn bộ hậu duệ của người này.">
+              <div className="space-y-1.5">
+                <label className="flex h-9 items-center gap-2 rounded-xl border border-[var(--pat-line)] bg-white/80 px-2.5">
+                  <Search size={14} className="text-[var(--pat-muted)]" />
+                  <input
+                    value={viewHeadQuery}
+                    onChange={(event) => setViewHeadQuery(event.target.value)}
+                    placeholder="Tìm theo tên…"
+                    aria-label="Tìm trưởng chi để xem"
+                    className="min-w-0 flex-1 bg-transparent text-xs outline-none"
+                  />
+                  {viewHeadQuery ? (
+                    <button type="button" onClick={() => setViewHeadQuery("")} aria-label="Xoá tìm trưởng chi">
+                      <X size={13} className="text-[var(--pat-muted)]" />
+                    </button>
+                  ) : null}
+                </label>
+                <select
+                  className="pat-input"
+                  value={viewHeadId}
+                  onChange={(event) => setViewHeadId(event.target.value)}
+                >
+                  <option value="">— Chọn trưởng chi —</option>
+                  {viewHeadCandidates.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}
+                      {gens.get(person.id) !== undefined ? ` · Đời ${gens.get(person.id)}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </Field>
+            <Field label="Số đời trực hệ phía trên" hint="Cha, ông, cụ, kỵ… của trưởng chi; 0 là không hiện.">
+              <select
+                className="pat-input"
+                value={viewAncestors}
+                onChange={(event) => setViewAncestors(Number(event.target.value))}
+              >
+                {[0, 1, 2, 3, 4, 5, 6].map((value) => (
+                  <option key={value} value={value}>
+                    {value === 0 ? "Không hiện" : `${value} đời`}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field
+              label="Giới hạn số đời"
+              hint="Tính từ trưởng chi trở xuống; số lượng thành viên vẫn tính toàn chi."
+            >
+              <select
+                className="pat-input"
+                value={viewLimit}
+                onChange={(event) => setViewLimit(Number(event.target.value))}
+              >
+                <option value={0}>Tất cả các đời</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                  <option key={value} value={value}>
+                    {value} đời
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Kiểu thẻ">
+              <Segmented<BranchCardStyle>
+                value={viewCardStyle}
+                onChange={setViewCardStyle}
+                options={[
+                  { value: "compact", label: "Gọn" },
+                  { value: "full", label: "Đầy đủ" },
+                ]}
+              />
+              <p className="mt-1 text-[0.64rem] text-[var(--pat-muted)]">
+                Gọn: tên + đời. Đầy đủ: thêm năm sinh–mất.
+              </p>
+            </Field>
+            <Field
+              label="Chữ hoành phi"
+              hint="Ví dụ: Chi Phạm văn X. Bỏ trống để dùng tên mặc định."
+            >
+              <input
+                className="pat-input"
+                value={viewTitle}
+                onChange={(event) => setViewTitle(event.target.value.slice(0, 160))}
+                placeholder={viewHead ? `Chi ${viewHead.name}` : "Chi …"}
+              />
+            </Field>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2">
+            {viewScope ? (
+              <p className="w-full text-[0.7rem] text-[var(--pat-muted)] sm:min-w-0 sm:flex-1">
+                <strong className="text-[var(--pat-ink)]">{viewScope.title}</strong> · {viewScope.count} thành viên nội
+                tộc · {viewScope.ids.size} người hiển thị · {viewScope.generationSpan} đời
+                {viewScope.options.ancestorGenerations
+                  ? ` · ${viewScope.options.ancestorGenerations} đời trên`
+                  : ""}
+              </p>
+            ) : (
+              <p className="w-full text-[0.7rem] text-[var(--pat-muted)] sm:min-w-0 sm:flex-1">
+                Chọn trưởng chi để xem trước số lượng.
+              </p>
+            )}
+            <button
+              type="button"
+              disabled={!viewScope}
+              onClick={() => {
+                if (viewScope) router.push(viewHref("chinh-sua-voi-cay-gia-pha"));
+              }}
+              className="pat-btn pat-btn-outline h-9 text-[0.7rem] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Network size={13} /> Xem trong Cây gia phả
+            </button>
+            <button
+              type="button"
+              disabled={!viewScope}
+              onClick={() => {
+                if (viewScope) router.push(viewHref("ve-pha-do"));
+              }}
+              className="pat-btn pat-btn-red h-9 text-[0.7rem] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <GitBranch size={13} /> Xem trong Vẽ phả đồ
+            </button>
+          </div>
+          <p className="mt-2 text-[0.64rem] leading-relaxed text-[var(--pat-muted)]">
+            Lựa chọn chi, số đời, kiểu thẻ và chữ hoành phi chỉ dùng cho lần xem và in này; không ghi vào chi phái hay
+            hồ sơ thành viên. Số liệu quản lý chi phái phía trên vẫn tính nam nội tộc như trước.
           </p>
         </section>
 
@@ -287,6 +497,13 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                   <p className="min-w-0 flex-1 truncate text-[0.7rem] text-[#7a5a10]">
                     Đang chọn <strong>{activeBranch.name}</strong> · chạm lại ô để bỏ chọn
                   </p>
+                  <button
+                    type="button"
+                    onClick={() => openBranchView(activeBranch)}
+                    className="flex shrink-0 items-center gap-1 text-[0.68rem] font-semibold text-[var(--pat-red)]"
+                  >
+                    <Network size={12} /> Xem theo chi
+                  </button>
                   <button
                     type="button"
                     onClick={() => {

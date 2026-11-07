@@ -43,3 +43,12 @@ Bộ ảnh do chủ dự án cung cấp riêng cho gia phả Tiểu Phạm (khô
 
 Các tệp này chỉ dùng trong dự án này; không phát hành lại như artwork mở.
 
+## Font chữ Thư pháp Việt
+
+| Tệp | Phông gốc | Tác giả | Giấy phép | Nguồn |
+| --- | --- | --- | --- | --- |
+| `../fonts/DancingScript-Vietnamese.ttf` | Dancing Script (variable) | The Dancing Script Project Authors | SIL OFL 1.1 | https://github.com/google/fonts/tree/main/ofl/dancingscript |
+
+Font có đủ bộ dấu tiếng Việt, dùng cho câu đối dọc hai bên rồng. Bản quyền đầy đủ nằm trong
+`../fonts/OFL-DancingScript.txt`.
+

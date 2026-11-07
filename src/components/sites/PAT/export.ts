@@ -1,6 +1,7 @@
 import type { FamilyTree, Person, PrivacySettings } from "./types";
 import {
   CALENDAR_LABELS,
+  DEFAULT_DESIGN,
   FAMILY_TREE_SCHEMA_VERSION,
   LIFE_STATUS_LABELS,
   LINK_CONFIDENCE_LABELS,
@@ -9,7 +10,6 @@ import {
   SPOUSE_RANK_LABELS,
   lifeStatusOf,
 } from "./types";
-import type { TreeLayout } from "./types";
 import { computeLayout } from "./layout";
 import { classifyClan, CLAN_ROLE_LABELS } from "./clan";
 import {
@@ -306,23 +306,25 @@ export function isLargeTree(tree: FamilyTree) {
   return tree.members.length >= AUTO_ROTATE_MIN_MEMBERS;
 }
 
-export function resolveOrientation(tree: FamilyTree, layout?: TreeLayout) {
+export function resolveOrientation(tree: FamilyTree) {
   if (tree.design.autoRotate === false || !isLargeTree(tree)) return tree.design.orientation;
-  const dims = layout ?? computeLayout(tree);
-  return dims.width > dims.height ? "landscape" : "portrait";
+  // Xét bố cục chuẩn (thiết kế mặc định, bỏ vị trí kéo tay) để chỉnh chi tiết
+  // không làm đảo chiều giấy đã chọn.
+  const reference = computeLayout({ ...tree, positions: {}, design: DEFAULT_DESIGN });
+  return reference.width > reference.height ? "landscape" : "portrait";
 }
 
-export function paperDimensions(tree: FamilyTree, layout?: TreeLayout): { widthMm: number; heightMm: number } {
+export function paperDimensions(tree: FamilyTree): { widthMm: number; heightMm: number } {
   const custom = normalizeCustomPaper(tree.design.customPaper);
   if (custom) return { widthMm: custom.widthMm, heightMm: custom.heightMm };
   const [w, h] = PAPER_MM[tree.design.paper];
-  return resolveOrientation(tree, layout) === "portrait"
+  return resolveOrientation(tree) === "portrait"
     ? { widthMm: w, heightMm: h }
     : { widthMm: h, heightMm: w };
 }
 
-export function paperAspectFor(tree: FamilyTree, layout?: TreeLayout) {
-  const { widthMm, heightMm } = paperDimensions(tree, layout);
+export function paperAspectFor(tree: FamilyTree) {
+  const { widthMm, heightMm } = paperDimensions(tree);
   return widthMm / heightMm;
 }
 
@@ -365,6 +367,27 @@ async function inlineDecorationImages(clone: SVGSVGElement) {
   );
 }
 
+const CALLIGRAPHY_FONT_SRC = "/sites/PAT/fonts/DancingScript-Vietnamese.ttf";
+let calligraphyFontUri: Promise<string | null> | null = null;
+
+function loadCalligraphyFont() {
+  if (!calligraphyFontUri) {
+    calligraphyFontUri = fetch(CALLIGRAPHY_FONT_SRC)
+      .then(async (response) => (response.ok ? blobToDataUri(await response.blob()) : null))
+      .catch(() => null);
+  }
+  return calligraphyFontUri;
+}
+
+/** Nhúng font thư pháp dạng base64 để bản in/PNG giữ đúng font câu đối. */
+async function inlineCalligraphyFont(clone: SVGSVGElement) {
+  const uri = await loadCalligraphyFont();
+  if (!uri) return;
+  const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+  style.textContent = `@font-face{font-family:"Thu Phap Viet";src:url("${uri}") format("truetype");font-weight:400 700;font-style:normal;}`;
+  clone.insertBefore(style, clone.firstChild);
+}
+
 export interface DiagramPrintOptions {
   /** true: vừa khổ giấy đã chọn; false: in đúng kích thước thật (mm) ở tỉ lệ 100%. */
   fitToPage?: boolean;
@@ -405,14 +428,14 @@ export async function printSvgDiagram(
   }
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  await inlineDecorationImages(clone);
+  await Promise.all([inlineDecorationImages(clone), inlineCalligraphyFont(clone)]);
   const markup = new XMLSerializer().serializeToString(clone);
   const svgCss = fit
     ? "svg { display: block; width: 100%; height: 100%; }"
     : `svg { display: block; width: ${widthMm}mm; height: ${heightMm}mm; }`;
   const grayscaleCss = options.grayscale ? "svg { filter: grayscale(1) contrast(1.05); }" : "";
   const serifCss = options.systemSerif
-    ? "text { font-family: \"Times New Roman\", \"Liberation Serif\", serif !important; }"
+    ? "text:not(.pat-couplet) { font-family: \"Times New Roman\", \"Liberation Serif\", serif !important; }"
     : "";
   const cropHtml = options.cropMarks
     ? `<span class="crop-mark crop-tl"></span><span class="crop-mark crop-tr"></span><span class="crop-mark crop-bl"></span><span class="crop-mark crop-br"></span>`
@@ -458,8 +481,8 @@ export async function exportDiagramPng(
   const height = Number(source.getAttribute("height")) || source.viewBox.baseVal.height || 1000;
   clone.setAttribute("width", String(width));
   clone.setAttribute("height", String(height));
-  report(0.2, "Đang nạp ảnh trang trí");
-  await inlineDecorationImages(clone);
+  report(0.2, "Đang nạp ảnh trang trí và font thư pháp");
+  await Promise.all([inlineDecorationImages(clone), inlineCalligraphyFont(clone)]);
   report(0.4, "Đang dựng ảnh");
   const xml = new XMLSerializer().serializeToString(clone);
   const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;

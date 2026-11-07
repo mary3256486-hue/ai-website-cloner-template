@@ -30,6 +30,7 @@ import type {
   BackgroundImageSettings,
   BannerSettings,
   CardOrientation,
+  CoupletSettings,
   Decoration,
   DesignSettings,
   DiagramTuning,
@@ -45,6 +46,7 @@ import {
   generationTag,
   normalizeBackgroundImage,
   normalizeBanner,
+  normalizeCouplets,
   normalizeCustomPaper,
   PAPER_MM,
   type BackgroundPattern,
@@ -291,10 +293,14 @@ function readImageFile(file: File, onLoad: (src: string) => void) {
 
 function BannerSection({
   banner,
+  couplets,
   onChange,
+  onCouplets,
 }: {
   banner: BannerSettings;
+  couplets: CoupletSettings;
   onChange: (patch: Partial<BannerSettings>) => void;
+  onCouplets: (patch: Partial<CoupletSettings>) => void;
 }) {
   return (
     <Section
@@ -354,6 +360,16 @@ function BannerSection({
         step={10}
         onChange={(width) => onChange({ width })}
       />
+      <SliderField
+        label="Vị trí dọc"
+        value={Math.round(banner.offsetRatio * 1000) / 10}
+        min={0}
+        max={13}
+        step={0.5}
+        suffix="%"
+        hint="Mép trên hoành phi tính từ mép trên giấy. Mặc định 6%; dịch lên tới sát khung trên, dịch xuống tối đa 13% chiều cao giấy."
+        onChange={(value) => onChange({ offsetRatio: value / 100 })}
+      />
       <ToggleRow
         label="Rồng chầu hai bên"
         checked={banner.showDragons}
@@ -367,8 +383,54 @@ function BannerSection({
           max={1.8}
           step={0.05}
           suffix="×"
+          hint="Kéo trực tiếp một bên rồng trên phả đồ để di chuyển; bên còn lại đối xứng qua trục giữa, trong khoảng từ cạnh hoành phi đến cạnh giấy."
           onChange={(dragonScale) => onChange({ dragonScale })}
         />
+      ) : null}
+      <ToggleRow
+        label="Câu đối dọc hai bên rồng"
+        checked={couplets.enabled}
+        onChange={(enabled) => onCouplets({ enabled })}
+      />
+      {couplets.enabled ? (
+        <>
+          <Field label="Vế trái" hint="Mỗi âm tiết xếp thành một dòng dọc.">
+            <textarea
+              rows={2}
+              value={couplets.leftText}
+              onChange={(event) => onCouplets({ leftText: event.target.value })}
+              className="pat-input min-h-[52px] resize-y px-2 py-1.5 text-xs"
+            />
+          </Field>
+          <Field label="Vế phải">
+            <textarea
+              rows={2}
+              value={couplets.rightText}
+              onChange={(event) => onCouplets({ rightText: event.target.value })}
+              className="pat-input min-h-[52px] resize-y px-2 py-1.5 text-xs"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <SliderField
+              label="Cỡ chữ câu đối"
+              value={couplets.fontSize}
+              min={12}
+              max={90}
+              suffix="px"
+              onChange={(fontSize) => onCouplets({ fontSize })}
+            />
+            <ColorField
+              label="Màu chữ"
+              value={couplets.color}
+              fallback="#8a1c15"
+              onChange={(color) => onCouplets({ color: color || "#8a1c15" })}
+            />
+          </div>
+          <p className="text-[0.68rem] leading-relaxed text-[var(--pat-muted)]">
+            Font Thư pháp Việt. Kéo trực tiếp một bên câu đối trên phả đồ để dịch trong khoảng từ cạnh rồng
+            tới mép trong khung; vế còn lại tự đối xứng qua trục giữa.
+          </p>
+        </>
       ) : null}
     </Section>
   );
@@ -471,8 +533,11 @@ export function WholeDiagramInspector({
   const preset = custom ? null : tree.design.paper;
   const ratio = custom?.ratio;
   const banner = normalizeBanner(tree.design.banner);
+  const couplets = normalizeCouplets(tree.design.couplets);
   const bgArt = normalizeBackgroundImage(tree.design.backgroundImage);
   const updateBanner = (patch: Partial<BannerSettings>) => onDesign({ banner: { ...banner, ...patch } });
+  const updateCouplets = (patch: Partial<CoupletSettings>) =>
+    onDesign({ couplets: { ...couplets, ...patch } });
   const updateBackground = (
     patch: Partial<DesignSettings>,
     imagePatch?: Partial<BackgroundImageSettings>,
@@ -584,7 +649,12 @@ export function WholeDiagramInspector({
         </div>
       </Section>
 
-      <BannerSection banner={banner} onChange={updateBanner} />
+      <BannerSection
+        banner={banner}
+        couplets={couplets}
+        onChange={updateBanner}
+        onCouplets={updateCouplets}
+      />
 
       <BackgroundSection pattern={tree.design.background} art={bgArt} onChange={updateBackground} />
 
@@ -706,11 +776,25 @@ export function WholeDiagramInspector({
           />
         </Field>
         <ColorField
-          label="Màu nhấn"
+          label="Màu nhãn đời"
           value={tuning.generationBandColor}
-          fallback="#c9a227"
+          fallback="#6a100c"
           onChange={(generationBandColor) => onTuning({ generationBandColor })}
         />
+        <SliderField
+          label="Cỡ nhãn đời"
+          value={tuning.generationLabelScale ?? 1}
+          min={0.4}
+          max={2}
+          step={0.05}
+          suffix="×"
+          hint="Nhãn tự nhân theo cỡ thẻ của từng đời. Khổ A0: nhãn cách mép trong khung 2,5 cm và cách mép thẻ 2,5 cm."
+          onChange={(generationLabelScale) => onTuning({ generationLabelScale })}
+        />
+        <p className="text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
+          Nhãn hai bên được canh giữa thẻ thành viên. Mặc định dùng tông đậm của bảng màu phả
+          đồ; chọn màu nếu muốn nhãn nổi hơn trên nền giấy.
+        </p>
       </Section>
 
       <Section
@@ -756,29 +840,19 @@ export function WholeDiagramInspector({
       </Section>
 
       <Section title="Khung phả đồ" icon={<Frame size={13} />}>
-        <Segmented<DiagramTuning["frameStyle"]>
-          value={tuning.frameStyle}
-          onChange={(frameStyle) => onTuning({ frameStyle })}
-          options={[
-            { value: "none", label: "Sơn mài" },
-            { value: "wood", label: "Gỗ" },
-            { value: "meander", label: "Mê cung" },
-          ]}
+        <SliderField
+          label="Cỡ viền"
+          value={tuning.frameScale}
+          min={0.5}
+          max={2}
+          step={0.05}
+          suffix="×"
+          onChange={(frameScale) => onTuning({ frameScale })}
+          hint="Khung tự canh khít khổ giấy; độ dày nét co giãn theo khổ in. Viền dày hơn sẽ tự thu lề để nội dung không đè lên hoa văn."
         />
-        {tuning.frameStyle === "meander" ? (
-          <SliderField
-            label="Cỡ viền"
-            value={tuning.frameScale}
-            min={0.5}
-            max={2}
-            step={0.05}
-            suffix="×"
-            onChange={(frameScale) => onTuning({ frameScale })}
-            hint="Viền dày hơn sẽ tự thu lề để nội dung không đè lên hoa văn."
-          />
-        ) : null}
         <p className="text-[0.72rem] leading-relaxed text-[var(--pat-muted)]">
-          Khung chỉ đổi cách trình bày, nội dung và dữ liệu thành viên giữ nguyên.
+          Phả đồ dùng khung hoa văn cố định; chỉ chỉnh được độ dày viền. Nội dung và dữ liệu
+          thành viên giữ nguyên.
         </p>
       </Section>
 
@@ -820,6 +894,7 @@ export function GenerationInspector({
     fontSize: number;
     lineCount: number;
     cardColor?: string;
+    cardScale: number;
   };
   extraFields: ExtraFieldKey[];
   sample?: Person;
@@ -908,6 +983,16 @@ export function GenerationInspector({
             { value: "horizontal", label: "Ô nằm ngang" },
             { value: "vertical", label: "Ô nằm dọc" },
           ]}
+        />
+        <SliderField
+          label="Cỡ thẻ"
+          value={resolved.cardScale}
+          min={0.6}
+          max={1.8}
+          step={0.05}
+          suffix="×"
+          hint="Áp dụng cho mọi thẻ cùng đời. Cũng có thể bấm vào một thẻ rồi kéo tay nắm ở góc dưới phải."
+          onChange={(cardScale) => onStyle({ cardScale })}
         />
         <ToggleRow
           label="Ảnh chân dung"

@@ -2,6 +2,8 @@
 
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import type {
+  BannerSettings,
+  CoupletSettings,
   Decoration,
   DesignSettings,
   FamilyTree,
@@ -13,13 +15,23 @@ import type {
 } from "./types";
 import {
   bandLabelFor,
+  CARD_H,
+  CARD_VERTICAL_H,
+  CARD_VERTICAL_W,
+  CARD_W,
   cardOrientationFor,
+  cardScaleFor,
+  DEFAULT_DESIGN,
+  FRAME_CORNER_CLEARANCE,
+  generationBandMetrics,
   generationTag,
   normalizeBackgroundImage,
   normalizeBanner,
+  normalizeCouplets,
   normalizeTuning,
   type ExtraFieldKey,
 } from "./types";
+import { computeLayout } from "./layout";
 import { computeGenerations, displayLifeSpan, sortPersons } from "./utils";
 
 const PALETTES: Record<DesignSettings["palette"], { accent: string; deep: string; gold: string; soft: string }> = {
@@ -33,9 +45,17 @@ export const CONTENT_TOP = 10;
 const BANNER_ASPECT = 1467 / 751;
 const DRAGON_SRC_LEFT = "/sites/PAT/decor/user/dragon-phai.png";
 const DRAGON_SRC_RIGHT = "/sites/PAT/decor/user/dragon-trai.png";
-const FRAME_CORNER_SRC = "/sites/PAT/decor/user/khung-goc.png";
-const FRAME_HOR_SRC = "/sites/PAT/decor/user/khung-ngang.png";
-const FRAME_VER_SRC = "/sites/PAT/decor/user/khung-doc.png";
+const FRAME_CORNER_SRC = "/sites/PAT/decor/khung/goc.png";
+const FRAME_HOR_SRC = "/sites/PAT/decor/khung/ngang-giua.png";
+const FRAME_VER_SRC = "/sites/PAT/decor/khung/doc-giua.png";
+const FRAME_LINE_SRC = "/sites/PAT/decor/khung/noi.png";
+/** Kích thước gốc của 4 module (px) dùng để quy đổi theo độ dày khung. */
+const FRAME_BASE = 92;
+const FRAME_CORNER_RATIO = 180 / FRAME_BASE;
+const FRAME_HOR_W_RATIO = 182 / FRAME_BASE;
+const FRAME_HOR_H_RATIO = 94 / FRAME_BASE;
+const FRAME_VER_H_RATIO = 180 / FRAME_BASE;
+const FRAME_LINE_W_RATIO = 90 / FRAME_BASE;
 
 export function bannerHeight(design?: DesignSettings | null) {
   const banner = normalizeBanner(design?.banner);
@@ -49,7 +69,7 @@ export function contentTop(design?: DesignSettings | null) {
 
 export function frameInset(design?: DesignSettings | null) {
   const tuning = normalizeTuning(design?.tuning);
-  return tuning.frameStyle === "meander" ? Math.round(88 * tuning.frameScale) : 0;
+  return Math.round(FRAME_CORNER_CLEARANCE * tuning.frameScale);
 }
 
 export interface DiagramDimensions {
@@ -61,21 +81,209 @@ export interface DiagramDimensions {
   offsetY: number;
 }
 
+/** Vị trí mép trên hoành phi theo tỉ lệ chiều cao giấy; tối đa 13%. */
+export function bannerTopRatio(design?: DesignSettings | null) {
+  const banner = normalizeBanner(design?.banner);
+  if (!banner.enabled) return 0;
+  return Math.max(0, Math.min(0.13, banner.offsetRatio));
+}
+
+/** Độ dày khung hoa văn, co theo chiều rộng khổ in. */
+export function frameThickness(width: number, design?: DesignSettings | null) {
+  const tuning = normalizeTuning(design?.tuning);
+  return Math.max(24, Math.round(Math.min(88, width * 0.0283) * tuning.frameScale));
+}
+
+/** Mép trên hoành phi trong hệ toạ độ giấy. */
+export function bannerTopFor(width: number, height: number, design?: DesignSettings | null) {
+  const banner = normalizeBanner(design?.banner);
+  if (!banner.enabled) return 0;
+  return Math.round(
+    Math.min(height * 0.13, Math.max(frameThickness(width, design), height * bannerTopRatio(design))),
+  );
+}
+
+/** Mép trên thẻ thành viên đầu tiên tính theo tỉ lệ chiều cao giấy. */
+export const FIRST_CARD_TOP_RATIO = 0.26;
+
+/** Gốc dọc của khối nội dung: đặt hàng thẻ đầu tiên ở 26% chiều cao giấy. */
+export function treeTop(dimensions: DiagramDimensions, layout: TreeLayout) {
+  const minY = layout.nodes.length ? Math.min(...layout.nodes.map((node) => node.y)) : 0;
+  const target = dimensions.height * FIRST_CARD_TOP_RATIO - minY;
+  return Math.max(0, Math.min(target, dimensions.height - layout.height - 8));
+}
+
+function clampValue(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export interface DragonBounds {
+  dxMin: number;
+  dxMax: number;
+  dyMin: number;
+  dyMax: number;
+  /** Mép trên rồng khi chưa dịch, trong hệ toạ độ của nhóm hoành phi. */
+  defaultY: number;
+  gap: number;
+  dragonW: number;
+  dragonH: number;
+}
+
+/** Giới hạn kéo rồng: ngang từ cạnh hoành phi tới cạnh giấy, dọc trong lòng giấy. */
+export function dragonBounds(
+  width: number,
+  height: number,
+  bannerTop: number,
+  banner: BannerSettings,
+): DragonBounds {
+  const bannerH = banner.width / BANNER_ASPECT;
+  const dragonH = bannerH * 1.02 * banner.dragonScale;
+  const dragonW = (dragonH * 1000) / 1232;
+  const gap = banner.width * 0.015;
+  const defaultY = bannerH - dragonH + bannerH * 0.06;
+  const dxMin = -gap;
+  const dxMax = Math.max(dxMin, width / 2 - banner.width / 2 - gap - dragonW);
+  return {
+    dxMin,
+    dxMax,
+    dyMin: -(bannerTop + defaultY),
+    dyMax: height - bannerTop - defaultY - dragonH,
+    defaultY,
+    gap,
+    dragonW,
+    dragonH,
+  };
+}
+
+export function dragonOffsets(bounds: DragonBounds, banner: BannerSettings) {
+  return {
+    dx: clampValue(banner.dragonOffsetX ?? 0, bounds.dxMin, bounds.dxMax),
+    dy: clampValue(banner.dragonOffsetY ?? 0, bounds.dyMin, bounds.dyMax),
+  };
+}
+
+export interface CoupletMetrics {
+  width: number;
+  height: number;
+  charStep: number;
+  lines: string[];
+}
+
+/** Câu đối xếp dọc theo từng âm tiết, mỗi dòng một âm tiết. */
+export function coupletMetrics(
+  couplets: Pick<CoupletSettings, "fontSize" | "leftText" | "rightText">,
+): CoupletMetrics {
+  const words = (text: string) => text.trim().split(/\s+/).filter(Boolean);
+  const left = words(couplets.leftText);
+  const right = words(couplets.rightText);
+  const count = Math.max(1, left.length, right.length);
+  const charStep = couplets.fontSize * 1.3;
+  return {
+    width: couplets.fontSize * 1.65,
+    height: count * charStep,
+    charStep,
+    lines: left.length >= right.length ? left : right,
+  };
+}
+
+export interface CoupletBounds {
+  dxMin: number;
+  dxMax: number;
+  dyMin: number;
+  dyMax: number;
+  /** Mép trên câu đối khi chưa dịch, trong hệ toạ độ nhóm hoành phi. */
+  defaultTop: number;
+  width: number;
+  height: number;
+  gap: number;
+}
+
+/** Giới hạn kéo câu đối: từ mép ngoài rồng tới mép trong khung giấy, dọc trong lòng giấy. */
+export function coupletBounds(
+  width: number,
+  height: number,
+  bannerTop: number,
+  frameS: number,
+  banner: BannerSettings,
+  dragonBox: DragonBounds,
+  dragonShift: { dx: number; dy: number },
+  couplets: CoupletSettings,
+): CoupletBounds {
+  const metrics = coupletMetrics(couplets);
+  const gap = Math.max(10, banner.width * 0.02);
+  const dragonOuterLeft =
+    -banner.width / 2 - dragonBox.gap - dragonBox.dragonW - dragonShift.dx;
+  const defaultInnerLeft = dragonOuterLeft - gap;
+  const minOuterLeft = -width / 2 + frameS + 8;
+  const dxMax = Math.max(0, defaultInnerLeft - metrics.width - minOuterLeft);
+  const defaultTop = dragonBox.defaultY + (dragonBox.dragonH - metrics.height) / 2;
+  const minTop = -bannerTop + frameS + 8;
+  const maxTop = height - bannerTop - frameS - 8 - metrics.height;
+  return {
+    dxMin: 0,
+    dxMax,
+    dyMin: minTop - defaultTop,
+    dyMax: Math.max(minTop - defaultTop, maxTop - defaultTop),
+    defaultTop,
+    width: metrics.width,
+    height: metrics.height,
+    gap,
+  };
+}
+
+export function coupletOffsets(bounds: CoupletBounds, couplets: CoupletSettings) {
+  return {
+    dx: clampValue(couplets.offsetX ?? 0, bounds.dxMin, bounds.dxMax),
+    dy: clampValue(couplets.offsetY ?? 0, bounds.dyMin, bounds.dyMax),
+  };
+}
+
+/**
+ * Mốc quy đổi mm → đơn vị phả đồ: khổ A0 ngang rộng 1189 mm ứng với 3486 đơn vị.
+ * Nhờ mốc cố định này, đổi chi tiết không làm tỉ lệ giấy co giãn.
+ */
+export const PAPER_UNITS_PER_MM = 3486 / 1189;
+
+export interface PaperUnits {
+  width: number;
+  height: number;
+}
+
+/**
+ * Khung giấy cố định theo khổ đã chọn. Chỉ nới theo bố cục chuẩn (thiết kế mặc định,
+ * không vị trí kéo tay) để cây nhỏ trên khổ nhỏ vẫn vừa như trước; mọi thay đổi chi
+ * tiết (cỡ thẻ, cỡ nhãn, câu đối, hoành phi…) không đổi khung giấy.
+ */
+export function paperUnitsFor(
+  tree: FamilyTree,
+  paper: { widthMm: number; heightMm: number },
+): PaperUnits {
+  const aspect = paper.widthMm / paper.heightMm;
+  const reference = computeLayout({ ...tree, positions: {}, design: DEFAULT_DESIGN });
+  const referenceW = Math.max(reference.width, 720);
+  const referenceH = Math.max(reference.height + contentTop(DEFAULT_DESIGN) + 16, 420);
+  const width = Math.max(paper.widthMm * PAPER_UNITS_PER_MM, referenceW, referenceH * aspect);
+  return { width, height: width / aspect };
+}
+
 export function diagramDimensions(
   layout: TreeLayout,
   design: DesignSettings,
-  paperAspect?: number,
+  paper?: PaperUnits,
 ): DiagramDimensions {
   const contentW = Math.max(layout.width, 720);
-  const contentH = Math.max(layout.height + contentTop(design) + 16, 420);
-  if (!paperAspect || !Number.isFinite(paperAspect) || paperAspect <= 0) {
-    return { width: contentW, height: contentH, contentW, contentH, offsetX: 0, offsetY: 0 };
-  }
-  let width = contentW;
-  let height = contentH;
-  if (contentW / contentH < paperAspect) width = contentH * paperAspect;
-  else height = contentW / paperAspect;
-  return { width, height, contentW, contentH, offsetX: (width - contentW) / 2, offsetY: (height - contentH) / 2 };
+  const baseH = Math.max(layout.height + contentTop(design) + 16, 420);
+  const width = paper?.width ?? contentW;
+  const height = paper?.height ?? baseH;
+  return {
+    width,
+    height,
+    contentW,
+    contentH: baseH,
+    // Khi nội dung rộng hơn giấy, neo nội dung vào lề trái để nhãn đời vẫn đúng 2,5 cm.
+    offsetX: Math.max(0, (width - contentW) / 2),
+    offsetY: (height - baseH) / 2,
+  };
 }
 
 function truncate(text: string, max: number) {
@@ -167,8 +375,20 @@ interface DiagramCanvasProps {
   selectedDecorationId?: string | null;
   showGrid?: boolean;
   interactive?: boolean;
-  paperAspect?: number;
+  /** Khung giấy cố định (đơn vị canvas) theo khổ đã chọn. */
+  paper?: PaperUnits;
+  /** Chữ hoành phi riêng cho bản xem chi (thay cho text đã lưu trong thiết kế). */
+  bannerTextOverride?: string | null;
+  /** Ép hiện/ẩn năm sinh–mất trên thẻ, dùng cho lựa chọn Gọn/Đầy đủ. */
+  showDatesOverride?: boolean | null;
+  /** Vị trí rồng đang kéo (toạ độ tương đối so với vị trí mặc định). */
+  dragonDrag?: { x: number; y: number } | null;
+  /** Vị trí câu đối đang kéo (độ dịch ra ngoài và dịch dọc). */
+  coupletDrag?: { x: number; y: number } | null;
   onNodePointerDown?: (event: ReactPointerEvent<SVGGElement>, node: TreeNode) => void;
+  onNodeResizeStart?: (event: ReactPointerEvent<SVGGElement>, node: TreeNode) => void;
+  onDragonPointerDown?: (event: ReactPointerEvent<SVGGElement>, side: "left" | "right") => void;
+  onCoupletPointerDown?: (event: ReactPointerEvent<SVGGElement>, side: "left" | "right") => void;
   onDecorationPointerDown?: (event: ReactPointerEvent<SVGGElement>, decoration: Decoration) => void;
   onDecorationResizeStart?: (event: ReactPointerEvent<SVGGElement>, decoration: Decoration) => void;
   onDeleteDecoration?: (id: string) => void;
@@ -190,8 +410,15 @@ export function DiagramCanvas({
   selectedDecorationId,
   showGrid = false,
   interactive = false,
-  paperAspect,
+  paper,
+  bannerTextOverride,
+  showDatesOverride,
+  dragonDrag,
+  coupletDrag,
   onNodePointerDown,
+  onNodeResizeStart,
+  onDragonPointerDown,
+  onCoupletPointerDown,
   onDecorationPointerDown,
   onDecorationResizeStart,
   onDeleteDecoration,
@@ -204,12 +431,9 @@ export function DiagramCanvas({
   const generations = computeGenerations(tree.members, tree.founderId);
   const branchColor = new Map(tree.branches.map((branch) => [branch.id, branch.color]));
   const branchCode = new Map(tree.branches.map((branch) => [branch.id, branch.code]));
-  const { width, height, contentW, offsetX, offsetY } = diagramDimensions(
-    layout,
-    settings,
-    paperAspect,
-  );
-  const top = contentTop(settings);
+  const dimensions = diagramDimensions(layout, settings, paper);
+  const { width, height, contentW, offsetX } = dimensions;
+  const treeTopY = treeTop(dimensions, layout);
   const banner = normalizeBanner(settings.banner);
   const bannerH = banner.enabled ? banner.width / BANNER_ASPECT : 0;
   const bgArt = normalizeBackgroundImage(settings.backgroundImage);
@@ -221,28 +445,82 @@ export function DiagramCanvas({
   );
   const patternScale = tuning.patternScale ?? 1;
   const generationCounts = new Map<number, number>();
-  for (const gen of generations.values()) {
-    generationCounts.set(gen, (generationCounts.get(gen) ?? 0) + 1);
+  for (const node of layout.nodes) {
+    generationCounts.set(node.generation, (generationCounts.get(node.generation) ?? 0) + 1);
   }
   const patternId = `pat-bg-${idPrefix}`;
   const gridId = `pat-grid-${idPrefix}`;
   const tintId = `pat-tint-${idPrefix}`;
-  const bandColor = tuning.generationBandColor || palette.gold;
+  const bandColor = tuning.generationBandColor || palette.deep;
+  // Khổ A0: 2,5 cm tính từ mép trong khung viền tới nhãn, tương đương 73 đơn vị.
+  const labelGap = Math.round(73 * tuning.frameScale);
   const connectorColor = tuning.connectorColor || "";
   const tintColors = [palette.accent, palette.gold, "#3f6b52", "#3f5f86", "#9a4a6b", "#7a5a10"];
-  const frameS = Math.round(88 * tuning.frameScale);
-  const frameTW = (frameS * 182) / 94;
-  const frameTV = (frameS * 188) / 92;
-  const horTiles: number[] = [];
-  for (let x = frameS; x < width - frameS; x += frameTW) horTiles.push(x);
-  const verTiles: number[] = [];
-  for (let y = frameS; y < height - frameS; y += frameTV) verTiles.push(y);
-  const bannerLines = banner.text
+  // Độ dày khung ≈ 2,8% chiều rộng khổ in, nên in khổ lớn thì nét tự dày theo.
+  const frameS = frameThickness(width, settings);
+  // Mép trên hoành phi: mặc định 6% chiều cao giấy, không vượt khung trên và không quá 13%.
+  const bannerTopY = banner.enabled ? bannerTopFor(width, height, settings) : 0;
+  const dragonBox = banner.enabled && banner.showDragons ? dragonBounds(width, height, bannerTopY, banner) : null;
+  const dragonShift = dragonBox
+    ? {
+        dx: clampValue(dragonDrag?.x ?? banner.dragonOffsetX ?? 0, dragonBox.dxMin, dragonBox.dxMax),
+        dy: clampValue(dragonDrag?.y ?? banner.dragonOffsetY ?? 0, dragonBox.dyMin, dragonBox.dyMax),
+      }
+    : { dx: 0, dy: 0 };
+  const couplets = normalizeCouplets(settings.couplets);
+  const coupletBox =
+    banner.enabled && banner.showDragons && dragonBox && couplets.enabled
+      ? coupletBounds(width, height, bannerTopY, frameS, banner, dragonBox, dragonShift, couplets)
+      : null;
+  const coupletShift = coupletBox
+    ? {
+        dx: clampValue(
+          coupletDrag?.x ?? couplets.offsetX ?? 0,
+          coupletBox.dxMin,
+          coupletBox.dxMax,
+        ),
+        dy: clampValue(
+          coupletDrag?.y ?? couplets.offsetY ?? 0,
+          coupletBox.dyMin,
+          coupletBox.dyMax,
+        ),
+      }
+    : { dx: 0, dy: 0 };
+  const coupletWords = {
+    left: couplets.leftText.trim().split(/\s+/).filter(Boolean),
+    right: couplets.rightText.trim().split(/\s+/).filter(Boolean),
+  };
+  const coupletStep = couplets.fontSize * 1.3;
+  const frameCorner = FRAME_CORNER_RATIO * frameS;
+  const frameHorW = FRAME_HOR_W_RATIO * frameS;
+  const frameHorH = FRAME_HOR_H_RATIO * frameS;
+  const frameVerH = FRAME_VER_H_RATIO * frameS;
+  const frameLineW = FRAME_LINE_W_RATIO * frameS;
+  /** Chia một khoảng trống thành các tile nối, co giãn đều để khít hai đầu. */
+  const frameSegments = (start: number, end: number) => {
+    const length = end - start;
+    if (length <= 0.5) return [] as { center: number; step: number }[];
+    const count = Math.max(1, Math.round(length / frameLineW));
+    const step = length / count;
+    return Array.from({ length: count }, (_, index) => ({
+      center: start + step * (index + 0.5),
+      step,
+    }));
+  };
+  const frameTop = [
+    ...frameSegments(frameCorner, width / 2 - frameHorW / 2),
+    ...frameSegments(width / 2 + frameHorW / 2, width - frameCorner),
+  ];
+  const frameSide = [
+    ...frameSegments(frameCorner, height / 2 - frameVerH / 2),
+    ...frameSegments(height / 2 + frameVerH / 2, height - frameCorner),
+  ];
+  const bannerRaw =
+    bannerTextOverride && bannerTextOverride.trim() ? bannerTextOverride : banner.text;
+  const bannerLines = bannerRaw
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-  const dragonH = bannerH * 1.02 * banner.dragonScale;
-  const dragonW = (dragonH * 1000) / 1232;
 
   const nodeVisible = (id: string) => !visibleIds || visibleIds.has(id);
   const edgeVisible = (edge: TreeEdge) => {
@@ -299,13 +577,6 @@ export function DiagramCanvas({
           <stop offset="55%" stopColor="#fdf4e0" />
           <stop offset="100%" stopColor="#f8ecd4" />
         </linearGradient>
-        <linearGradient id={`${idPrefix}-wood`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#6f4426" />
-          <stop offset="32%" stopColor="#a97144" />
-          <stop offset="58%" stopColor="#6b3d20" />
-          <stop offset="82%" stopColor="#9a6238" />
-          <stop offset="100%" stopColor="#5e351b" />
-        </linearGradient>
         <filter id={tintId} x="0" y="0" width="100%" height="100%">
           <feFlood floodColor={bgArt.color} result="flood" />
           <feComposite in="flood" in2="SourceGraphic" operator="in" />
@@ -329,145 +600,169 @@ export function DiagramCanvas({
       ) : null}
       {showGrid ? <rect width={width} height={height} fill={`url(#${gridId})`} /> : null}
 
-      {tuning.frameStyle === "wood" ? (
-        <g>
-          <rect x="9" y="9" width={width - 18} height={height - 18} fill="none" stroke={`url(#${idPrefix}-wood)`} strokeWidth="18" />
-          <rect x="20" y="20" width={width - 40} height={height - 40} fill="none" stroke={palette.gold} strokeOpacity="0.55" strokeWidth="1" />
-          <rect x="24" y="24" width={width - 48} height={height - 48} fill="none" stroke={palette.gold} strokeOpacity="0.28" strokeWidth="0.6" />
-        </g>
-      ) : null}
-
-      {tuning.frameStyle === "meander" ? (
-        <g>
-          {horTiles.map((x) => (
+      <g>
+          {/* Thân nối ngang: cạnh trên lật dọc để chỉ đỏ hướng vào trong. */}
+          {frameTop.map(({ center, step }, index) => (
             <image
-              key={`frame-top-${x}`}
-              href={FRAME_HOR_SRC}
-              x={x}
-              y={0}
-              width={frameTW + 0.5}
+              key={`frame-top-${index}`}
+              href={FRAME_LINE_SRC}
+              x={-step / 2}
+              y={-frameS / 2}
+              width={step}
               height={frameS}
               preserveAspectRatio="none"
+              transform={`translate(${center} ${frameS / 2}) scale(1 -1)`}
             />
           ))}
-          {horTiles.map((x) => (
+          {frameTop.map(({ center, step }, index) => (
             <image
-              key={`frame-bottom-${x}`}
-              href={FRAME_HOR_SRC}
-              x={x}
-              y={0}
-              width={frameTW + 0.5}
+              key={`frame-bottom-${index}`}
+              href={FRAME_LINE_SRC}
+              x={-step / 2}
+              y={-frameS / 2}
+              width={step}
               height={frameS}
               preserveAspectRatio="none"
-              transform={`translate(0 ${height}) scale(1 -1)`}
+              transform={`translate(${center} ${height - frameS / 2})`}
             />
           ))}
-          {verTiles.map((y) => (
+          {/* Thân nối đứng: cạnh trái xoay 90°, cạnh phải xoay -90° để chỉ đỏ vào trong. */}
+          {frameSide.map(({ center, step }, index) => (
             <image
-              key={`frame-left-${y}`}
-              href={FRAME_VER_SRC}
-              x={0}
-              y={y}
-              width={frameS}
-              height={frameTV + 0.5}
+              key={`frame-left-${index}`}
+              href={FRAME_LINE_SRC}
+              x={-step / 2}
+              y={-frameS / 2}
+              width={step}
+              height={frameS}
               preserveAspectRatio="none"
+              transform={`translate(${frameS / 2} ${center}) rotate(90)`}
             />
           ))}
-          {verTiles.map((y) => (
+          {frameSide.map(({ center, step }, index) => (
             <image
-              key={`frame-right-${y}`}
-              href={FRAME_VER_SRC}
-              x={0}
-              y={y}
-              width={frameS}
-              height={frameTV + 0.5}
+              key={`frame-right-${index}`}
+              href={FRAME_LINE_SRC}
+              x={-step / 2}
+              y={-frameS / 2}
+              width={step}
+              height={frameS}
               preserveAspectRatio="none"
-              transform={`translate(${width} 0) scale(-1 1)`}
+              transform={`translate(${width - frameS / 2} ${center}) rotate(-90)`}
             />
           ))}
-          <image href={FRAME_CORNER_SRC} x={0} y={0} width={frameS} height={frameS} preserveAspectRatio="none" />
+          {/* Khối giữa 4 cạnh. */}
           <image
-            href={FRAME_CORNER_SRC}
-            x={0}
-            y={0}
-            width={frameS}
-            height={frameS}
+            href={FRAME_HOR_SRC}
+            x={-frameHorW / 2}
+            y={-frameHorH / 2}
+            width={frameHorW}
+            height={frameHorH}
             preserveAspectRatio="none"
-            transform={`translate(${width} 0) scale(-1 1)`}
-          />
-          <image
-            href={FRAME_CORNER_SRC}
-            x={0}
-            y={0}
-            width={frameS}
-            height={frameS}
-            preserveAspectRatio="none"
-            transform={`translate(0 ${height}) scale(1 -1)`}
+            transform={`translate(${width / 2} ${frameHorH / 2}) scale(1 -1)`}
           />
           <image
-            href={FRAME_CORNER_SRC}
-            x={0}
-            y={0}
-            width={frameS}
-            height={frameS}
+            href={FRAME_HOR_SRC}
+            x={-frameHorW / 2}
+            y={-frameHorH / 2}
+            width={frameHorW}
+            height={frameHorH}
             preserveAspectRatio="none"
-            transform={`translate(${width} ${height}) scale(-1 -1)`}
+            transform={`translate(${width / 2} ${height - frameHorH / 2})`}
           />
-          <rect
-            x="1.5"
-            y="1.5"
-            width={width - 3}
-            height={height - 3}
-            fill="none"
-            stroke="#b3261e"
-            strokeWidth="2.4"
-            strokeOpacity="0.85"
+          <image
+            href={FRAME_VER_SRC}
+            x={-frameS / 2}
+            y={-frameVerH / 2}
+            width={frameS}
+            height={frameVerH}
+            preserveAspectRatio="none"
+            transform={`translate(${frameS / 2} ${height / 2}) scale(-1 1)`}
           />
-        </g>
-      ) : null}
-
-      {settings.borderStyle !== "none" && tuning.frameStyle === "none" ? (
-        <g fill="none" stroke={palette.gold}>
-          <rect x="10" y="10" width={width - 20} height={height - 20} strokeWidth={settings.borderStyle === "ornate" ? 2 : 1} />
-          {settings.borderStyle === "ornate" ? (
-            <>
-              <rect x="16" y="16" width={width - 32} height={height - 32} strokeWidth="0.8" strokeOpacity="0.65" />
-              {[
-                [10, 10],
-                [width - 10, 10],
-                [10, height - 10],
-                [width - 10, height - 10],
-              ].map(([cx, cy]) => (
-                <g key={`${cx}-${cy}`} fill={palette.accent} stroke="none" opacity="0.75">
-                  <circle cx={cx} cy={cy} r="5" />
-                  <circle cx={cx} cy={cy} r="2" fill={palette.gold} />
-                </g>
-              ))}
-            </>
-          ) : null}
-        </g>
-      ) : null}
+          <image
+            href={FRAME_VER_SRC}
+            x={-frameS / 2}
+            y={-frameVerH / 2}
+            width={frameS}
+            height={frameVerH}
+            preserveAspectRatio="none"
+            transform={`translate(${width - frameS / 2} ${height / 2})`}
+          />
+          {/* 4 khối góc, lật từ mẫu góc dưới - phải. */}
+          <image
+            href={FRAME_CORNER_SRC}
+            x={-frameCorner / 2}
+            y={-frameCorner / 2}
+            width={frameCorner}
+            height={frameCorner}
+            preserveAspectRatio="none"
+            transform={`translate(${frameCorner / 2} ${frameCorner / 2}) scale(-1 -1)`}
+          />
+          <image
+            href={FRAME_CORNER_SRC}
+            x={-frameCorner / 2}
+            y={-frameCorner / 2}
+            width={frameCorner}
+            height={frameCorner}
+            preserveAspectRatio="none"
+            transform={`translate(${width - frameCorner / 2} ${frameCorner / 2}) scale(1 -1)`}
+          />
+          <image
+            href={FRAME_CORNER_SRC}
+            x={-frameCorner / 2}
+            y={-frameCorner / 2}
+            width={frameCorner}
+            height={frameCorner}
+            preserveAspectRatio="none"
+            transform={`translate(${frameCorner / 2} ${height - frameCorner / 2}) scale(-1 1)`}
+          />
+          <image
+            href={FRAME_CORNER_SRC}
+            x={-frameCorner / 2}
+            y={-frameCorner / 2}
+            width={frameCorner}
+            height={frameCorner}
+            preserveAspectRatio="none"
+            transform={`translate(${width - frameCorner / 2} ${height - frameCorner / 2})`}
+          />
+      </g>
 
       {banner.enabled ? (
-        <g transform={`translate(${width / 2}, ${CONTENT_TOP + offsetY})`}>
-          {banner.showDragons ? (
+        <g transform={`translate(${width / 2}, ${bannerTopY})`}>
+          {banner.showDragons && dragonBox ? (
             <>
-              <image
-                href={DRAGON_SRC_LEFT}
-                x={-banner.width / 2 - dragonW - banner.width * 0.015}
-                y={bannerH - dragonH + bannerH * 0.06}
-                width={dragonW}
-                height={dragonH}
-                preserveAspectRatio="xMidYMid meet"
-              />
-              <image
-                href={DRAGON_SRC_RIGHT}
-                x={banner.width / 2 + banner.width * 0.015}
-                y={bannerH - dragonH + bannerH * 0.06}
-                width={dragonW}
-                height={dragonH}
-                preserveAspectRatio="xMidYMid meet"
-              />
+              {(["left", "right"] as const).map((side) => {
+                const x =
+                  side === "left"
+                    ? -banner.width / 2 - dragonBox.gap - dragonBox.dragonW - dragonShift.dx
+                    : banner.width / 2 + dragonBox.gap + dragonShift.dx;
+                const y = dragonBox.defaultY + dragonShift.dy;
+                return (
+                  <g
+                    key={`dragon-${side}`}
+                    transform={`translate(${x}, ${y})`}
+                    onPointerDown={
+                      interactive && onDragonPointerDown
+                        ? (event) => onDragonPointerDown(event, side)
+                        : undefined
+                    }
+                    style={interactive ? { cursor: "grab", touchAction: "none" } : undefined}
+                  >
+                    <rect
+                      width={dragonBox.dragonW}
+                      height={dragonBox.dragonH}
+                      fill="#000"
+                      fillOpacity="0"
+                    />
+                    <image
+                      href={side === "left" ? DRAGON_SRC_LEFT : DRAGON_SRC_RIGHT}
+                      width={dragonBox.dragonW}
+                      height={dragonBox.dragonH}
+                      preserveAspectRatio="xMidYMid meet"
+                    />
+                  </g>
+                );
+              })}
             </>
           ) : null}
           <image
@@ -495,10 +790,66 @@ export function DiagramCanvas({
               ))}
             </text>
           ) : null}
+          {coupletBox ? (
+            <>
+              {(["left", "right"] as const).map((side) => {
+                const dragonOuter =
+                  side === "left"
+                    ? -banner.width / 2 - dragonBox!.gap - dragonBox!.dragonW - dragonShift.dx
+                    : banner.width / 2 + dragonBox!.gap + dragonBox!.dragonW + dragonShift.dx;
+                const outward = coupletShift.dx;
+                const blockX =
+                  side === "left"
+                    ? dragonOuter - coupletBox.gap - outward - coupletBox.width
+                    : dragonOuter + coupletBox.gap + outward;
+                const words = coupletWords[side];
+                const top = coupletBox.defaultTop + coupletShift.dy;
+                return (
+                  <g
+                    key={`couplet-${side}`}
+                    transform={`translate(${blockX}, ${top})`}
+                    onPointerDown={
+                      interactive && onCoupletPointerDown
+                        ? (event) => onCoupletPointerDown(event, side)
+                        : undefined
+                    }
+                    style={interactive ? { cursor: "grab", touchAction: "none" } : undefined}
+                  >
+                    <rect
+                      width={coupletBox.width}
+                      height={coupletBox.height}
+                      fill="#000"
+                      fillOpacity="0"
+                    />
+                    <text
+                      x={coupletBox.width / 2}
+                      y={couplets.fontSize * 0.92}
+                      textAnchor="middle"
+                      fontSize={couplets.fontSize}
+                      className="pat-couplet"
+                      fontFamily="'Thu Phap Viet', 'Dancing Script', cursive"
+                      fontWeight="600"
+                      fill={couplets.color}
+                    >
+                      {words.map((word, index) => (
+                        <tspan
+                          key={`${side}-${index}`}
+                          x={coupletBox.width / 2}
+                          y={couplets.fontSize * 0.92 + index * coupletStep}
+                        >
+                          {word}
+                        </tspan>
+                      ))}
+                    </text>
+                  </g>
+                );
+              })}
+            </>
+          ) : null}
         </g>
       ) : null}
 
-      <g transform={`translate(${offsetX}, ${top + offsetY})`}>
+      <g transform={`translate(${offsetX}, ${treeTopY})`}>
         {guides?.length ? (
           <g pointerEvents="none">
             {guides.map((guide, index) =>
@@ -536,29 +887,41 @@ export function DiagramCanvas({
         {settings.showGenerationLabels
           ? layout.generations.map((row) => {
               const label = row.label ?? bandLabelFor(tuning.generationBandLabel, row.generation);
-              const bandW = Math.max(86, Math.min(160, label.length * 5.4 + 18));
-              const rightX = contentW - 34 - bandW;
+              // Nhãn tự lớn theo cỡ thẻ của đời; khổ A0 giữ 2,5 cm tới khung và 2,5 cm tới thẻ.
+              const band = generationBandMetrics(
+                label,
+                (tuning.generationLabelScale ?? 1) * cardScaleFor(settings, row.generation),
+              );
+              const leftX = frameS + labelGap - offsetX;
+              const rightX = width - frameS - labelGap - offsetX - band.width;
+              // Canh giữa nhãn theo chiều cao thẻ của đời này (không neo ở đỉnh hàng).
+              const rowHeight = layout.nodes.reduce(
+                (max, node) => (node.generation === row.generation ? Math.max(max, node.height) : max),
+                0,
+              );
+              const pillY = row.y + Math.max(0, rowHeight / 2 - band.height / 2);
+              const pillCenterY = pillY + band.height / 2;
               return (
                 <g key={`gen-${row.generation}`}>
                   <rect
-                    x="34"
-                    y={row.y - 28}
-                    width={bandW}
-                    height="20"
-                    rx="10"
+                    x={leftX}
+                    y={pillY}
+                    width={band.width}
+                    height={band.height}
+                    rx={band.radius}
                     fill={bandColor}
-                    fillOpacity="0.12"
+                    fillOpacity="0.16"
                     stroke={bandColor}
-                    strokeOpacity="0.35"
+                    strokeOpacity="0.55"
                     strokeWidth="0.7"
                   />
                   <text
-                    x={34 + bandW / 2}
-                    y={row.y - 14}
+                    x={leftX + band.width / 2}
+                    y={pillCenterY + band.fontSize * 0.36}
                     textAnchor="middle"
-                    fontSize="7.2"
+                    fontSize={band.fontSize}
                     fontWeight="700"
-                    letterSpacing="0.8"
+                    letterSpacing={band.letterSpacing}
                     fill={bandColor}
                     fontFamily="'Be Vietnam Pro', sans-serif"
                   >
@@ -566,33 +929,33 @@ export function DiagramCanvas({
                   </text>
                   <rect
                     x={rightX}
-                    y={row.y - 28}
-                    width={bandW}
-                    height="20"
-                    rx="10"
+                    y={pillY}
+                    width={band.width}
+                    height={band.height}
+                    rx={band.radius}
                     fill={bandColor}
-                    fillOpacity="0.12"
+                    fillOpacity="0.16"
                     stroke={bandColor}
-                    strokeOpacity="0.35"
+                    strokeOpacity="0.55"
                     strokeWidth="0.7"
                   />
                   <text
-                    x={rightX + bandW / 2}
-                    y={row.y - 14}
+                    x={rightX + band.width / 2}
+                    y={pillCenterY + band.fontSize * 0.36}
                     textAnchor="middle"
-                    fontSize="7.2"
+                    fontSize={band.fontSize}
                     fontWeight="700"
-                    letterSpacing="0.8"
+                    letterSpacing={band.letterSpacing}
                     fill={bandColor}
                     fontFamily="'Be Vietnam Pro', sans-serif"
                   >
                     {label}
                   </text>
                   <line
-                    x1={34 + bandW + 6}
+                    x1={leftX + band.width + 6}
                     x2={rightX - 6}
-                    y1={row.y - 18}
-                    y2={row.y - 18}
+                    y1={pillCenterY}
+                    y2={pillCenterY}
                     stroke={bandColor}
                     strokeOpacity="0.2"
                     strokeDasharray="4 6"
@@ -718,9 +1081,15 @@ export function DiagramCanvas({
                 (genStyle?.orientation ??
                   cardOrientationFor(settings, node.generation, generationCounts.get(node.generation))) ===
                 "vertical";
+              // Nội dung thẻ vẽ ở kích thước gốc rồi scale theo cỡ thẻ của đời.
+              const baseW = vertical ? CARD_VERTICAL_W : CARD_W;
+              const baseH = vertical ? CARD_VERTICAL_H : CARD_H;
+              const contentScale = node.width / baseW;
               const showTitle = genStyle?.showTitle ?? settings.showTitle !== false;
               const showName = genStyle?.showName ?? settings.showName !== false;
-              const showDates = (genStyle?.showDates ?? settings.showDates !== false) && !personStyle?.hideDates;
+              const showDates =
+                showDatesOverride ??
+                ((genStyle?.showDates ?? settings.showDates !== false) && !personStyle?.hideDates);
               const showAvatar = genStyle?.showAvatar ?? settings.showAvatar;
               const anniversary = person.deathAnniversary?.trim();
               const showAnniversary =
@@ -743,9 +1112,9 @@ export function DiagramCanvas({
               }
 
               const avatar = vertical
-                ? { cx: node.width / 2, cy: 27, r: 13, initialsY: 31, initialsSize: 9 }
+                ? { cx: baseW / 2, cy: 27, r: 13, initialsY: 31, initialsSize: 9 }
                 : { cx: 22, cy: 26, r: 11, initialsY: 30, initialsSize: 8.5 };
-              const textX = vertical ? node.width / 2 : 40;
+              const textX = vertical ? baseW / 2 : 40;
               const anchor = vertical ? "middle" : "start";
               const fontFamily = genStyle?.fontFamily || tuning.fontFamily;
               const nameSize = genStyle?.fontSize || tuning.fontSize;
@@ -753,7 +1122,7 @@ export function DiagramCanvas({
               const titleSize = Math.max(6.2, nameSize * 0.7);
               const metaSize = Math.max(6.2, nameSize * 0.74);
               const maxLines = Math.max(1, genStyle?.lineCount || tuning.lineCount);
-              const nameWidth = vertical ? node.width - 14 : node.width - 50;
+              const nameWidth = vertical ? baseW - 14 : baseW - 50;
               const nameLines = showName
                 ? wrapText(person.name, Math.floor(nameWidth / (nameSize * 0.56)), maxLines)
                 : [];
@@ -768,7 +1137,7 @@ export function DiagramCanvas({
                   : nameStart;
               const metaLines = meta.flatMap((line) =>
                 vertical
-                  ? wrapText(line, Math.floor((node.width - 12) / (metaSize * 0.54)), 2)
+                  ? wrapText(line, Math.floor((baseW - 12) / (metaSize * 0.54)), 2)
                   : [truncate(line, 30)],
               );
               const cardFill =
@@ -815,35 +1184,36 @@ export function DiagramCanvas({
                       <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} />
                     </clipPath>
                     <clipPath id={clipText}>
-                      <rect x="0" y="0" width={node.width} height={node.height} rx="7" />
+                      <rect x="0" y="0" width={baseW} height={baseH} rx="7" />
                     </clipPath>
                   </defs>
-                  {showAvatar && person.avatar ? (
-                    <image
-                      href={person.avatar}
-                      x={avatar.cx - avatar.r}
-                      y={avatar.cy - avatar.r}
-                      width={avatar.r * 2}
-                      height={avatar.r * 2}
-                      clipPath={`url(#${clip})`}
-                      preserveAspectRatio="xMidYMid slice"
-                    />
-                  ) : (
-                    <>
-                      <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} fill={color} opacity={inkSaver ? 0.5 : 0.92} />
-                      <text
-                        x={avatar.cx}
-                        y={avatar.initialsY}
-                        textAnchor="middle"
-                        fontSize={avatar.initialsSize}
-                        fontWeight="700"
-                        fill="#fff8e9"
-                        fontFamily="'Be Vietnam Pro', sans-serif"
-                      >
-                        {initials(person.name)}
-                      </text>
-                    </>
-                  )}
+                  <g transform={`scale(${contentScale})`}>
+                    {showAvatar && person.avatar ? (
+                      <image
+                        href={person.avatar}
+                        x={avatar.cx - avatar.r}
+                        y={avatar.cy - avatar.r}
+                        width={avatar.r * 2}
+                        height={avatar.r * 2}
+                        clipPath={`url(#${clip})`}
+                        preserveAspectRatio="xMidYMid slice"
+                      />
+                    ) : (
+                      <>
+                        <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} fill={color} opacity={inkSaver ? 0.5 : 0.92} />
+                        <text
+                          x={avatar.cx}
+                          y={avatar.initialsY}
+                          textAnchor="middle"
+                          fontSize={avatar.initialsSize}
+                          fontWeight="700"
+                          fill="#fff8e9"
+                          fontFamily="'Be Vietnam Pro', sans-serif"
+                        >
+                          {initials(person.name)}
+                        </text>
+                      </>
+                    )}
                   <g clipPath={`url(#${clipText})`}>
                     {showTitle ? (
                       <text
@@ -896,7 +1266,7 @@ export function DiagramCanvas({
                     {branchCode.get(person.branchId ?? "") ? (
                       <text
                         x={6}
-                        y={node.height - 5.5}
+                        y={baseH - 5.5}
                         textAnchor="start"
                         fontSize={Math.max(5.4, nameSize * 0.54)}
                         fontWeight="700"
@@ -909,8 +1279,8 @@ export function DiagramCanvas({
                     ) : null}
                     {node.maternal ? (
                       <text
-                        x={node.width - 6}
-                        y={node.height - 5}
+                        x={baseW - 6}
+                        y={baseH - 5}
                         textAnchor="end"
                         fontSize={Math.max(5.4, nameSize * 0.54)}
                         fill={palette.gold}
@@ -922,7 +1292,7 @@ export function DiagramCanvas({
                     ) : null}
                     {settings.showGenderSymbol ? (
                       <text
-                        x={node.width - 6}
+                        x={baseW - 6}
                         y={vertical ? 11 : 12}
                         textAnchor="end"
                         fontSize={Math.max(9, nameSize * 0.86)}
@@ -935,6 +1305,29 @@ export function DiagramCanvas({
                       </text>
                     ) : null}
                   </g>
+                  </g>
+                  {focused && interactive && onNodeResizeStart ? (
+                    <g
+                      transform={`translate(${node.width - 9}, ${node.height - 9})`}
+                      className="cursor-nwse-resize"
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        onNodeResizeStart(event, node);
+                      }}
+                    >
+                      <title>Kéo để đổi cỡ thẻ cho cả đời</title>
+                      <rect x="-9" y="-9" width="18" height="18" fill="transparent" />
+                      <circle r="6" fill="#fffaf0" stroke={palette.accent} strokeWidth="1.6" />
+                      <path
+                        d="M-2.4 2.4 L2.4 -2.4 M-2.4 -2.4 L2.4 -2.4 M2.4 -2.4 L2.4 2.4"
+                        fill="none"
+                        stroke={palette.accent}
+                        strokeWidth="1.1"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </g>
+                  ) : null}
                 </g>
               );
             })}
@@ -1025,7 +1418,7 @@ export function DiagramCanvas({
           const size = decoration.type === "image" ? decoration.width ?? 120 : Math.max(80, decoration.content.length * 8);
           return (
             <g
-              transform={`translate(${offsetX + decoration.x + size + 6}, ${top + offsetY + decoration.y - 14})`}
+              transform={`translate(${offsetX + decoration.x + size + 6}, ${treeTopY + decoration.y - 14})`}
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();

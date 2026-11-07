@@ -38,7 +38,7 @@ import {
 } from "./types";
 import { computeGenerations, lifeSpan } from "./utils";
 import { computeLayout } from "./layout";
-import { DiagramCanvas, diagramDimensions } from "./diagram-canvas";
+import { DiagramCanvas, diagramDimensions, paperUnitsFor } from "./diagram-canvas";
 import {
   AUTO_ROTATE_MIN_MEMBERS,
   dateStamp,
@@ -125,9 +125,12 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
     () => computeLayout({ ...tree, positions: activePositions }),
     [tree, activePositions],
   );
-  const paper = useMemo(() => paperDimensions(tree, baseLayout), [tree, baseLayout]);
-  const paperAspect = paper.widthMm / paper.heightMm;
-  const dims = useMemo(() => diagramDimensions(layout, design, paperAspect), [layout, design, paperAspect]);
+  const paper = useMemo(() => paperDimensions(tree), [tree]);
+  const paperUnits = useMemo(() => paperUnitsFor(tree, paper), [tree, paper]);
+  const dims = useMemo(
+    () => diagramDimensions(layout, design, paperUnits),
+    [layout, design, paperUnits],
+  );
   const generations = useMemo(
     () => computeGenerations(tree.members, tree.founderId),
     [tree.members, tree.founderId],
@@ -208,7 +211,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
     return () => observer.disconnect();
   }, [dims.width, dims.height]);
 
-  const orientation = resolveOrientation(tree, layout);
+  const orientation = resolveOrientation(tree);
   const autoRotate = design.autoRotate !== false;
   const paperCm = `${(paper.widthMm / 10).toLocaleString("vi-VN", { maximumFractionDigits: 1 })} × ${(
     paper.heightMm / 10
@@ -442,7 +445,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                     decorations={tree.decorations}
                     svgId="pat-design-svg"
                     idPrefix="design"
-                    paperAspect={paperAspect}
+                    paper={paperUnits}
                   />
                 </div>
               </div>
@@ -835,21 +838,8 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                 : ""}
               Ước tính mực in: <strong>{inkLevel}</strong>.
             </p>
-            <div className="mt-3">
-              <Field label="Khung viền">
-                <Segmented<"none" | "simple" | "ornate">
-                  value={design.borderStyle}
-                  onChange={(borderStyle) => setDesign(tree.id, { borderStyle })}
-                  options={[
-                    { value: "none", label: "Không" },
-                    { value: "simple", label: "Đơn giản" },
-                    { value: "ornate", label: "Hoa văn" },
-                  ]}
-                />
-              </Field>
-            </div>
             <p className="mt-2 text-[0.68rem] text-[var(--pat-muted)]">
-              Hoành phi, khung gỗ và khung diềm chỉnh trong trang Tạo phả đồ.
+              Phả đồ dùng khung hoa văn cố định; hoành phi và cỡ viền chỉnh trong trang Tạo phả đồ.
             </p>
           </section>
         </div>
@@ -1037,7 +1027,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
             <span className="min-w-0 flex-1">
               <span className="block text-xs font-semibold">Mở trong Tạo phả đồ</span>
               <span className="block text-[0.68rem] text-[var(--pat-muted)]">
-                Kéo thẻ, thêm trang trí, chỉnh hoành phi và khung gỗ
+                Kéo thẻ, thêm trang trí, chỉnh hoành phi và cỡ viền
               </span>
             </span>
             <ArrowRight size={15} className="shrink-0 text-[var(--pat-red)]" />
@@ -1117,7 +1107,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                       decorations={tree.decorations}
                       svgId={`pat-cmp-${index}`}
                       idPrefix={`cmp-${index}`}
-                      paperAspect={paperAspect}
+                      paper={paperUnits}
                     />
                   </div>
                 </div>

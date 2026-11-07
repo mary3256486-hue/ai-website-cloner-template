@@ -29,6 +29,7 @@ import { cardOrientationFor, generationTag, isDeceasedStatus, lifeStatusOf, UNKN
 import { classifyClan, CLAN_ROLE_LABELS } from "./clan";
 import { computeGenerations, descendants, lifeSpan, sortGenerations, sortPersons } from "./utils";
 import { computeLayout } from "./layout";
+import { branchViewHref, computeBranchScope, parseBranchView, type BranchViewOptions } from "./branch-view";
 import { TreeShell } from "./app-shell";
 import { Avatar, Badge, Field, Sheet, SheetRow } from "./ui";
 import { MemberFormSheet } from "./member-form-sheet";
@@ -74,7 +75,15 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const fittedRef = useRef<string | null>(null);
 
-  const layout = useMemo(() => computeLayout(tree), [tree]);
+  const [branchParams, setBranchParams] = useState<BranchViewOptions | null>(null);
+  const branchScope = useMemo(
+    () => (branchParams ? computeBranchScope(tree, branchParams) : null),
+    [tree, branchParams],
+  );
+  const layout = useMemo(
+    () => (branchScope ? computeLayout({ ...tree, positions: {} }, branchScope.ids) : computeLayout(tree)),
+    [tree, branchScope],
+  );
   const gens = useMemo(
     () => computeGenerations(tree.members, tree.founderId),
     [tree.members, tree.founderId],
@@ -100,6 +109,11 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
   const [spouseOf, setSpouseOf] = useState<Person | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [density, setDensity] = useState<Density>("full");
+  const effectiveDensity: Density = branchScope
+    ? branchScope.options.cardStyle === "full"
+      ? "full"
+      : "compact"
+    : density;
   const [focusId, setFocusId] = useState<string | null>(null);
   const [relationsFor, setRelationsFor] = useState<Person | null>(null);
   const [assign, setAssign] = useState<{ person: Person; kind: AssignKind } | null>(null);
@@ -135,6 +149,12 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [densityKey, searchKey, skipKey]);
+
+  useEffect(() => {
+    const parsed = parseBranchView(window.location.search);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (parsed) setBranchParams(parsed);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -292,6 +312,11 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
   }, [focusId, fit]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => fit(), 80);
+    return () => window.clearTimeout(timer);
+  }, [branchParams, fit]);
+
+  useEffect(() => {
     if (!pan) return;
     const onMove = (event: PointerEvent) => {
       setView((prev) => ({
@@ -407,6 +432,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
     return tree.members
       .filter((member) => {
         if (!clan.isDisplayed(member.id)) return false;
+        if (branchScope && !branchScope.ids.has(member.id)) return false;
         const gen = gens.get(member.id) ?? UNKNOWN_GENERATION;
         if (genFilter === "unknown" && gen !== UNKNOWN_GENERATION) return false;
         if (typeof genFilter === "number" && gen !== genFilter) return false;
@@ -421,7 +447,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
         );
       })
       .sort((a, b) => sortGenerations(gens.get(a.id) ?? 1, gens.get(b.id) ?? 1) || sortPersons(a, b));
-  }, [tree.members, gens, clan, query, searchGen, searchBranch]);
+  }, [tree.members, gens, clan, query, searchGen, searchBranch, branchScope]);
   const searchResults = searchMatches.slice(0, 30);
   const highlightIds = useMemo(
     () => new Set(highlightActive ? searchMatches.map((member) => member.id) : []),
@@ -539,17 +565,26 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
     setToast({ message: `Đã bỏ qua cảnh báo thiếu cha của ${skipTarget.name}.` });
   };
 
+  const exitBranchView = () => {
+    setBranchParams(null);
+    router.replace(`/gia-pha/${tree.id}/chinh-sua-voi-cay-gia-pha`);
+  };
+
   return (
     <TreeShell
       tree={tree}
       section="chinh-sua-voi-cay-gia-pha"
-      title="Cây gia phả"
+      title={branchScope ? "Cây gia phả — xem theo chi" : "Cây gia phả"}
       wide
-      subtitle={`${layout.nodes.length} thành viên · ${layout.generations.filter((row) => !row.isAncestor).length} đời${
-        layout.generations.some((row) => row.isAncestor)
-          ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tiền tổ`
-          : ""
-      }`}
+      subtitle={
+        branchScope
+          ? `${branchScope.title} · ${branchScope.count} thành viên nội tộc · ${branchScope.ids.size} người hiển thị`
+          : `${layout.nodes.length} thành viên · ${layout.generations.filter((row) => !row.isAncestor).length} đời${
+              layout.generations.some((row) => row.isAncestor)
+                ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tiền tổ`
+                : ""
+            }`
+      }
       actions={
         <>
           <button
@@ -568,18 +603,54 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
           >
             <HelpCircle size={17} />
           </button>
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="flex h-9 items-center gap-1 rounded-full border border-[rgba(231,206,139,0.5)] bg-[#8f2018] px-3 text-xs font-semibold text-[#fff4df]"
-          >
-            <Plus size={14} /> Thêm
-          </button>
+          {branchScope ? null : (
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="flex h-9 items-center gap-1 rounded-full border border-[rgba(231,206,139,0.5)] bg-[#8f2018] px-3 text-xs font-semibold text-[#fff4df]"
+            >
+              <Plus size={14} /> Thêm
+            </button>
+          )}
         </>
       }
     >
       <div className="space-y-3">
-        {missingFather.length ? (
+        {branchScope ? (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0] px-3 py-2 text-xs">
+            <GitBranch size={14} className="shrink-0 text-[var(--pat-red)]" />
+            <span className="min-w-0 flex-1 basis-full sm:basis-auto">
+              Đang xem <strong>{branchScope.title}</strong> · trưởng chi {branchScope.head.name} ·{" "}
+              {branchScope.count} thành viên nội tộc · {branchScope.ids.size} người hiển thị
+              {branchScope.options.ancestorGenerations
+                ? ` · ${branchScope.options.ancestorGenerations} đời trên`
+                : ""}
+              {branchScope.options.generationLimit
+                ? ` · giới hạn ${branchScope.options.generationLimit} đời`
+                : ""}
+              <span className="mt-0.5 block text-[0.66rem] leading-snug text-[var(--pat-muted)]">
+                Chế độ này chỉ để xem; lựa chọn chi, số đời và chữ hoành phi không được lưu vào gia phả.
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                router.push(branchViewHref(`/gia-pha/${tree.id}/ve-pha-do`, branchScope.options))
+              }
+              className="pat-btn pat-btn-outline h-8 shrink-0 text-[0.68rem]"
+            >
+              Xem phả đồ chi
+            </button>
+            <button
+              type="button"
+              onClick={exitBranchView}
+              className="pat-btn pat-btn-red h-8 shrink-0 text-[0.68rem]"
+            >
+              Xem toàn bộ
+            </button>
+          </div>
+        ) : null}
+        {!branchScope && missingFather.length ? (
           <button
             type="button"
             onClick={() => setWarningOpen(true)}
@@ -593,7 +664,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
             <ChevronRight size={14} />
           </button>
         ) : null}
-        {!missingFather.length && skippedEntries.length ? (
+        {!branchScope && !missingFather.length && skippedEntries.length ? (
           <button
             type="button"
             onClick={() => setWarningOpen(true)}
@@ -606,7 +677,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
             <ChevronRight size={14} />
           </button>
         ) : null}
-        {focusPerson ? (
+        {!branchScope && focusPerson ? (
           <div className="flex items-center gap-2 rounded-xl border border-[var(--pat-line)] bg-[#fffaf0] px-3 py-2 text-xs">
             <Network size={14} className="shrink-0 text-[var(--pat-red)]" />
             <span className="min-w-0 flex-1">
@@ -711,7 +782,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                 const active = selectedId === person.id;
                 const matched = highlightIds.has(person.id);
                 const deceased = isDeceasedStatus(lifeStatusOf(person));
-                const compact = density === "compact";
+                const compact = effectiveDensity === "compact";
                 const vertical = cardOrientationFor(tree.design, node.generation) === "vertical";
                 return (
                   <button
@@ -862,28 +933,34 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
               ? ` · ${layout.generations.filter((row) => row.isAncestor).length} bậc tổ`
               : ""}
           </Badge>
-          <span className="inline-flex items-center gap-1 rounded-full border border-[var(--pat-line)] bg-white/70 p-0.5" role="group" aria-label="Mật độ thẻ">
-            <button
-              type="button"
-              aria-pressed={density === "full"}
-              onClick={() => changeDensity("full")}
-              className={`rounded-full px-2 py-0.5 text-[0.66rem] font-semibold ${
-                density === "full" ? "bg-[var(--pat-red)] text-[#fff4df]" : "text-[var(--pat-muted)]"
-              }`}
-            >
-              Đầy đủ
-            </button>
-            <button
-              type="button"
-              aria-pressed={density === "compact"}
-              onClick={() => changeDensity("compact")}
-              className={`rounded-full px-2 py-0.5 text-[0.66rem] font-semibold ${
-                density === "compact" ? "bg-[var(--pat-red)] text-[#fff4df]" : "text-[var(--pat-muted)]"
-              }`}
-            >
-              Gọn
-            </button>
-          </span>
+          {branchScope ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--pat-line)] bg-white/70 px-2 py-0.5 font-semibold">
+              Thẻ: {effectiveDensity === "compact" ? "Gọn" : "Đầy đủ"}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--pat-line)] bg-white/70 p-0.5" role="group" aria-label="Mật độ thẻ">
+              <button
+                type="button"
+                aria-pressed={density === "full"}
+                onClick={() => changeDensity("full")}
+                className={`rounded-full px-2 py-0.5 text-[0.66rem] font-semibold ${
+                  density === "full" ? "bg-[var(--pat-red)] text-[#fff4df]" : "text-[var(--pat-muted)]"
+                }`}
+              >
+                Đầy đủ
+              </button>
+              <button
+                type="button"
+                aria-pressed={density === "compact"}
+                onClick={() => changeDensity("compact")}
+                className={`rounded-full px-2 py-0.5 text-[0.66rem] font-semibold ${
+                  density === "compact" ? "bg-[var(--pat-red)] text-[#fff4df]" : "text-[var(--pat-muted)]"
+                }`}
+              >
+                Gọn
+              </button>
+            </span>
+          )}
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-0 w-4 border-t border-dashed border-[var(--pat-gold)]" /> dâu/rể
           </span>
