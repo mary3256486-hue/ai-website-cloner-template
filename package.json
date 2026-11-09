@@ -1,26 +1,21 @@
 {
-  "name": "ai-website-clone-template",
-  "version": "0.6.1",
+  "name": "tieu-pham-gia-pha",
+  "version": "1.0.0",
   "private": true,
   "main": "electron/main.mjs",
-  "description": "Clone any website into a clean, modern Next.js codebase using AI coding agents",
-  "author": "JCodesMore",
+  "description": "Ứng dụng dựng, trình bày và in ấn gia phả dòng họ — Khối Đình Tiểu Phạm",
+  "author": "Khối Đình Tiểu Phạm",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JCodesMore/ai-website-cloner-template.git"
-  },
-  "homepage": "https://github.com/JCodesMore/ai-website-cloner-template",
-  "bugs": {
-    "url": "https://github.com/JCodesMore/ai-website-cloner-template/issues"
+    "url": "https://github.com/mary3256486-hue/ai-website-cloner-template.git"
   },
   "keywords": [
-    "claude-code",
-    "website-clone",
-    "reverse-engineering",
+    "gia-pha",
+    "genealogy",
+    "vietnam",
     "nextjs",
     "ai",
-    "template",
     "tailwindcss",
     "shadcn-ui"
   ],

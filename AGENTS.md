@@ -8,63 +8,56 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# Website Reverse-Engineer Template
+# Tiểu Phạm — Gia Phả (PAT)
 
 ## What This Is
-A reusable template for reverse-engineering any website into a clean, modern Next.js codebase using AI coding agents. The Next.js + shadcn/ui + Tailwind v4 base is pre-scaffolded — just run `/clone-website <url1> [<url2> ...]`.
+Genealogy web app for Khối Đình Tiểu Phạm: build, present and print Vietnamese family trees. Fully client-side (localStorage + IndexedDB) — no auth, no payments. Static export packaged for Web, Electron (Windows) and Capacitor (Android).
 
 ## Tech Stack
-- **Framework:** Next.js 16 (App Router, React 19, TypeScript strict)
+- **Framework:** Next.js 16 (App Router, React 19, TypeScript strict, static export with query-based routing)
 - **UI:** shadcn/ui (Base UI primitives, Tailwind CSS v4, `cn()` utility)
-- **Icons:** Lucide React (default — will be replaced/supplemented by extracted SVGs)
-- **Styling:** Tailwind CSS v4 with oklch design tokens
-- **Deployment:** Vercel
+- **Icons:** Lucide React
+- **Packaging:** Electron 45 (Windows NSIS/portable), Capacitor 8 (Android), `xlsx` for Excel
 
 ## Commands
-- `npm run dev` — Start dev server
-- `npm run build` — Production build
-- `npm run lint` — ESLint check
-- `npm run typecheck` — TypeScript check
-- `npm run check` — Run lint + typecheck + build
+- `npm run dev` — Dev server at http://localhost:3000 (source of truth for UI verification; other ports are stale)
+- `npm run build` — Production static export to `out/`
+- `npm run lint` / `npm run typecheck` / `npm run check` (all three)
+- `npm run electron:dev` / `npm run electron:build` — PC shell / exe
+- `npm run cap:sync` / `npm run android:apk` — Android shell / APK
 
 ## Code Style
 - TypeScript strict mode, no `any`
 - Named exports, PascalCase components, camelCase utils
 - Tailwind utilities or scoped CSS; avoid inline styles unless behavior needs dynamic values
-- 2-space indentation
-- Responsive: mobile-first
-
-## Design Principles
-- **Pixel-perfect emulation** — match the target's spacing, colors, typography exactly
-- **No personal aesthetic changes during emulation phase** — match 1:1 first, customize later
-- **Real content** — use actual text and assets from the target site, not placeholders
-- **Beauty-first** — every pixel matters
+- 2-space indentation, responsive: mobile-first
+- All user-facing copy in Vietnamese
 
 ## Project Structure
 ```
 src/
-  app/              # Next.js routes
-  components/       # React components
-    ui/             # shadcn/ui primitives
-    sites/<site>/   # Source-specific components, including extracted SVGs
-  lib/
-    utils.ts        # cn() utility (shadcn)
-  types/            # TypeScript interfaces
-  hooks/            # Custom React hooks
-public/
-  sites/<site>/     # Source-specific images, fonts, video, and other assets
+  app/                  # /, /gia-pha, /gia-pha/thanh-vien (static query routing)
+  components/sites/PAT/ # The entire genealogy app (store, layout, canvas, views)
+  components/ui/        # shadcn/ui primitives
+public/sites/PAT/
+  decor/                # Decorations — open-licensed or user-supplied only (see SOURCES.md)
+  fonts/                # Hải Yến calligraphy (bản 1), Dancing Script (OFL)
+  images/               # Hán characters for titles/watermark
+android/ electron/      # Native shells
+scripts/                # build-android.mjs, make-icons.mjs
 docs/
-  research/<site>/  # Page brief, asset map, and inspection evidence
-  design-references/ # Screenshots and visual references
-scripts/            # Asset download scripts
-.agents/
-  skills/
-    clone-website/  # Canonical cross-agent cloning workflow
-.claude/
-  commands/
-    clone-website.md # Thin Claude Code invocation bridge
+  PAT-bao-cao-tien-do.md # Tier-by-tier review/fix log — update after every verified change
 ```
 
-## Agent Workflow
-- Edit `.agents/skills/clone-website/` for cloning-workflow changes. It is the canonical skill used by Codex, Cursor, and OpenCode.
-- Keep `.claude/commands/clone-website.md` as a thin Claude Code bridge to the canonical skill; do not duplicate the workflow there.
+## Diagram Principles (do not regress)
+- Founder → Generation 1 rows centered on the page, for every layout mode and every tree (sample or user-created).
+- Full siblings always stay in one contiguous cluster; saved positions must never interleave families.
+- Father's main connector is independent of the mother-line toggle; toggling it must not move any card or main line.
+- Each mother's dashed connector touches only her own children; different mothers' bars are staggered by x-overlap and may cross the main bar.
+- Horizontal bars between generations stack by x-conflict and widen the band automatically when needed.
+
+## Working Rules
+- Every change must be verified in a real browser (desktop + mobile) at http://localhost:3000, not just typecheck.
+- Clean up test trees, drafts and temporary localStorage keys after verification.
+- Never use artwork from app.phatue.vn; only open-licensed or user-supplied art, credited in `public/sites/PAT/decor/SOURCES.md`.
+- After each verified change, add a newest-first subsection to `docs/PAT-bao-cao-tien-do.md`.
