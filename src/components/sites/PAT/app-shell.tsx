@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import {
   ArrowLeft,
@@ -17,6 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { treePath } from "./routes";
 import type { FamilyTree } from "./types";
 import { Sheet, SheetRow } from "./ui";
 
@@ -49,12 +50,11 @@ export function TreeShell({
   wide?: boolean;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
-  const pathname = usePathname();
   const router = useRouter();
-  const home = `/gia-pha/${tree.id}/trang-chu`;
+  const home = treePath(tree.id);
   const go = (key: string) => {
     setMoreOpen(false);
-    router.push(`/gia-pha/${tree.id}/${key}`);
+    router.push(treePath(tree.id, key));
   };
 
   return (
@@ -99,12 +99,12 @@ export function TreeShell({
           )}
         >
           {sections.map((item) => {
-            const active = pathname?.includes(`/${item.key}`) || section === item.key;
+            const active = section === item.key;
             const Icon = item.icon;
             return (
               <Link
                 key={item.key}
-                href={`/gia-pha/${tree.id}/${item.key}`}
+                href={treePath(tree.id, item.key)}
                 title={item.label}
                 className={cn(
                   "flex shrink-0 items-center gap-1 rounded-t-lg border-b-2 px-2 py-2 text-[0.7rem] font-semibold transition xl:gap-1.5 xl:px-2.5 xl:text-xs",
@@ -135,19 +135,19 @@ export function TreeShell({
         <div className="mx-auto flex max-w-md items-stretch justify-between px-2">
           <BottomLink href={home} icon={<Home size={19} />} label="Gia phả" active={section === "trang-chu"} />
           <BottomLink
-            href={`/gia-pha/${tree.id}/danh-sach-thanh-vien`}
+            href={treePath(tree.id, "danh-sach-thanh-vien")}
             icon={<Users size={19} />}
             label="Phả hệ"
             active={section === "danh-sach-thanh-vien" || section === "thanh-vien"}
           />
           <BottomLink
-            href={`/gia-pha/${tree.id}/danh-sach-nhanh`}
+            href={treePath(tree.id, "danh-sach-nhanh")}
             icon={<GitBranch size={19} />}
             label="Chi phái"
             active={section === "danh-sach-nhanh"}
           />
           <BottomLink
-            href={`/gia-pha/${tree.id}/ve-pha-do`}
+            href={treePath(tree.id, "ve-pha-do")}
             icon={<PenTool size={19} />}
             label="Vẽ phả đồ"
             active={section === "ve-pha-do"}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tiểu Phạm</string>
+    <string name="title_activity_main">Tiểu Phạm</string>
+    <string name="package_name">vn.tieupham.giapha</string>
+    <string name="custom_url_scheme">vn.tieupham.giapha</string>
+</resources>

@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
-import Image from "next/image";
 import {
   AlignHorizontalSpaceAround,
   AlignVerticalSpaceAround,
@@ -27,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { Avatar, Badge, Field, Segmented } from "./ui";
-import { lifeSpan } from "./utils";
+import { cardLifeYears, deathAnniversaryText, lifeSpan } from "./utils";
 import type {
   BackgroundImageSettings,
   BannerSettings,
@@ -47,6 +46,7 @@ import {
   COUPLET_FONT_LABELS,
   EXTRA_FIELD_LABELS,
   generationTag,
+  lifeStatusOf,
   normalizeBackgroundImage,
   normalizeBanner,
   normalizeCouplets,
@@ -1052,37 +1052,26 @@ export function GenerationInspector({
 
       <Section title="Kiểu thẻ" icon={<Settings2 size={13} />}>
         {sample ? (
-          <div className="rounded-xl border border-[var(--pat-line)] p-3" style={{ background: resolved.cardColor || "#fff9e4" }}>
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                {resolved.showTitle ? (
-                  <p className="truncate uppercase tracking-wide opacity-60" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(7, resolved.fontSize * 0.72) }}>
-                    {generationTag(generation)}
-                  </p>
-                ) : null}
-                {resolved.showName ? (
-                  <p className="truncate font-semibold" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(9, resolved.fontSize) }}>
-                    {sample.name}
-                  </p>
-                ) : null}
+          <div className="rounded-xl border border-[var(--pat-line)] p-3 text-center" style={{ background: resolved.cardColor || "#fff9e4" }}>
+            {resolved.showName ? (
+              <p className="truncate font-bold uppercase tracking-wide" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(10, resolved.fontSize * 1.16) }}>
+                {sample.name}
+              </p>
+            ) : null}
+            {lifeStatusOf(sample) === "deceased" ? (
+              <>
                 {resolved.showDates ? (
                   <p className="truncate opacity-70" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(7, resolved.fontSize * 0.78) }}>
-                    {lifeSpan(sample)}
+                    {cardLifeYears(sample)}
                   </p>
                 ) : null}
-              </div>
-              {resolved.showAvatar ? (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#8a1c15]">
-                  <Image
-                    src="/sites/PAT/images/han-pham.png"
-                    alt=""
-                    width={585}
-                    height={728}
-                    className="h-[86%] w-auto max-w-none object-contain"
-                  />
-                </span>
-              ) : null}
-            </div>
+                {resolved.showDeathAnniversary && deathAnniversaryText(sample) ? (
+                  <p className="truncate opacity-70" style={{ fontFamily: resolved.fontFamily, fontSize: Math.max(7, resolved.fontSize * 0.78) }}>
+                    Giỗ {deathAnniversaryText(sample)}
+                  </p>
+                ) : null}
+              </>
+            ) : null}
             <p className="mt-2 text-[0.62rem] text-[var(--pat-muted)]">Thẻ mẫu cập nhật ngay khi chỉnh bên dưới.</p>
           </div>
         ) : null}
@@ -1103,18 +1092,6 @@ export function GenerationInspector({
           suffix="×"
           hint="Áp dụng cho mọi thẻ cùng đời. Cũng có thể bấm vào một thẻ rồi kéo tay nắm ở góc dưới phải."
           onChange={(cardScale) => onStyle({ cardScale })}
-        />
-        <ToggleRow
-          label="Biểu trưng chữ Phạm"
-          hint="Mọi thẻ dùng chữ Phạm vàng trên nền đỏ như logo trang chủ."
-          checked={resolved.showAvatar}
-          onChange={(showAvatar) => onStyle({ showAvatar })}
-        />
-        <ToggleRow
-          label="Danh xưng"
-          hint="Thủy tổ, Hương trưởng hoặc số đời"
-          checked={resolved.showTitle}
-          onChange={(showTitle) => onStyle({ showTitle })}
         />
         <ToggleRow
           label="Họ và tên"
@@ -1139,7 +1116,9 @@ export function GenerationInspector({
         hint="Chỉ hiện khi thành viên có dữ liệu tương ứng và còn chỗ trên thẻ."
       >
         <div className="flex flex-wrap gap-1.5">
-          {(Object.keys(EXTRA_FIELD_LABELS) as ExtraFieldKey[]).map((key) => (
+          {(Object.keys(EXTRA_FIELD_LABELS) as ExtraFieldKey[])
+            .filter((key) => key !== "generation" && key !== "deathAnniversary")
+            .map((key) => (
             <button
               key={key}
               type="button"

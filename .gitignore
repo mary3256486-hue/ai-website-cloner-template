@@ -6,8 +6,17 @@ node_modules/
 # Build
 .next/
 out/
-build/
+build/*
+!build/icon.png
 dist/
+dist-electron/
+
+# Android shell build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/capacitor-cordova-android-plugins/build/
 
 # Environment
 .env
@@ -50,3 +59,5 @@ temp/
 
 # Graphify knowledge-graph output (regenerable, machine-specific cache)
 graphify-out/
+dist-electron-build/
+dist-electron-fresh/

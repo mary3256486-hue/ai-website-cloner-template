@@ -386,9 +386,7 @@ export function sortGenerations(a: number, b: number) {
 
 export function lifeSpan(person: Person): string {
   const birth = person.birthDate?.trim() || "?";
-  if (person.alive) return `${birth} —`;
-  if (person.lifeStatus === "missing") return `${birth} — mất tích`;
-  if (person.lifeStatus === "unknown") return `${birth} — ?`;
+  if (lifeStatusOf(person) === "alive") return `${birth} —`;
   const death = person.deathDate?.trim() || "?";
   return `${birth} — ${death}`;
 }
@@ -428,14 +426,29 @@ export function birthYear(person: Person): string {
   return person.birthDate?.trim() || "?";
 }
 
+/** Năm sinh – năm mất trên thẻ phả đồ, thiếu thông tin thì ghi "?". */
+export function cardLifeYears(person: Person): string {
+  const birth = person.birthDate?.match(/\d{4}/)?.[0] ?? "?";
+  const death = person.deathDate?.match(/\d{4}/)?.[0] ?? "?";
+  return `${birth} – ${death}`;
+}
+
+/** Ngày giỗ chuẩn hoá dạng "dd/MM ÂL" từ trường nhập tự do; không đủ ngày/tháng thì trả undefined. */
+export function deathAnniversaryText(person: Person): string | undefined {
+  const nums = person.deathAnniversary?.trim().match(/\d+/g);
+  if (!nums || nums.length < 2) return undefined;
+  const day = Number(nums[0]);
+  const month = Number(nums[1]);
+  if (day < 1 || day > 30 || month < 1 || month > 12) return undefined;
+  return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")} ÂL`;
+}
+
 export function ageText(person: Person): string {
   const birth = parseInt(person.birthDate ?? "", 10);
   if (Number.isNaN(birth)) return "";
   const endRaw =
-    person.alive || person.lifeStatus === "missing" || person.lifeStatus === "unknown"
-      ? person.alive
-        ? new Date().getFullYear()
-        : NaN
+    lifeStatusOf(person) === "alive"
+      ? new Date().getFullYear()
       : parseInt(person.deathDate ?? "", 10);
   if (Number.isNaN(endRaw)) return "";
   return `${endRaw - birth} tuổi`;

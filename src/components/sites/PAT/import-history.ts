@@ -1,5 +1,6 @@
 import type { FamilyTree } from "./types";
 import type { ImportRowIssue } from "./import";
+import { downloadBlob } from "./native";
 
 export const IMPORT_HISTORY_KEY = "phatue.importHistory.v1";
 export const IMPORT_HISTORY_LIMIT = 6;
@@ -112,9 +113,6 @@ export function downloadHistorySnapshot(entry: ImportHistoryEntry) {
   const blob = new Blob([JSON.stringify(entry.snapshot, null, 2)], {
     type: "application/json;charset=utf-8",
   });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
   const name = entry.snapshot.name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -122,10 +120,6 @@ export function downloadHistorySnapshot(entry: ImportHistoryEntry) {
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase() || "gia-pha";
-  anchor.download = `${name}-truoc-nhap-${entry.at.slice(0, 10)}.json`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  downloadBlob(blob, `${name}-truoc-nhap-${entry.at.slice(0, 10)}.json`);
   return true;
 }

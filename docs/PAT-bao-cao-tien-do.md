@@ -1,6 +1,6 @@
 # PAT — Báo cáo tiến độ triển khai
 
-Cập nhật lần cuối: **2026-11-07**.
+Cập nhật lần cuối: **2026-11-09**.
 
 Mục đích: ghi lại việc đã rà soát/sửa, cách đã kiểm tra và phần còn chờ duyệt để bước tiếp theo không phải rà lại từ đầu. Cập nhật file này ngay sau mỗi đợt rà soát/sửa.
 
@@ -294,6 +294,73 @@ Bằng chứng kiểm tra trên trình duyệt ngoài (`http://localhost:3001/gi
 - **Kiểm tra mã:** `npm run typecheck` và `npm run lint` không lỗi; build production sạch; trang tải không còn cảnh báo/404 trong console.
 
 Lưu ý: các số đo nhãn ở mục 6.2 (`x = 206 / 3162`) là **trước** thay đổi này; số hiện hành là `x = 161 / 3239` như trên. Khổ giấy được cố định theo mục 6.4 nên đổi cỡ thẻ/cỡ nhãn không còn nới `viewBox`; hai nhãn vẫn giữ khe 2,5 cm ở cả hai phía.
+
+### 6.17. Tình trạng thành viên còn 2 lựa chọn + thẻ chữ mới trên Cây gia phả / Vẽ phả đồ / Thiết kế bản in — ngày 2026-11-09
+
+Theo yêu cầu chốt lại của bạn: (1) phần thông tin thành viên chỉ giữ hai tình trạng **Còn sống / Đã mất**; (2) trong **thẻ thành viên** ở cả ba khu vực Cây gia phả, Vẽ phả đồ, Thiết kế bản in: xóa mọi avatar và xóa hiển thị đời bên trong thẻ (thủy tổ, đời 1…) — **nhãn đời bên ngoài thẻ vẫn giữ**; (3) mặc định thẻ hiển thị Họ tên **IN HOA** + năm sinh–năm mất (thiếu thì ghi "?") + ngày giỗ dạng **"dd/MM ÂL"**; người còn sống chỉ hiển thị tên, không kèm năm/ngày giỗ; cỡ chữ tên đủ lớn, vừa khung.
+
+1. **Tình trạng thành viên:** `LifeStatus` thu về `"alive" | "deceased"`; chuẩn hoá dữ liệu cũ thiếu/khác về "đã mất" trong `store.normalizeTree`. Form thành viên chỉ còn 2 nút chọn (lưới 2 cột); hồ sơ và bảng in hiển thị "Còn sống" hoặc ngày mất tương ứng.
+2. **Helper dùng chung** (`utils.ts:430`, `utils.ts:437`): `cardLifeYears(person)` trả `"năm sinh – năm mất"`, thiếu phía nào ghi `"?"` phía đó; `deathAnniversaryText(person)` chuẩn hoá trường nhập tự do ("10/01 âm lịch", "12 tháng 3") thành `"dd/MM ÂL"`, không đủ ngày/tháng hợp lệ thì ẩn.
+3. **Thẻ chữ mới:** cả ba khu vực bỏ khối avatar và bỏ nhãn đời bên trong thẻ; tên vẽ IN HOA, đậm, cỡ = cỡ chữ thẻ × 1,16, tự xuống dòng vừa bề rộng khung; người đã mất kèm năm sinh–năm mất và "Giỗ dd/MM ÂL"; người còn sống chỉ tên. `DEFAULT_DESIGN` đặt `showAvatar:false`, `showTitle:false`; bỏ hai công tắc "Biểu trưng chữ Phạm" và "Danh xưng" ở bảng chỉnh và trang Thiết kế bản in; bỏ trường thừa "generation"/"deathAnniversary" khỏi chip trường thêm (ngày giỗ đã là mặc định).
+4. **Giữ nhãn đời:** nhãn hàng bên trái Cây gia phả và dải nhãn hai bên phả đồ (ĐẠI TỔ / THỦY TỔ / SƠ TỔ / ĐỜI n) cùng công tắc "Nhãn đời" vẫn nguyên vẹn — chỉ phần đời **trong thẻ** bị gỡ.
+
+**Bằng chứng kiểm tra trên trình duyệt ngoài** (bản production `http://localhost:3001`, desktop 1440×1000 và mobile 390×844, gia phả mẫu `mau-gia-pha`):
+
+- **Cây gia phả:** 58 thẻ, **0 avatar**; 34 thẻ đã mất có dòng năm (ví dụ "PHẠM VĂN ĐẠO ? – ?", "PHÙNG THỊ MƠ 1860 – 1945"), 24 thẻ còn sống **chỉ tên** (ví dụ "LƯU THỊ HÀ"); không còn chữ đời trong thẻ; nhãn hàng ĐẠI TỔ…ĐỜI 4 vẫn hiển thị.
+- **Ngày giỗ end-to-end:** mở thẻ một thành viên đã mất → "Sửa thông tin" → tab "Thờ tự & tiểu sử" → nhập "12 tháng 3" → lưu; thẻ Cây gia phả thành **"PHẠM VĂN ĐẠO ? – ? Giỗ 12/03 ÂL"**, và đúng chuỗi "Giỗ 12/03 ÂL" xuất hiện trong svg của **Vẽ phả đồ** lẫn khối xem trước **Thiết kế bản in**.
+- **Vẽ phả đồ + Thiết kế bản in:** 0 `img`/`use` avatar; tên IN HOA; dải nhãn đời hai bên giữ nguyên; bố cục khung hoa văn không đổi.
+- **Mobile 390:** cả ba khu vực không avatar, nhãn đời giữ, khung xem trước vừa màn hình, không vỡ bố cục.
+- **Kiểm tra mã:** `npm run lint`, `npm run typecheck`, `npm run build` sạch (4 route static: `/`, `/_not-found`, `/gia-pha`, `/gia-pha/thanh-vien`).
+
+### 6.16. Dựng vỏ app PC (Electron) + Android (Capacitor) quanh `out/`, cầu nối in/tải file — ngày 2026-11-08
+
+Tiếp nối 6.15 (đã chốt “chốt”): dựng vỏ native chạy offline từ một lõi build tĩnh `out/`, kèm cầu nối in và tải file hoạt động cả trong WebView lẫn trình duyệt. PC chọn **Electron** ( chỉ cần Node, Chromium bảo đảm `window.print`/`window.open`/tải file); Android dùng **Capacitor 8** + JDK 21 + Android SDK cài cục bộ để build APK thật.
+
+1. **Cầu nối native** (`src/components/sites/PAT/native.ts`):
+   - `printCurrentPage(title)`: Android → `NativePrint.printCurrent` (PrintManager trên WebView thật, giữ CSS `@media print`); còn lại → `window.print()`.
+   - `printSvgDiagram` (trong `export.ts`): Android → `NativePrint.printHtml` (WebView ngoại tuyến dựng từ HTML tự chứa); còn lại → `window.open` rồi `print`.
+   - `saveBlob`/`downloadBlob`: Android → `@capacitor/filesystem` ghi `Directory.Cache` rồi `@capacitor/share` mở hộp thoại lưu/chia sẻ hệ điều hành; còn lại → thẻ `a[download]` + `URL.createObjectURL`.
+   - **Font in cho bản in phả đồ:** `export.ts` nhúng toàn bộ `@font-face` của Be Vietnam Pro + Playfair Display thành **data-uri base64** (26 face), dò `url(...)` theo `sheet.href` (không theo base trang) để lấy đúng woff2 self-host; **bỏ link Google Fonts** remote → bản in chạy offline và trong WebView in của Android.
+   - Các điểm xuất đã nối cầu nối: `members-view.tsx` (in danh sách), `member-detail-view.tsx` (in hồ sơ/PDF), `documents-view.tsx` (tải tư liệu), `gedcom.ts`, `import.ts` (Excel/CSV), `import-history.ts` (snapshot).
+2. **Vỏ Android** (`capacitor.config.ts`, `android/`): appId `vn.tieupham.giapha`, appName “Tiểu Phạm”, `webDir "out"`, `androidScheme "https"`. Plugin Java cục bộ `NativePrintPlugin.java` (`printCurrent` + `printHtml`); `MainActivity` gọi `registerPlugin(NativePrintPlugin.class)` **trước** `super.onCreate()` (Capacitor 8 bỏ `add()`, `onCreate` kết thúc bằng `this.load()`). Icon/splash sinh từ `assets/logo.png` + `assets/splash.png` (bộ mipmap adaptive + drawable port/land/night đầy đủ). compileSdk/targetSdk 36, minSdk 24.
+3. **Vỏ PC** (`electron/main.mjs` ESM, `electron-builder.yml`): server http nội bộ `127.0.0.1:0` serve `out/` (MIME đúng, chặn path traversal, fallback 404.html); cửa sổ 1440×900, `contextIsolation` + `sandbox`; `setWindowOpenHandler` cho `about:blank` (cửa sổ in) + same-origin, còn lại mở ngoài; `will-download` đặt hộp thoại lưu vào thư mục Downloads; menu tiếng Việt (Tệp/Xem/Trợ giúp, Ctrl+P → `webContents.print`). Đóng gói NSIS (setup) + portable, icon `build/icon.png`, chưa ký số.
+4. **Script/công cụ:** `scripts/make-icons.mjs` (sharp ghép logo nền `#8a1c15` → assets + build/icon.png), `scripts/build-android.mjs` (tự dò JDK 21 + SDK, chạy `gradlew assembleDebug`); package.json thêm `icons`, `electron:dev`, `electron:build`, `cap:sync`, `android:apk`. Toolchain cục bộ: JDK 21 Temurin, Android SDK platforms 35+36 / build-tools 35+36, Gradle 8.14.3 (seed zip vào cache wrapper để khỏi tải lại).
+5. **ESLint:** thêm `android/**`, `dist-electron/**`, `dist/**` vào `globalIgnores` (cap sync chép `out/` vào assets android sinh JS minified, không phải mã nguồn).
+
+**Bằng chứng kiểm tra:**
+
+- `npm run lint`, `npm run typecheck`, `npm run build` sạch (4 route static). `npx cap sync android` chép `out/` mới + nhận 2 plugin filesystem/share.
+- **Cầu nối trên web** (`http://localhost:3001`, bản export tĩnh) — **8/8 PASS**: cửa sổ in phả đồ mở + gọi print; **26/26 font nhúng base64**; không còn Google Fonts; SVG phả đồ **58 `<use>`**; `document.fonts.load` nạp đủ Be Vietnam + Playfair; in danh sách qua `printCurrentPage`; CSV blob đúng tên tệp **22.200 bytes**; **BOM UTF-8 + 61 dòng**.
+- **App Electron đã đóng gói** chạy qua CDP (Chrome/156.0.8078.80, server nội bộ cổng ngẫu nhiên) — **4/4 PASS**: nạp trang chủ “Tiểu Phạm — Gia Phả”; mở gia phả mẫu + phả đồ; cửa sổ in phả đồ **26 face / 26 data-uri / 58 use**; CSV blob **BOM + 61 dòng**. `app.asar` chứa `/out/gia-pha/index.html`, `/electron/main.mjs`, 200 mục `out/`, **16 woff2** self-host.
+- **APK:** `android/app/build/outputs/apk/debug/app-debug.apk` **20.932.740 bytes**, BUILD SUCCESSFUL (đã nhúng `out/` sửa font).
+- **Artifact PC:** `dist-electron/TieuPham-GiaPha-setup-0.6.1.exe` (**206.350.089**) và `...-portable-0.6.1.exe` (**170.807.778**); bản unpacked chạy được ở `dist-electron-build/win-unpacked/`. Ảnh: `pat-audit/electron-home.png`, `electron-diagram.png`, `electron-members.png`, `bridge-print-design.png`, `bridge-members.png`.
+
+**Lưu ý môi trường (không phải lỗi app):**
+
+- Headless Chrome 156 **huỷ tải blob ở bước ghi đĩa** (nhận đủ bytes rồi `canceled`) → kiểm tra tải file bằng cách đọc thẳng blob app tạo ra (đúng bytes sẽ ghi đĩa), không dựa vào đĩa headless.
+- Windows Defender khoá `default_app.asar` lúc electron-builder đổi tên thư mục (`EBUSY`/`EPERM`) → build bằng `electronDist` trỏ tới bản Electron giải nén sẵn (`copyDir`, không rename atomic). Vài thư mục `win-unpacked` cũ còn khoá chưa xoá được ngay; bản phân phối là các exe trong `dist-electron/`.
+- **Chưa commit/push** (chờ yêu cầu riêng).
+
+### 6.15. Chuyển static export: nền chung đóng gói app PC (Tauri/Electron) và Android (Capacitor) — ngày 2026-11-08
+
+Hướng đã chốt với bạn: đóng gói app cho cả Android lẫn PC bằng **một lõi build tĩnh** (`output: "export"`), thay vì giữ server Next.
+
+1. **Cấu hình** (`next.config.ts`): `output: "export"`, `trailingSlash: true` (mỗi route thành thư mục có `index.html`, server cục bộ của Capacitor/Tauri mở được), `images: { unoptimized: true }` (không cần server optimizer của `next/image`).
+2. **Routing tĩnh + query**: bỏ toàn cây route động `gia-pha/[id]/…` (4 page), thay bằng hai route tĩnh:
+   - `/gia-pha/?tree=<id>&section=<slug>` — tổng quan và 7 section (`src/app/gia-pha/tree-screen.tsx`);
+   - `/gia-pha/thanh-vien/?tree=<id>&member=<id>` — hồ sơ thành viên (`src/app/gia-pha/thanh-vien/member-screen.tsx`).
+   Hai page bọc screen trong `<Suspense>` theo yêu cầu của `useSearchParams` khi export tĩnh. Helper mới `routes.ts` (`treePath`, `memberPath`) là chỗ duy nhất dựng URL; khoảng 40 điểm điều hướng ở 11 file đã đổi theo (trang chủ, shell, danh sách/hồ sơ/biểu mẫu thành viên, cây, chi phái, editor phả đồ, thiết kế bản in). `branchViewHref` giờ **ghép** query chi (`chi`, `tren`, `gioihan`, `the`, `hoanhphi`) vào query có sẵn thay vì ghi đè. `useTreeFromRoute` đọc `tree` từ query; tab active của shell dựa vào prop `section` (bỏ `usePathname`); thêm cuộn lên đầu trang khi đổi section/thành viên để giữ cảm giác chuyển trang như cũ.
+3. **Viewport** (`layout.tsx`): thêm `viewport-fit=cover` để `env(safe-area-inset-bottom)` của thanh nav dưới hoạt động trên màn hình tai thỏ khi vào vỏ app.
+4. **Giữ nguyên**: dữ liệu vẫn localStorage/IndexedDB; in/xuất, font thư pháp, trang trí không đổi. Cầu nối in/tải file cho Android WebView sẽ làm ở bước dựng vỏ Capacitor, không thuộc thay đổi này.
+
+**Bằng chứng kiểm tra** trên bản export tĩnh serve từ `out/` tại `http://localhost:3001`, `BUILD_ID 07WXIl9yLQIqeXoiblVnd`:
+
+- `npm run lint`, `npm run typecheck`, `npm run build` sạch; bảng build gồm 4 route đều ○ (static): `/`, `/_not-found`, `/gia-pha`, `/gia-pha/thanh-vien`.
+- Bộ kiểm tra trình duyệt tự động **14/14 PASS**: trang chủ (tiêu đề Khối Đình Tiểu Phạm, tên mẫu mới), mở mẫu → URL query, tổng quan 58 thành viên, hồ sơ Sơ Tổ → URL query, nav Phả hệ, deep link `ve-pha-do` + reload giữ đúng trang, branch view giữ đồng thời `tree` + `chi` (“Phả đồ chi”, 26 thành viên nội tộc), MissingTree/EmptyState với id không tồn tại, **0 request ra ngoài localhost** (font self-host), 0 lỗi JS.
+- Mobile 390×844: thanh nav dưới cố định sát đáy (bottom = 844 = chiều cao viewport), bấm Phả hệ điều hướng đúng. Ảnh: `pat-audit/static-home.png`, `static-tree-home.png`, `static-members.png`, `static-member-detail.png`, `static-diagram.png`, `static-branch.png`, `static-mobile-tree.png`, `static-mobile-members.png`.
+- Dev server :3000 tự nạp cấu hình mới và vẫn trả 200 cho URL query.
+
+Lưu ý: URL cũ dạng `/gia-pha/<id>/<section>` không còn (app cục bộ, không có liên kết công khai cần giữ); `next start` không tương thích `output: "export"` nên server thử nghiệm :3001 đã thay bằng static server serve `out/`.
 
 ### 6.14. Tiêu đề trang chủ, tên bản mẫu và biểu trưng chữ Phạm trên phả đồ — ngày 2026-11-08
 

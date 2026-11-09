@@ -22,17 +22,7 @@ import {
   splitFullName,
 } from "./utils";
 import { ESSENTIAL_HEADERS, MEMBER_COLUMNS, MEMBER_HEADERS, type MemberColumnKey } from "./columns";
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
-}
+import { downloadBlob, isNativeAndroid, NativePrint, printCurrentPage } from "./native";
 
 export function dateStamp(date = new Date()) {
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -334,7 +324,7 @@ export function printDiagram(tree: FamilyTree) {
   style.id = "pat-print-size";
   style.textContent = `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`;
   document.head.appendChild(style);
-  window.print();
+  printCurrentPage("Phả đồ");
   window.setTimeout(() => style.remove(), 1500);
 }
 
@@ -401,6 +391,46 @@ async function inlineCalligraphyFont(clone: SVGSVGElement) {
   clone.insertBefore(style, clone.firstChild);
 }
 
+const PRINT_FONT_FAMILIES = ["Be Vietnam Pro", "Playfair Display"];
+
+let printFontCss: Promise<string> | null = null;
+
+/** Nhúng font tự host của ứng dụng vào tài liệu in để bản in không phụ thuộc mạng. */
+function loadPrintFontCss() {
+  if (!printFontCss) {
+    printFontCss = (async () => {
+      const rules: string[] = [];
+      for (const sheet of Array.from(document.styleSheets)) {
+        let cssRules: CSSRuleList;
+        try {
+          cssRules = sheet.cssRules;
+        } catch {
+          continue;
+        }
+        const base = sheet.href ?? document.baseURI;
+        for (const rule of Array.from(cssRules)) {
+          if (!(rule instanceof CSSFontFaceRule)) continue;
+          const family = rule.style.getPropertyValue("font-family").replace(/["']/g, "").trim();
+          if (!PRINT_FONT_FAMILIES.includes(family)) continue;
+          let css = rule.cssText;
+          for (const match of Array.from(css.matchAll(/url\((["']?)([^)"']+)\1\)/g))) {
+            try {
+              const response = await fetch(new URL(match[2], base).href);
+              if (!response.ok) continue;
+              css = css.replace(match[0], `url("${await blobToDataUri(await response.blob())}")`);
+            } catch {
+              // giữ url gốc khi không nhúng được
+            }
+          }
+          rules.push(css);
+        }
+      }
+      return rules.join("\n");
+    })();
+  }
+  return printFontCss;
+}
+
 export interface DiagramPrintOptions {
   /** true: vừa khổ giấy đã chọn; false: in đúng kích thước thật (mm) ở tỉ lệ 100%. */
   fitToPage?: boolean;
@@ -434,8 +464,8 @@ export async function printSvgDiagram(
 ) {
   const { widthMm, heightMm } = paperDimensions(tree);
   const fit = options.fitToPage !== false;
-  const win = window.open("", "_blank", "width=1280,height=960");
-  if (!win) {
+  const win = isNativeAndroid() ? null : window.open("", "_blank", "width=1280,height=960");
+  if (!isNativeAndroid() && !win) {
     printDiagram(tree);
     return;
   }
@@ -443,6 +473,7 @@ export async function printSvgDiagram(
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   await Promise.all([inlineDecorationImages(clone), inlineCalligraphyFont(clone)]);
   const markup = new XMLSerializer().serializeToString(clone);
+  const fontCss = await loadPrintFontCss();
   const svgCss = fit
     ? "svg { display: block; width: 100%; height: 100%; }"
     : `svg { display: block; width: ${widthMm}mm; height: ${heightMm}mm; }`;
@@ -453,13 +484,11 @@ export async function printSvgDiagram(
   const cropHtml = options.cropMarks
     ? `<span class="crop-mark crop-tl"></span><span class="crop-mark crop-tr"></span><span class="crop-mark crop-bl"></span><span class="crop-mark crop-br"></span>`
     : "";
-  win.document.open();
-  win.document.write(`<!doctype html>
+  const title = `${safeName(tree.name)} — phả đồ`;
+  const html = `<!doctype html>
 <html lang="vi"><head><meta charset="utf-8" />
-<title>${safeName(tree.name)} — phả đồ</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
+<title>${title}</title>
+<style>${fontCss}</style>
 <style>
   @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #fff; overflow: hidden; }
@@ -470,7 +499,13 @@ export async function printSvgDiagram(
   .hint { position: fixed; inset: auto 0 12px 0; text-align: center; font: 12px sans-serif; color: #8a6a52; }
   @media print { .hint { display: none; } }
 </style></head>
-<body>${markup}${cropHtml}<p class="hint">Hộp thoại in sẽ mở. Để lưu PDF: chọn máy in “Lưu thành PDF”/“Save as PDF”, bỏ tick “Vừa khổ trang” và giữ nguyên khổ ${widthMm}×${heightMm} mm.</p></body></html>`);
+<body>${markup}${cropHtml}<p class="hint">Hộp thoại in sẽ mở. Để lưu PDF: chọn máy in “Lưu thành PDF”/“Save as PDF”, bỏ tick “Vừa khổ trang” và giữ nguyên khổ ${widthMm}×${heightMm} mm.</p></body></html>`;
+  if (!win) {
+    await NativePrint.printHtml({ html, title });
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
   win.document.close();
   win.setTimeout(() => {
     win.focus();

@@ -24,10 +24,11 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useGenealogy } from "./store";
+import { memberPath, treePath } from "./routes";
 import type { FamilyTree, Person } from "./types";
 import { cardOrientationFor, generationTag, isDeceasedStatus, lifeStatusOf, UNKNOWN_GENERATION } from "./types";
 import { classifyClan, CLAN_ROLE_LABELS } from "./clan";
-import { computeGenerations, descendants, lifeSpan, sortGenerations, sortPersons } from "./utils";
+import { cardLifeYears, computeGenerations, deathAnniversaryText, descendants, lifeSpan, sortGenerations, sortPersons } from "./utils";
 import { computeLayout } from "./layout";
 import { branchViewHref, computeBranchScope, parseBranchView, type BranchViewOptions } from "./branch-view";
 import { TreeShell } from "./app-shell";
@@ -567,7 +568,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
 
   const exitBranchView = () => {
     setBranchParams(null);
-    router.replace(`/gia-pha/${tree.id}/chinh-sua-voi-cay-gia-pha`);
+    router.replace(treePath(tree.id, "chinh-sua-voi-cay-gia-pha"));
   };
 
   return (
@@ -635,7 +636,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
             <button
               type="button"
               onClick={() =>
-                router.push(branchViewHref(`/gia-pha/${tree.id}/ve-pha-do`, branchScope.options))
+                router.push(branchViewHref(treePath(tree.id, "ve-pha-do"), branchScope.options))
               }
               className="pat-btn pat-btn-outline h-8 shrink-0 text-[0.68rem]"
             >
@@ -784,6 +785,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                 const deceased = isDeceasedStatus(lifeStatusOf(person));
                 const compact = effectiveDensity === "compact";
                 const vertical = cardOrientationFor(tree.design, node.generation) === "vertical";
+                const anniversary = deathAnniversaryText(person);
                 return (
                   <button
                     key={person.id}
@@ -795,7 +797,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                     } shadow-sm ${
                       vertical
                         ? "flex flex-col items-center justify-center px-1.5 py-1 text-center"
-                        : "flex items-center gap-2 px-2 text-left"
+                        : "flex items-center justify-center px-2 text-center"
                     }`}
                     style={{
                       left: node.x,
@@ -813,24 +815,22 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                       className={vertical ? "absolute inset-x-0 top-0 h-1" : "absolute inset-y-0 left-0 w-1"}
                       style={{ background: color }}
                     />
-                    <Avatar person={person} size={30} className={vertical ? "mt-0.5 shrink-0" : "ml-1 shrink-0"} />
-                    <span className={vertical ? "mt-1 w-full min-w-0" : "min-w-0 flex-1 pr-1"}>
-                      <span className="block truncate text-[0.68rem] font-semibold uppercase tracking-wide text-[var(--pat-muted)]">
-                        {person.title ?? generationTag(gens.get(person.id) ?? node.generation)}
-                      </span>
-                      <span className="line-clamp-2 block text-[0.7rem] font-bold leading-tight text-[var(--pat-ink)]">
-                        {deceased ? (
-                          <span className="mr-0.5 font-normal text-[var(--pat-muted)]" aria-label="Đã mất">
-                            †
-                          </span>
-                        ) : null}
+                    <span className="flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5">
+                      <span className="line-clamp-2 block w-full text-[0.82rem] font-bold uppercase leading-tight tracking-wide text-[var(--pat-ink)]">
                         {person.name}
                       </span>
-                      {compact ? null : (
-                        <span className="block truncate text-[0.68rem] text-[var(--pat-muted)]">
-                          {lifeSpan(person)}
-                        </span>
-                      )}
+                      {deceased && !compact ? (
+                        <>
+                          <span className="block w-full truncate text-[0.62rem] text-[var(--pat-muted)]">
+                            {cardLifeYears(person)}
+                          </span>
+                          {anniversary ? (
+                            <span className="block w-full truncate text-[0.62rem] text-[var(--pat-muted)]">
+                              Giỗ {anniversary}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : null}
                     </span>
                   </button>
                 );
@@ -1011,7 +1011,7 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
             <SheetRow
               icon={<UserRound size={18} />}
               title="Xem hồ sơ đầy đủ"
-              onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${selected.id}`)}
+              onClick={() => router.push(memberPath(tree.id, selected.id))}
             />
             <SheetRow
               icon={<PencilLine size={18} />}

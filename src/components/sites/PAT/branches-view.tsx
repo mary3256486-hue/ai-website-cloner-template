@@ -24,6 +24,7 @@ import type { Branch, FamilyTree, Person } from "./types";
 import { branchHeadcounts, computeGenerations, descendants, initials, sortPersons } from "./utils";
 import { classifyClan } from "./clan";
 import { branchViewHref, computeBranchScope, type BranchCardStyle } from "./branch-view";
+import { treePath } from "./routes";
 import { TreeShell } from "./app-shell";
 import { Avatar, Badge, EmptyState, Field, SectionTitle, Segmented, Sheet } from "./ui";
 
@@ -104,7 +105,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
     });
   }, [tree, viewHead, viewAncestors, viewLimit, viewCardStyle, viewTitle]);
   const viewHref = (section: string) =>
-    viewScope ? branchViewHref(`/gia-pha/${tree.id}/${section}`, viewScope.options) : "";
+    viewScope ? branchViewHref(treePath(tree.id, section), viewScope.options) : "";
 
   useEffect(() => {
     if (!undoDelete) return;
@@ -601,7 +602,7 @@ export function BranchesView({ tree }: { tree: FamilyTree }) {
                       )}
                       <button
                         type="button"
-                        onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-thanh-vien?nh=${branch.id}`)}
+                        onClick={() => router.push(treePath(tree.id, "danh-sach-thanh-vien", { nh: branch.id }))}
                         className="inline-flex shrink-0 items-center gap-1 text-[0.68rem] font-semibold text-[var(--pat-red)]"
                       >
                         <Users size={12} /> Xem {listed.length} thành viên <ChevronRight size={12} />

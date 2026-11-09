@@ -36,6 +36,7 @@ import {
   X,
 } from "lucide-react";
 import { useGenealogy } from "./store";
+import { treePath } from "./routes";
 import type {
   Decoration,
   DiagramTuning,
@@ -1203,7 +1204,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
   const exitBranchView = () => {
     setBranchParams(null);
     setBranchTitleDraft(null);
-    router.replace(`/gia-pha/${tree.id}/ve-pha-do`);
+    router.replace(treePath(tree.id, "ve-pha-do"));
   };
 
   const openDecor = (mode: "library" | "text" | "image") => {
@@ -1657,7 +1658,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
           )}
           <button
             type="button"
-            onClick={() => router.push(`/gia-pha/${tree.id}/giao-dien`)}
+            onClick={() => router.push(treePath(tree.id, "giao-dien"))}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white/90"
             aria-label="Thiết kế phả đồ"
           >
@@ -2096,7 +2097,7 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
                 subtitle="Khổ giấy, nền, hoa văn, hoành phi"
                 onClick={() => {
                   setExportOpen(false);
-                  router.push(`/gia-pha/${tree.id}/giao-dien`);
+                  router.push(treePath(tree.id, "giao-dien"));
                 }}
               />
             </>

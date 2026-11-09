@@ -41,6 +41,7 @@ import { useGenealogy, trashDaysLeft, type ArchivedTree, type TreeSnapshot } fro
 import type { FamilyTree, Person } from "./types";
 import { ANCESTOR_TITLES, HONORS, MANDARIN_RANKS, NOBLE_TITLES } from "./types";
 import { getStats } from "./utils";
+import { treePath } from "./routes";
 import { createDemoTree } from "./seed";
 import {
   buildTreeFromRows,
@@ -331,7 +332,7 @@ export function HomeView() {
     window.history.replaceState(null, "", next === "mau" ? base : `${base}#${next}`);
   };
 
-  const openTree = (id: string, section = "trang-chu") => router.push(`/gia-pha/${id}/${section}`);
+  const openTree = (id: string, section = "trang-chu") => router.push(treePath(id, section));
 
   const closeDelete = () => {
     setDeleteStep(0);
@@ -617,8 +618,7 @@ export function HomeView() {
   };
 
   const openMemberSearch = (treeId: string, query?: string) => {
-    const suffix = query ? `?q=${encodeURIComponent(query)}` : "";
-    router.push(`/gia-pha/${treeId}/danh-sach-thanh-vien${suffix}`);
+    router.push(treePath(treeId, "danh-sach-thanh-vien", { q: query }));
   };
 
   const reportInput = (state: ImportReportState) => ({
@@ -940,7 +940,7 @@ export function HomeView() {
                 if (!sample) return;
                 const name = sample.name.replace(/\s*\(MẪU\)\s*$/i, "") + " (bản sao)";
                 const { id } = importTree({ ...sample, name }, { suffix: false });
-                router.push(`/gia-pha/${id}/trang-chu`);
+                router.push(treePath(id));
               }}
               onDownload={setDownloadTree}
               onRestoreSample={restoreSample}
@@ -1782,7 +1782,7 @@ export function HomeView() {
                       onClick={() => {
                         const id = createdTree.id;
                         setCreatedTree(null);
-                        router.push(`/gia-pha/${id}/danh-sach-thanh-vien?add=1`);
+                        router.push(treePath(id, "danh-sach-thanh-vien", { add: "1" }));
                       }}
                     >
                       <Plus size={14} /> Thêm thành viên đầu tiên

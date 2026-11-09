@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Branch, Decoration, DesignSettings, FamilyTree, LinkConfidence, Person, TrashedBranch, TrashedMember } from "./types";
-import { DEFAULT_DESIGN, FAMILY_TREE_SCHEMA_VERSION } from "./types";
+import { DEFAULT_DESIGN, FAMILY_TREE_SCHEMA_VERSION, lifeStatusOf } from "./types";
 import { ensurePersonCodes, nextPersonCode, uid } from "./utils";
 import { foldOutsideMembers } from "./clan";
 import { createDemoTree } from "./seed";
@@ -126,6 +126,9 @@ function normalizeTree(tree: FamilyTree): FamilyTree {
   const members = source.map((person) => {
     const legacy = person as LegacyPerson;
     const next: Person & Partial<LegacyPerson> = { ...person };
+    const status = lifeStatusOf(person);
+    next.lifeStatus = status;
+    next.alive = status === "alive";
     if (typeof next.title === "string" && /khởi\s+tổ/i.test(next.title)) {
       next.title = next.title.replace(/khởi\s+(tổ)/gi, (_match, word: string) =>
         word === word.toUpperCase() ? "SƠ TỔ" : "Sơ tổ",

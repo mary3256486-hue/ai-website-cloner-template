@@ -51,13 +51,14 @@ export function parseBranchView(search: string): BranchViewOptions | null {
 }
 
 export function branchViewHref(path: string, options: BranchViewOptions): string {
-  const params = new URLSearchParams();
+  const [base, existing = ""] = path.split("?");
+  const params = new URLSearchParams(existing);
   params.set("chi", options.headId);
   if (options.ancestorGenerations > 0) params.set("tren", String(options.ancestorGenerations));
   if (options.generationLimit > 0) params.set("gioihan", String(options.generationLimit));
   params.set("the", options.cardStyle === "full" ? "du" : "gon");
   if (options.title.trim()) params.set("hoanhphi", options.title.trim());
-  return `${path}?${params.toString()}`;
+  return `${base}?${params.toString()}`;
 }
 
 /**

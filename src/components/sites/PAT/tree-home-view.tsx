@@ -22,6 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import { useGenealogy, trashDaysLeft } from "./store";
+import { memberPath, treePath } from "./routes";
 import type { FamilyTree } from "./types";
 import { generationTag, UNKNOWN_GENERATION } from "./types";
 import {
@@ -137,7 +138,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
     ? headcounts.men.filter((member) => !tree.branches.some((branch) => branch.id === member.branchId))
     : [];
 
-  const open = (href: string) => router.push(`/gia-pha/${tree.id}/${href}`);
+  const open = (href: string) => router.push(treePath(tree.id, href));
 
   return (
     <TreeShell
@@ -537,7 +538,7 @@ export function TreeHomeView({ tree }: { tree: FamilyTree }) {
               </div>
               <button
                 type="button"
-                onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${founder.id}`)}
+                onClick={() => router.push(memberPath(tree.id, founder.id))}
                 className="pat-btn pat-btn-outline h-8 text-xs"
               >
                 Hồ sơ <ChevronRight size={13} />

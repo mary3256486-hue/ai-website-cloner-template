@@ -35,6 +35,7 @@ import {
 } from "./document-store";
 import { EmptyState, Field, Sheet } from "./ui";
 import type { FamilyTree } from "./types";
+import { saveBlob } from "./native";
 
 const KIND_STYLES: Record<DocumentKind, { icon: typeof File; className: string }> = {
   image: { icon: ImageIcon, className: "bg-[#f3e6cd] text-[#8a6a52]" },
@@ -184,14 +185,7 @@ export function DocumentsView({ tree }: { tree: FamilyTree }) {
     try {
       const blob = await readTreeDocumentBlob(tree.id, doc.id);
       if (!blob) throw new Error("Không tìm thấy tệp trong kho.");
-      const url = URL.createObjectURL(blob);
-      const anchor = window.document.createElement("a");
-      anchor.href = url;
-      anchor.download = doc.fileName;
-      window.document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+      await saveBlob(blob, doc.fileName);
     } catch (downloadError) {
       setError(messageOf(downloadError));
     }

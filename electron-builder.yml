@@ -1,0 +1,26 @@
+appId: vn.tieupham.giapha
+productName: Tieu Pham - Gia Pha
+copyright: © 2026 Khối Đình Tiểu Phạm
+directories:
+  output: dist-electron
+  buildResources: build
+files:
+  - electron/**/*
+  - out/**/*
+  - package.json
+asar: true
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Tiểu Phạm — Gia Phả
+  artifactName: TieuPham-GiaPha-setup-${version}.exe
+portable:
+  artifactName: TieuPham-GiaPha-portable-${version}.exe

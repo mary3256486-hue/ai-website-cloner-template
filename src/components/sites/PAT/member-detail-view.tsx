@@ -30,6 +30,8 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useGenealogy } from "./store";
+import { memberPath, treePath } from "./routes";
+import { printCurrentPage } from "./native";
 import type { CalendarKind, FamilyTree, Person } from "./types";
 import {
   CALENDAR_LABELS,
@@ -259,7 +261,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
   );
   const generation = gens.get(member.id) ?? 1;
   const lifeStatus = lifeStatusOf(member);
-  const statusTone = lifeStatus === "alive" ? "green" : lifeStatus === "deceased" ? "muted" : "gold";
+  const statusTone = lifeStatus === "alive" ? "green" : "muted";
   const generationKnown = generation !== UNKNOWN_GENERATION;
   const birthText = personDateText(member.birthDate, member.birthCalendar, member.birthLeap);
   const deathText = personDateText(member.deathDate, member.deathCalendar, member.deathLeap);
@@ -326,7 +328,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
     branchId: member.branchId,
   };
 
-  const goMember = (id: string) => router.push(`/gia-pha/${tree.id}/thanh-vien/${id}`);
+  const goMember = (id: string) => router.push(memberPath(tree.id, id));
   const openEdit = (tab: FormTab = "basic") => {
     setEditTab(tab);
     setEditOpen(true);
@@ -353,13 +355,13 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
 
   const printProfile = () => {
     setMenuOpen(false);
-    window.print();
+    printCurrentPage("Hồ sơ thành viên");
   };
 
   const exportPdf = () => {
     setMenuOpen(false);
     showToast("Trong hộp thoại in, chọn “Lưu thành PDF” để nhận tệp PDF.");
-    window.setTimeout(() => window.print(), 300);
+    window.setTimeout(() => printCurrentPage("Hồ sơ thành viên"), 300);
   };
 
   const openDelete = () => {
@@ -369,7 +371,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
 
   const confirmDelete = () => {
     deleteMember(tree.id, member.id);
-    router.push(`/gia-pha/${tree.id}/danh-sach-thanh-vien`);
+    router.push(treePath(tree.id, "danh-sach-thanh-vien"));
   };
 
   const removeAncestorLink = () => {
@@ -529,7 +531,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => router.push(`/gia-pha/${tree.id}/ve-pha-do?focus=${member.id}`)}
+              onClick={() => router.push(treePath(tree.id, "ve-pha-do", { focus: member.id }))}
               className="pat-btn pat-btn-red h-10 text-xs"
             >
               <Network size={14} /> Xem trên phả đồ
@@ -577,15 +579,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <InfoRow label="Sinh" value={birthText} />
             <InfoRow
               label="Mất"
-              value={
-                lifeStatus === "alive"
-                  ? "Còn sống"
-                  : lifeStatus === "missing"
-                    ? "Mất tích"
-                    : lifeStatus === "unknown"
-                      ? "Chưa rõ"
-                      : deathText
-              }
+              value={lifeStatus === "alive" ? "Còn sống" : deathText}
             />
             <InfoRow label="Tuổi" value={ageText(member)} hint={TERM_HINTS["Tuổi"]} />
             <InfoRow label="Quê quán" value={member.hometown} />
@@ -1036,7 +1030,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
           <button
             type="button"
             className="pat-btn pat-btn-outline h-10 text-xs"
-            onClick={() => router.push(`/gia-pha/${tree.id}/danh-sach-thanh-vien`)}
+            onClick={() => router.push(treePath(tree.id, "danh-sach-thanh-vien"))}
           >
             <Users size={14} /> Về danh sách
           </button>
@@ -1077,13 +1071,7 @@ export function MemberDetailView({ tree, member }: { tree: FamilyTree; member: P
             <tr className="border-b border-[#ddd]">
               <td className="py-1 pr-2 font-semibold">Mất</td>
               <td className="py-1">
-                {lifeStatus === "alive"
-                  ? "Còn sống"
-                  : lifeStatus === "missing"
-                    ? "Mất tích"
-                    : lifeStatus === "unknown"
-                      ? "Chưa rõ"
-                      : deathText ?? "Chưa rõ"}
+                {lifeStatus === "alive" ? "Còn sống" : deathText ?? "Chưa rõ"}
               </td>
             </tr>
             <tr className="border-b border-[#ddd]">

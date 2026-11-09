@@ -1,3 +1,4 @@
+import { downloadBlob } from "./native";
 import type {
   Branch,
   CalendarKind,
@@ -324,14 +325,7 @@ export function buildGedcom(input: FamilyTree): string {
 export function exportGedcom(tree: FamilyTree) {
   const content = buildGedcom(tree);
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${slug(tree.name)}.ged`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  downloadBlob(blob, `${slug(tree.name)}.ged`);
 }
 
 function slug(name: string) {
@@ -423,9 +417,8 @@ const CONFIDENCE_BY_LABEL = invert(LINK_CONFIDENCE_LABELS);
 
 function readLifeStatus(indi: GNode, hasDeath: boolean): LifeStatus {
   const raw = text(indi, "_PAT_LIFE").toLowerCase();
-  if (raw === "alive" || raw === "deceased" || raw === "missing" || raw === "unknown") {
-    return raw as LifeStatus;
-  }
+  if (raw === "alive") return "alive";
+  if (raw === "deceased" || raw === "missing" || raw === "unknown") return "deceased";
   const mapped = LIFE_BY_LABEL.get(raw);
   if (mapped) return mapped;
   return hasDeath ? "deceased" : "alive";

@@ -25,6 +25,7 @@ import {
   Users,
 } from "lucide-react";
 import { useGenealogy } from "./store";
+import { memberPath, treePath } from "./routes";
 import type { FamilyTree, Person } from "./types";
 import { UNKNOWN_GENERATION, generationTag } from "./types";
 import { CLAN_ROLE_HINTS, CLAN_ROLE_LABELS, classifyClan } from "./clan";
@@ -39,6 +40,7 @@ import {
   sortPersons,
 } from "./utils";
 import { exportBackup, exportMembersCsv } from "./export";
+import { printCurrentPage } from "./native";
 import { exportGedcom } from "./gedcom";
 import { downloadExcelTemplate } from "./import";
 import { ESSENTIAL_HEADERS, MEMBER_COLUMN_COUNT } from "./columns";
@@ -183,7 +185,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
 
   const printList = () => {
     setExportOpen(false);
-    window.setTimeout(() => window.print(), 200);
+    window.setTimeout(() => printCurrentPage("Danh sách thành viên"), 200);
   };
 
   return (
@@ -341,7 +343,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                     <div className="flex items-start gap-3 p-3">
                       <button
                         type="button"
-                        onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${person.id}`)}
+                        onClick={() => router.push(memberPath(tree.id, person.id))}
                         className="shrink-0"
                         aria-label={`Xem hồ sơ ${person.name}`}
                       >
@@ -349,7 +351,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${person.id}`)}
+                        onClick={() => router.push(memberPath(tree.id, person.id))}
                         className="min-w-0 flex-1 text-left"
                       >
                         <div className="flex flex-wrap items-center gap-1.5">
@@ -412,7 +414,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                             <button
                               type="button"
                               className="text-[var(--pat-red)] underline-offset-2 hover:underline"
-                              onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${father.id}`)}
+                              onClick={() => router.push(memberPath(tree.id, father.id))}
                             >
                               {father.name}
                             </button>
@@ -424,7 +426,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                             <button
                               type="button"
                               className="text-[var(--pat-red)] underline-offset-2 hover:underline"
-                              onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${mother.id}`)}
+                              onClick={() => router.push(memberPath(tree.id, mother.id))}
                             >
                               {mother.name}
                             </button>
@@ -440,7 +442,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                                 key={spouse.id}
                                 type="button"
                                 className="text-[var(--pat-red)] underline-offset-2 hover:underline"
-                                onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${spouse.id}`)}
+                                onClick={() => router.push(memberPath(tree.id, spouse.id))}
                               >
                                 {spouse.name}
                               </button>
@@ -457,7 +459,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                                 key={child.id}
                                 type="button"
                                 className="rounded-full bg-[#f6e9c8]/80 px-2 py-0.5 font-medium text-[#7a5a10]"
-                                onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${child.id}`)}
+                                onClick={() => router.push(memberPath(tree.id, child.id))}
                               >
                                 {child.name}
                               </button>
@@ -473,7 +475,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
                           <button
                             type="button"
                             className="inline-flex items-center gap-1 text-[0.68rem] font-semibold text-[var(--pat-red)]"
-                            onClick={() => router.push(`/gia-pha/${tree.id}/thanh-vien/${person.id}`)}
+                            onClick={() => router.push(memberPath(tree.id, person.id))}
                           >
                             Hồ sơ đầy đủ <ChevronRight size={12} />
                           </button>
@@ -781,7 +783,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
               subtitle="Thiết kế và in phả đồ khổ lớn"
               onClick={() => {
                 setExportOpen(false);
-                router.push(`/gia-pha/${tree.id}/ve-pha-do`);
+                router.push(treePath(tree.id, "ve-pha-do"));
               }}
             />
           </div>
@@ -818,7 +820,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             title="Xem cây gia phả"
             onClick={() => {
               setMoreOpen(false);
-              router.push(`/gia-pha/${tree.id}/chinh-sua-voi-cay-gia-pha`);
+              router.push(treePath(tree.id, "chinh-sua-voi-cay-gia-pha"));
             }}
           />
           <SheetRow
@@ -826,7 +828,7 @@ export function MembersView({ tree }: { tree: FamilyTree }) {
             title="Quản lý chi phái"
             onClick={() => {
               setMoreOpen(false);
-              router.push(`/gia-pha/${tree.id}/danh-sach-nhanh`);
+              router.push(treePath(tree.id, "danh-sach-nhanh"));
             }}
           />
           <SheetRow

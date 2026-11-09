@@ -28,6 +28,7 @@ import {
 } from "./columns";
 import { classifyClan, foldOutsideMembers } from "./clan";
 import { memberRows, safeName } from "./export";
+import { downloadBlob } from "./native";
 
 /** Giới hạn đọc tệp để trình duyệt trên thiết bị yếu vẫn xử lý được. */
 export const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
@@ -174,8 +175,7 @@ function parseLifeStatus(raw: string, deathDate: string, legacyAlive: string): {
   const value = normalizeHeader(raw);
   const legacy = normalizeHeader(legacyAlive);
   let lifeStatus: LifeStatus | undefined;
-  if (["mất tích", "mat tich", "missing"].includes(value)) lifeStatus = "missing";
-  else if (["chưa rõ", "chua ro", "không rõ", "khong ro", "unknown", "?"].includes(value)) lifeStatus = "unknown";
+  if (["mất tích", "mat tich", "missing", "chưa rõ", "chua ro", "không rõ", "khong ro", "unknown", "?"].includes(value)) lifeStatus = "deceased";
   else if (["đã mất", "da mat", "mất", "mat", "chết", "chet", "qua đời", "deceased"].includes(value)) lifeStatus = "deceased";
   else if (["còn sống", "con song", "sống", "song", "alive"].includes(value)) lifeStatus = "alive";
   else if (legacy) {
@@ -185,11 +185,7 @@ function parseLifeStatus(raw: string, deathDate: string, legacyAlive: string): {
     else if (alive) lifeStatus = "alive";
   }
   const alive =
-    lifeStatus === "alive"
-      ? true
-      : lifeStatus === "deceased" || lifeStatus === "missing" || lifeStatus === "unknown"
-        ? false
-        : !deathDate;
+    lifeStatus === "alive" ? true : lifeStatus === "deceased" ? false : !deathDate;
   return { alive, lifeStatus };
 }
 
@@ -400,7 +396,7 @@ const TEMPLATE_GUIDE: string[][] = [
   ["3.", "Cột Cha, Mẹ, Vợ/chồng ghi Mã hoặc họ tên. Ưu tiên ghi Mã để không nhầm khi trùng tên."],
   ["4.", "Cột “Đời”: 0 là Sơ Tổ; các đời sau là 1, 2, 3… Để trống để tự tính từ cha/mẹ hoặc liên kết tiền tổ."],
   ["5.", "Cột “Bậc tiền tổ” chỉ dùng cho các cụ ở trên Sơ Tổ: 1 = xa nhất, tăng dần về phía Sơ Tổ."],
-  ["6.", "Cột “Tình trạng”: Còn sống / Đã mất / Mất tích / Chưa rõ. Cột “Còn sống” kiểu cũ vẫn được đọc."],
+  ["6.", "Cột “Tình trạng”: Còn sống / Đã mất (giá trị cũ Mất tích / Chưa rõ được quy về Đã mất). Cột “Còn sống” kiểu cũ vẫn được đọc."],
   ["7.", "Cột Sinh, Mất nhận năm hoặc ngày. Cột “Lịch sinh”, “Lịch mất” ghi Dương lịch hoặc Âm lịch. Khi dùng Âm lịch và rơi vào tháng nhuận, đánh dấu Có ở cột “Tháng nhuận sinh” / “Tháng nhuận mất”."],
   ["8.", "Cột “Sơ Tổ”: đánh dấu Có cho đúng một người của dòng họ đang soạn. Tổ các chi khác để trống và ghi tên chi vào cột “Chi phái”."],
   ["9.", "Nhiều vợ/chồng cách nhau bằng dấu chấm phẩy ;. “Thứ tự vợ/chồng” ghi lại danh sách theo thứ tự hiển thị; “Vai vế” ghi Chánh thất / Kế thất / Thứ thất / Khác tương ứng."],
@@ -490,8 +486,11 @@ export function downloadExcelTemplate(tree?: FamilyTree) {
   XLSX.utils.book_append_sheet(workbook, sheet, "Gia phả");
   XLSX.utils.book_append_sheet(workbook, guide, "Hướng dẫn");
   const suffix = tree ? `-${safeName(tree.name)}` : "";
-  XLSX.writeFile(
-    workbook,
+  const output = XLSX.write(workbook, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  downloadBlob(
+    new Blob([output], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
     `mau-gia-pha-v${TEMPLATE_VERSION}-${MEMBER_COLUMN_COUNT}-cot${suffix}.xlsx`,
   );
 }
@@ -943,14 +942,7 @@ export function downloadImportReport(
   }
   const content = `\uFEFF${lines.map((line) => line.map(csvEscape).join(",")).join("\n")}`;
   const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${prefix}-${stamp()}.csv`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  downloadBlob(blob, `${prefix}-${stamp()}.csv`);
 }
 
 export function downloadImportIssuesCsv(

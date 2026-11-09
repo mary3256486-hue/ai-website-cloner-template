@@ -31,14 +31,12 @@ export const LINK_CONFIDENCE_LABELS: Record<LinkConfidence, string> = {
   unknown: "Chưa rõ",
 };
 
-/** Tình trạng của một thành viên. `alive` cũ vẫn được giữ để đọc dữ liệu đã lưu. */
-export type LifeStatus = "alive" | "deceased" | "missing" | "unknown";
+/** Tình trạng của một thành viên: chỉ còn Còn sống / Đã mất. */
+export type LifeStatus = "alive" | "deceased";
 
 export const LIFE_STATUS_LABELS: Record<LifeStatus, string> = {
   alive: "Còn sống",
   deceased: "Đã mất",
-  missing: "Mất tích",
-  unknown: "Chưa rõ",
 };
 
 export type SpouseRank = "chinh" | "ke" | "thu" | "khac";
@@ -82,7 +80,10 @@ export const FAMILY_TREE_SCHEMA_VERSION = 5;
 export const UNKNOWN_GENERATION = -999;
 
 export function lifeStatusOf(person: Pick<Person, "alive" | "lifeStatus">): LifeStatus {
-  return person.lifeStatus ?? (person.alive ? "alive" : "deceased");
+  if (person.lifeStatus === "alive") return "alive";
+  if (person.lifeStatus === "deceased") return "deceased";
+  // Dữ liệu cũ (mất tích/chưa rõ) hoặc thiếu lifeStatus: quy theo cờ alive.
+  return person.alive ? "alive" : "deceased";
 }
 
 export function lifeStatusLabel(person: Pick<Person, "alive" | "lifeStatus">): string {
@@ -90,7 +91,7 @@ export function lifeStatusLabel(person: Pick<Person, "alive" | "lifeStatus">): s
 }
 
 export function isDeceasedStatus(status: LifeStatus): boolean {
-  return status === "deceased" || status === "missing";
+  return status === "deceased";
 }
 
 export interface GenerationStyle {
@@ -240,7 +241,7 @@ export interface Person {
   birthDate?: string;
   deathDate?: string;
   alive: boolean;
-  /** Tình trạng đầy đủ: còn sống, đã mất, mất tích, chưa rõ. */
+  /** Tình trạng: còn sống hoặc đã mất. */
   lifeStatus?: LifeStatus;
   birthCalendar?: CalendarKind;
   deathCalendar?: CalendarKind;
@@ -662,11 +663,11 @@ export const DEFAULT_DESIGN: DesignSettings = {
   palette: "classic",
   showGenerationLabels: true,
   cardOrientation: "auto",
-  showTitle: true,
+  showTitle: false,
   showName: true,
   showDates: true,
-  showDeathAnniversary: false,
-  showAvatar: true,
+  showDeathAnniversary: true,
+  showAvatar: false,
   banner: DEFAULT_BANNER,
   couplets: DEFAULT_COUPLETS,
   showBirthOrder: false,

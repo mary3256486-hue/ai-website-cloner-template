@@ -7,7 +7,6 @@ import {
   ArrowUp,
   CalendarDays,
   Check,
-  ChevronDown,
   ImagePlus,
   Info,
   Save,
@@ -15,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { STORAGE_KEY, useGenealogy } from "./store";
+import { memberPath } from "./routes";
 import type {
   CalendarKind,
   FamilyTree,
@@ -227,6 +227,7 @@ export function MemberFormSheet({
   const [error, setError] = useState("");
   const [tab, setTab] = useState<FormTab>(initialTab ?? "basic");
   const [lunarTarget, setLunarTarget] = useState<"birth" | "death" | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) =>
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -730,12 +731,21 @@ export function MemberFormSheet({
                 label="Họ và tên *"
                 hint="Bắt buộc. Tên hiển thị trên phả đồ và sổ gia phả; các mục khác có thể bổ sung sau."
               >
-                <input
-                  className="pat-input"
-                  value={values.name}
-                  onChange={(event) => set("name", event.target.value)}
-                  placeholder="Họ tên đầy đủ"
-                />
+                <div className="flex gap-2">
+                  <input
+                    className="pat-input min-w-0 flex-1"
+                    value={values.name}
+                    onChange={(event) => set("name", event.target.value)}
+                    placeholder="Họ tên đầy đủ"
+                  />
+                  <button
+                    type="button"
+                    className="pat-btn h-9 shrink-0 px-2 text-[0.68rem]"
+                    onClick={() => setShowAdvanced((v) => !v)}
+                  >
+                    {showAdvanced ? "Ẩn" : "Hiệu, Thụy"}
+                  </button>
+                </div>
                 {values.name.trim() ? (
                   <p className="mt-1 text-[0.68rem] text-[var(--pat-muted)]">
                     Tách tên: Họ <strong>{nameParts.surname || "—"}</strong> · Đệm{" "}
@@ -743,6 +753,61 @@ export function MemberFormSheet({
                   </p>
                 ) : null}
               </Field>
+
+              {showAdvanced ? (
+                <section className="space-y-3 rounded-xl border border-[var(--pat-line)] bg-white/60 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Tên húy" hint="Tên thật, con cháu kiêng gọi khi cúng tế.">
+                      <input
+                        className="pat-input"
+                        value={values.tabooName}
+                        onChange={(event) => set("tabooName", event.target.value)}
+                        placeholder="Tên kiêng"
+                      />
+                    </Field>
+                    <Field label="Tên tự" hint="Tên chữ do cha mẹ hoặc thầy đặt.">
+                      <input
+                        className="pat-input"
+                        value={values.courtesyName}
+                        onChange={(event) => set("courtesyName", event.target.value)}
+                        placeholder="Tên tự"
+                      />
+                    </Field>
+                    <Field label="Tên hiệu" hint="Biệt hiệu người ấy tự đặt khi trưởng thành.">
+                      <input
+                        className="pat-input"
+                        value={values.styleName}
+                        onChange={(event) => set("styleName", event.target.value)}
+                        placeholder="Hiệu, biệt hiệu"
+                      />
+                    </Field>
+                    <Field label="Thụy hiệu" hint="Tên đặt sau khi mất, ghi trên thần chủ, bia mộ.">
+                      <input
+                        className="pat-input"
+                        value={values.posthumousName}
+                        onChange={(event) => set("posthumousName", event.target.value)}
+                        placeholder="Thụy hiệu"
+                      />
+                    </Field>
+                  </div>
+                  <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
+                    <strong className="text-[var(--pat-ink)]">Húy</strong> là tên thật, con cháu kiêng gọi;{" "}
+                    <strong className="text-[var(--pat-ink)]">tự</strong> là tên chữ dùng khi giao tiếp;{" "}
+                    <strong className="text-[var(--pat-ink)]">hiệu</strong> là biệt hiệu tự đặt;{" "}
+                    <strong className="text-[var(--pat-ink)]">thụy</strong> là tên đặt sau khi mất. Họ tên đầy đủ ở trên
+                    vẫn là tên dùng để tách Họ · Đệm · Tên, nên không cần nhập trùng lại.
+                  </p>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="pat-btn h-8 px-3 text-[0.68rem]"
+                      onClick={() => setShowAdvanced(false)}
+                    >
+                      Lưu
+                    </button>
+                  </div>
+                </section>
+              ) : null}
 
               {duplicateMatches.length ? (
                 <div className="rounded-xl border border-[#e3cd92] bg-[#fdf4e0] px-3 py-2 text-[0.7rem] leading-relaxed text-[#7a5a10]">
@@ -760,7 +825,7 @@ export function MemberFormSheet({
                       return (
                         <li key={person.id}>
                           <a
-                            href={`/gia-pha/${tree.id}/thanh-vien/${person.id}`}
+                            href={memberPath(tree.id, person.id)}
                             target="_blank"
                             rel="noreferrer"
                             className="font-semibold underline"
@@ -830,9 +895,9 @@ export function MemberFormSheet({
               </div>
               <Field
                 label="Tình trạng"
-                hint="Mất tích và Chưa rõ không bị coi là đã mất; giới tính vẫn giữ nguyên."
+                hint="Chọn Còn sống hoặc Đã mất; giới tính vẫn giữ nguyên."
               >
-                <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-1.5">
                   {(Object.keys(LIFE_STATUS_LABELS) as LifeStatus[]).map((status) => (
                     <button
                       key={status}
@@ -946,6 +1011,18 @@ export function MemberFormSheet({
                   ) : null}
                 </Field>
               </div>
+              <Field
+                label="Ngày giỗ (âm lịch)"
+                hint="Ghi theo âm lịch, ví dụ 12 tháng 3; có thể ghi thêm ghi chú."
+              >
+                <input
+                  className="pat-input"
+                  value={values.deathAnniversary}
+                  disabled={values.lifeStatus === "alive"}
+                  onChange={(event) => set("deathAnniversary", event.target.value)}
+                  placeholder="12 tháng 3"
+                />
+              </Field>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -973,56 +1050,6 @@ export function MemberFormSheet({
                 </ul>
               ) : null}
             </section>
-
-            <details className="rounded-xl border border-[var(--pat-line)] bg-white/60">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-semibold text-[var(--pat-red)]">
-                Nâng cao: tên húy, tự, hiệu, thụy
-                <ChevronDown size={14} />
-              </summary>
-              <div className="space-y-3 border-t border-[var(--pat-line)] px-3 py-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Tên húy" hint="Tên thật, con cháu kiêng gọi khi cúng tế.">
-                    <input
-                      className="pat-input"
-                      value={values.tabooName}
-                      onChange={(event) => set("tabooName", event.target.value)}
-                      placeholder="Tên kiêng"
-                    />
-                  </Field>
-                  <Field label="Tên tự" hint="Tên chữ do cha mẹ hoặc thầy đặt.">
-                    <input
-                      className="pat-input"
-                      value={values.courtesyName}
-                      onChange={(event) => set("courtesyName", event.target.value)}
-                      placeholder="Tên tự"
-                    />
-                  </Field>
-                  <Field label="Tên hiệu" hint="Biệt hiệu người ấy tự đặt khi trưởng thành.">
-                    <input
-                      className="pat-input"
-                      value={values.styleName}
-                      onChange={(event) => set("styleName", event.target.value)}
-                      placeholder="Hiệu, biệt hiệu"
-                    />
-                  </Field>
-                  <Field label="Thụy hiệu" hint="Tên đặt sau khi mất, ghi trên thần chủ, bia mộ.">
-                    <input
-                      className="pat-input"
-                      value={values.posthumousName}
-                      onChange={(event) => set("posthumousName", event.target.value)}
-                      placeholder="Thụy hiệu"
-                    />
-                  </Field>
-                </div>
-                <p className="rounded-xl border border-[var(--pat-line)] bg-[#fffaf0]/70 px-3 py-2 text-[0.7rem] leading-relaxed text-[var(--pat-muted)]">
-                  <strong className="text-[var(--pat-ink)]">Húy</strong> là tên thật, con cháu kiêng gọi;{" "}
-                  <strong className="text-[var(--pat-ink)]">tự</strong> là tên chữ dùng khi giao tiếp;{" "}
-                  <strong className="text-[var(--pat-ink)]">hiệu</strong> là biệt hiệu tự đặt;{" "}
-                  <strong className="text-[var(--pat-ink)]">thụy</strong> là tên đặt sau khi mất. Họ tên đầy đủ ở trên
-                  vẫn là tên dùng để tách Họ · Đệm · Tên, nên không cần nhập trùng lại.
-                </p>
-              </div>
-            </details>
 
             <section className="space-y-3">
               <p className="pat-form-section">Thân thế & công danh</p>
@@ -1419,14 +1446,6 @@ export function MemberFormSheet({
             <section className="space-y-3">
               <p className="pat-form-section">Thờ tự & an táng</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Ngày giỗ (âm lịch)" hint="Ghi theo âm lịch, ví dụ 12 tháng 3; có thể ghi thêm ghi chú.">
-                  <input
-                    className="pat-input"
-                    value={values.deathAnniversary}
-                    onChange={(event) => set("deathAnniversary", event.target.value)}
-                    placeholder="12 tháng 3"
-                  />
-                </Field>
                 <Field label="Nơi thờ tự" hint="Từ đường, nhà thờ họ hoặc nơi thờ riêng.">
                   <input
                     className="pat-input"

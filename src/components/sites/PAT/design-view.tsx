@@ -22,6 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useGenealogy } from "./store";
+import { treePath } from "./routes";
 import type {
   BackgroundPattern,
   DiagramTheme,
@@ -33,10 +34,11 @@ import type {
 import {
   DEFAULT_DESIGN,
   PAPER_MM,
+  lifeStatusOf,
   normalizeCustomPaper,
   normalizeTuning,
 } from "./types";
-import { computeGenerations, lifeSpan } from "./utils";
+import { cardLifeYears, computeGenerations, deathAnniversaryText } from "./utils";
 import { computeLayout } from "./layout";
 import { DiagramCanvas, diagramDimensions, paperUnitsFor } from "./diagram-canvas";
 import {
@@ -229,7 +231,6 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
     tree.members.find((member) => (generations.get(member.id) ?? 0) >= 1) ??
     tree.members.find((member) => member.gender === "male") ??
     tree.members[0];
-  const sampleGeneration = sample ? generations.get(sample.id) ?? 1 : 1;
   const samplePalette = PALETTES.find((entry) => entry.value === design.palette) ?? PALETTES[0];
 
   const flash = (message: string) => {
@@ -369,7 +370,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
     });
   };
 
-  const editorHref = `/gia-pha/${tree.id}/ve-pha-do`;
+  const editorHref = treePath(tree.id, "ve-pha-do");
 
   return (
     <TreeShell
@@ -854,12 +855,7 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
           />
           <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px]">
             <div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <Toggle
-                  label="Danh xưng"
-                  active={design.showTitle !== false}
-                  onClick={() => setDesign(tree.id, { showTitle: design.showTitle === false })}
-                />
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <Toggle
                   label="Họ và tên"
                   active={design.showName !== false}
@@ -872,13 +868,8 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                 />
                 <Toggle
                   label="Ngày giỗ"
-                  active={design.showDeathAnniversary === true}
-                  onClick={() => setDesign(tree.id, { showDeathAnniversary: design.showDeathAnniversary !== true })}
-                />
-                <Toggle
-                  label="Biểu trưng chữ Phạm"
-                  active={design.showAvatar}
-                  onClick={() => setDesign(tree.id, { showAvatar: !design.showAvatar })}
+                  active={design.showDeathAnniversary !== false}
+                  onClick={() => setDesign(tree.id, { showDeathAnniversary: design.showDeathAnniversary === false })}
                 />
                 <Toggle
                   label="Nhãn đời"
@@ -916,38 +907,33 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
               <p className="pat-form-section">Thẻ mẫu</p>
               {sample ? (
                 <div
-                  className="rounded-xl border-2 bg-[#fffdf6] p-2 shadow-sm"
+                  className="rounded-xl border-2 bg-[#fffdf6] p-2 text-center shadow-sm"
                   style={{
                     borderColor: design.theme === "ink" ? "#3f3a34" : samplePalette.accent,
                     fontFamily: tuning.fontFamily,
                     fontSize: `${Math.round((tuning.fontSize / 10.5) * 11)}px`,
                   }}
                 >
-                  <div className="flex items-start justify-between gap-1 text-[0.6rem] text-[var(--pat-muted)]">
-                    <span className="truncate">
-                      {design.showTitle !== false
-                        ? sample.title || `Đời ${sampleGeneration}`
-                        : `Đời ${sampleGeneration}`}
+                  {design.showGenderSymbol ? (
+                    <span className="block text-right text-[0.6rem] font-semibold" style={{ color: samplePalette.accent }}>
+                      {sample.gender === "male" ? "♂" : "♀"}
                     </span>
-                    {design.showGenderSymbol ? (
-                      <span className="shrink-0 font-semibold" style={{ color: samplePalette.accent }}>
-                        {sample.gender === "male" ? "♂" : "♀"}
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="pat-serif truncate text-sm font-semibold" style={{ color: samplePalette.accent }}>
+                  ) : null}
+                  <p className="pat-serif truncate text-sm font-bold uppercase tracking-wide" style={{ color: samplePalette.accent }}>
                     {design.showName !== false ? sample.name : "—"}
                   </p>
-                  {design.showDates !== false ? (
-                    <p className="text-[0.62rem] text-[var(--pat-muted)]">
-                      {/\d/.test(lifeSpan(sample)) ? lifeSpan(sample) : "Chưa rõ năm"}
-                    </p>
-                  ) : null}
-                  {design.showBirthOrder && sample.birthOrder > 0 ? (
-                    <p className="text-[0.62rem] text-[var(--pat-muted)]">Con thứ {sample.birthOrder}</p>
-                  ) : null}
-                  {design.showDeathAnniversary && sample.deathAnniversary ? (
-                    <p className="text-[0.62rem] text-[var(--pat-muted)]">Giỗ: {sample.deathAnniversary}</p>
+                  {lifeStatusOf(sample) === "deceased" ? (
+                    <>
+                      {design.showDates !== false ? (
+                        <p className="text-[0.62rem] text-[var(--pat-muted)]">{cardLifeYears(sample)}</p>
+                      ) : null}
+                      {design.showBirthOrder && sample.birthOrder > 0 ? (
+                        <p className="text-[0.62rem] text-[var(--pat-muted)]">Con thứ {sample.birthOrder}</p>
+                      ) : null}
+                      {design.showDeathAnniversary !== false && deathAnniversaryText(sample) ? (
+                        <p className="text-[0.62rem] text-[var(--pat-muted)]">Giỗ {deathAnniversaryText(sample)}</p>
+                      ) : null}
+                    </>
                   ) : null}
                 </div>
               ) : (

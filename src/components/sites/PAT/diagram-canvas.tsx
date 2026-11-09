@@ -26,6 +26,8 @@ import {
   GENERATION_LABEL_CARD_SCALE,
   generationBandMetrics,
   generationTag,
+  isDeceasedStatus,
+  lifeStatusOf,
   normalizeBackgroundImage,
   normalizeBanner,
   normalizeCouplets,
@@ -33,7 +35,7 @@ import {
   type ExtraFieldKey,
 } from "./types";
 import { computeLayout } from "./layout";
-import { computeGenerations, displayLifeSpan, sortPersons } from "./utils";
+import { cardLifeYears, computeGenerations, deathAnniversaryText, sortPersons } from "./utils";
 
 const PALETTES: Record<DesignSettings["palette"], { accent: string; deep: string; gold: string; soft: string }> = {
   classic: { accent: "#8a1c15", deep: "#6a100c", gold: "#c9a227", soft: "#f6e9c8" },
@@ -328,11 +330,6 @@ export function diagramDimensions(
   };
 }
 
-function truncate(text: string, max: number) {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max - 1)}…`;
-}
-
 function wrapText(text: string, maxChars: number, maxLines: number): string[] {
   const limit = Math.max(4, maxChars);
   const words = text.trim().split(/\s+/).filter(Boolean);
@@ -354,9 +351,6 @@ function wrapText(text: string, maxChars: number, maxLines: number): string[] {
   return kept;
 }
 
-const PHAM_EMBLEM_SRC = "/sites/PAT/images/han-pham.png";
-const PHAM_EMBLEM_RATIO = 585 / 728;
-
 function yearOf(value?: string) {
   const match = value?.match(/\d{4}/);
   return match ? Number(match[0]) : undefined;
@@ -374,8 +368,10 @@ function extraFieldText(key: ExtraFieldKey, person: Person, generation: number) 
       return person.tabooName ? `Húy: ${person.tabooName}` : undefined;
     case "education":
       return person.education ? `Học: ${person.education}` : undefined;
-    case "deathAnniversary":
-      return person.deathAnniversary ? `Giỗ: ${person.deathAnniversary}` : undefined;
+    case "deathAnniversary": {
+      const anniv = deathAnniversaryText(person);
+      return anniv ? `Giỗ ${anniv}` : undefined;
+    }
     case "age": {
       const birth = yearOf(person.birthDate);
       const death = yearOf(person.deathDate);
@@ -468,7 +464,6 @@ export function DiagramCanvas({
   const settings = design ?? tree.design;
   const tuning = normalizeTuning(settings.tuning);
   const palette = PALETTES[settings.palette];
-  const generations = computeGenerations(tree.members, tree.founderId);
   const branchColor = new Map(tree.branches.map((branch) => [branch.id, branch.color]));
   const branchCode = new Map(tree.branches.map((branch) => [branch.id, branch.code]));
   const dimensions = diagramDimensions(layout, settings, paper);
@@ -575,8 +570,6 @@ export function DiagramCanvas({
     return nodeVisible(a) && nodeVisible(b);
   };
 
-  const isGen = (node: TreeNode) => generations.get(node.person.id) ?? node.generation;
-
   return (
     <svg
       id={svgId}
@@ -590,13 +583,6 @@ export function DiagramCanvas({
       aria-label={`Phả đồ ${tree.name}`}
     >
       <defs>
-        <image
-          id={`${idPrefix}-pham-emblem`}
-          href={PHAM_EMBLEM_SRC}
-          width={100 * PHAM_EMBLEM_RATIO}
-          height={100}
-          preserveAspectRatio="xMidYMid meet"
-        />
         <pattern id={patternId} width="56" height="56" patternUnits="userSpaceOnUse" patternTransform={`scale(${patternScale})`}>
           {settings.background === "lotus" ? (
             <g fill="none" stroke={palette.gold} strokeOpacity={0.13 * patternOpacity} strokeWidth="1">
@@ -1144,7 +1130,6 @@ export function DiagramCanvas({
                 (inkSaver ? "#3f3a34" : person.gender === "male" ? palette.accent : "#9a4a6b");
               const focused = focusId === person.id;
               const selected = selectedIds?.includes(person.id) === true;
-              const clip = `${idPrefix}-clip-${node.id}`;
               const clipText = `${idPrefix}-clip-text-${node.id}`;
               const vertical =
                 (genStyle?.orientation ??
@@ -1154,63 +1139,50 @@ export function DiagramCanvas({
               const baseW = vertical ? CARD_VERTICAL_W : CARD_W;
               const baseH = vertical ? CARD_VERTICAL_H : CARD_H;
               const contentScale = node.width / baseW;
-              const showTitle = genStyle?.showTitle ?? settings.showTitle !== false;
               const showName = genStyle?.showName ?? settings.showName !== false;
               const showDates =
                 showDatesOverride ??
                 ((genStyle?.showDates ?? settings.showDates !== false) && !personStyle?.hideDates);
-              const showAvatar = genStyle?.showAvatar ?? settings.showAvatar;
-              const anniversary = person.deathAnniversary?.trim();
+              const anniversary = deathAnniversaryText(person);
               const showAnniversary =
-                (genStyle?.showDeathAnniversary ?? settings.showDeathAnniversary === true) && Boolean(anniversary);
-              const title =
-                person.title ||
-                (isGen(node) < 0
-                  ? `TIỀN TỔ ${-isGen(node)}`
-                  : isGen(node) === 0
-                    ? "SƠ TỔ"
-                    : `ĐỜI ${isGen(node)}`);
+                (genStyle?.showDeathAnniversary ?? settings.showDeathAnniversary !== false) && Boolean(anniversary);
+              const deceased = isDeceasedStatus(lifeStatusOf(person));
               const meta: string[] = [];
-              if (settings.showBirthOrder && person.birthOrder > 0) meta.push(`Con thứ ${person.birthOrder}`);
-              if (showDates) meta.push(displayLifeSpan(person, tree.privacy));
-              if (showAnniversary && anniversary) meta.push(`Giỗ: ${anniversary}`);
+              if (deceased) {
+                if (settings.showBirthOrder && person.birthOrder > 0) meta.push(`Con thứ ${person.birthOrder}`);
+                if (showDates) meta.push(cardLifeYears(person));
+                if (showAnniversary && anniversary) meta.push(`Giỗ ${anniversary}`);
+              }
               const extraFields = genStyle?.extraFields ?? tuning.extraFields;
               for (const key of extraFields) {
+                if (key === "generation" || key === "deathAnniversary") continue;
                 const text = extraFieldText(key, person, node.generation);
                 if (text) meta.push(text);
               }
 
-              const avatar = vertical
-                ? { cx: baseW / 2, cy: 27, r: 13 }
-                : { cx: 22, cy: 26, r: 11 };
-              const emblemH = avatar.r * 1.84;
-              const emblemW = emblemH * PHAM_EMBLEM_RATIO;
-              const textX = vertical ? baseW / 2 : 40;
-              const anchor = vertical ? "middle" : "start";
+              const textX = baseW / 2;
+              const anchor = "middle";
               const fontFamily = genStyle?.fontFamily || tuning.fontFamily;
-              const nameSize = genStyle?.fontSize || tuning.fontSize;
+              const nameSize = (genStyle?.fontSize || tuning.fontSize) * 1.16;
               const nameLineHeight = nameSize + 2;
-              const titleSize = Math.max(6.2, nameSize * 0.7);
-              const metaSize = Math.max(6.2, nameSize * 0.74);
+              const metaSize = Math.max(6.2, nameSize * 0.66);
               const maxLines = Math.max(1, genStyle?.lineCount || tuning.lineCount);
-              const nameWidth = vertical ? baseW - 14 : baseW - 50;
+              const nameWidth = baseW - 12;
               const nameLines = showName
-                ? wrapText(person.name, Math.floor(nameWidth / (nameSize * 0.56)), maxLines)
+                ? wrapText(person.name.toUpperCase(), Math.floor(nameWidth / (nameSize * 0.56)), maxLines)
                 : [];
-              const nameStart = vertical ? (showTitle ? 69 : 59) : showTitle ? 31 : 27;
+              const metaLines = meta.flatMap((line) =>
+                wrapText(line, Math.floor((baseW - 12) / (metaSize * 0.54)), 2),
+              );
+              const metaLineHeight = metaSize + 2.4;
+              const blockH =
+                nameLines.length * nameLineHeight +
+                (metaLines.length ? 3 + metaLines.length * metaLineHeight : 0);
+              const nameStart = Math.max(nameSize, (baseH - blockH) / 2 + nameSize * 0.82);
               const nameLastY = nameStart + Math.max(0, nameLines.length - 1) * nameLineHeight;
               const metaStart = nameLines.length
                 ? nameLastY + nameLineHeight + 1
-                : vertical
-                  ? showTitle
-                    ? 70
-                    : 59
-                  : nameStart;
-              const metaLines = meta.flatMap((line) =>
-                vertical
-                  ? wrapText(line, Math.floor((baseW - 12) / (metaSize * 0.54)), 2)
-                  : [truncate(line, 30)],
-              );
+                : (baseH - blockH) / 2 + metaSize;
               const cardFill =
                 genStyle?.cardColor ||
                 (inkSaver
@@ -1251,52 +1223,19 @@ export function DiagramCanvas({
                     opacity={inkSaver ? 0.3 : 0.85}
                   />
                   <defs>
-                    <clipPath id={clip}>
-                      <circle cx={avatar.cx} cy={avatar.cy} r={avatar.r} />
-                    </clipPath>
                     <clipPath id={clipText}>
                       <rect x="0" y="0" width={baseW} height={baseH} rx="7" />
                     </clipPath>
                   </defs>
                   <g transform={`scale(${contentScale})`}>
-                    {showAvatar ? (
-                      <g clipPath={`url(#${clip})`}>
-                        <circle
-                          cx={avatar.cx}
-                          cy={avatar.cy}
-                          r={avatar.r}
-                          fill="#8a1c15"
-                          opacity={inkSaver ? 0.5 : 0.92}
-                        />
-                        <use
-                          href={`#${idPrefix}-pham-emblem`}
-                          transform={`translate(${avatar.cx - emblemW / 2}, ${avatar.cy - emblemH / 2}) scale(${emblemH / 100})`}
-                        />
-                      </g>
-                    ) : null}
                   <g clipPath={`url(#${clipText})`}>
-                    {showTitle ? (
-                      <text
-                        x={textX}
-                        y={vertical ? 54 : 16}
-                        textAnchor={anchor}
-                        fontSize={titleSize}
-                        fontWeight="600"
-                        letterSpacing={vertical ? 0.2 : 0.6}
-                        fill={palette.deep}
-                        opacity="0.65"
-                        fontFamily={fontFamily}
-                      >
-                        {truncate(title, vertical ? 18 : 22)}
-                      </text>
-                    ) : null}
                     {nameLines.length ? (
                       <text
                         x={textX}
                         y={nameStart}
                         textAnchor={anchor}
                         fontSize={nameSize}
-                        fontWeight="600"
+                        fontWeight="700"
                         fill="#3d2a1e"
                         fontFamily={fontFamily}
                       >

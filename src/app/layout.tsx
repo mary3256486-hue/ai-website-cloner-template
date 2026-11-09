@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro, Playfair_Display } from "next/font/google";
 import { GenealogyProvider } from "@/components/sites/PAT/store";
 import "./globals.css";
@@ -19,6 +19,12 @@ export const metadata: Metadata = {
   title: "Tiểu Phạm — Gia Phả",
   description:
     "Dựng gia phả số: quản lý thành viên, chi phái, cây phả hệ, phả đồ và xuất bản in.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
