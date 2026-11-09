@@ -21,9 +21,431 @@ Mục đích: ghi lại việc đã rà soát/sửa, cách đã kiểm tra và p
   - `src/components/sites/PAT/tree-editor-view.tsx`, `diagram-editor-view.tsx`, `layout.ts`, `diagram-canvas.tsx` — chế độ xem chi.
   - `src/components/sites/PAT/types.ts`, `layout.ts`, `diagram-canvas.tsx`, `diagram-inspector.tsx`, `design-view.tsx`, `diagram-editor-view.tsx` — khung viền hoa văn 4 mô-đun cố định (P12-05), vị trí dọc hoành phi mặc định 6% chiều cao giấy, hàng thẻ đầu ở 26% và rồng kéo đối xứng.
   - `public/sites/PAT/decor/khung/` — bốn ảnh khung do bạn cung cấp: `goc.png`, `ngang-giua.png`, `doc-giua.png`, `noi.png`.
+  - `src/components/sites/PAT/layout.ts` — chặn xen kẽ cụm con khi áp vị trí lưu, căn giữa trang các đời tiền tổ → Đời 1, và nét đứt mẹ–con vẽ độc lập không đổi nét chính.
+  - `src/app/globals.css` — chừa chỗ tường minh cho kính lúp trong ô tìm kiếm (`.pat-input.pl-8`, `.pat-input.pl-9`).
 - `npx tsc --noEmit` và `npx eslint` trên các file đã sửa: sạch.
 
 ## 2. Việc đã hoàn thành gần đây
+
+### 2026-11-09 — Nguyên tắc mới: nét đứt mẹ–con vẽ độc lập, không đổi nét chính
+
+Yêu cầu: nét đứt mảnh nối mẹ với con phải là nét phụ drawn riêng, không liên quan nét chính; bật/tắt tuỳ chọn “Đường nối mẹ đến con” không được làm thay đổi nét chính; nét ngang mẹ–con nằm sát nét ngang chính và được phép cắt qua nét chính. Thay thế nguyên tắc “ngoặc hai tầng” (thanh mẹ + thanh cụm bên dưới) đã ghi ở mục dưới.
+
+**Thay đổi (`src/components/sites/PAT/layout.ts`, `buildEdges`)**
+- Bỏ hoàn toàn nhánh `cluster`: mỗi gia đình luôn chỉ có **một nét chính** của cha — thân dọc từ đáy thẻ cha, nét ngang qua tâm **toàn bộ** con, và nét rủ xuống từng con — kể cả khi bật nét mẹ. Xoá các trường `bridges`, `motherStem` và kind `"cluster"` khỏi `ChildBarPlan`.
+- Với gia đình nhiều vợ (`tuning.motherLine && số vợ > 1`), mỗi mẹ có **nét phụ độc lập**: thân đứt từ đáy thẻ mẹ xuống nét ngang của bà ấy, nét ngang qua tâm các con của bà (lệch 8 đơn vị để phân biệt với nét của hàng con), và nét rủ xuống từng con. Tất cả mang `secondary: true` → canvas vẽ mảnh (0,55×) và đứt “5 4”.
+- Xếp lớp đường ngang giờ chỉ xét nét chính: `occupancy`, `level`, `maxLevel`, `needed` và `extraGap` tính trên các bar `kind === "main"`. Vì vậy bật/tắt nét mẹ không đổi tầng nét chính, không kéo giãn dải đời, không dịch hàng thẻ.
+- Nét mẹ–con không tham gia xếp lớp: nét ngang của bà mẹ đặt `max(6, separation/2)` (mặc định 8 đơn vị) dưới nét chính cùng gia đình. **Nét của hai mẹ khác nhau không bao giờ trùng y khi khoảng x chồng nhau**: xếp so le theo tầng — mỗi nét lấy tầng trống thấp nhất mà chưa có nét mẹ nào khác chiếm (tính riêng cho các nét mẹ, không ảnh hưởng tầng nét chính) — nên không thể dính thành một đường đứt chung đi ngang qua con của mẹ khác. Nét mẹ nào không chồng x với nét mẹ nào thì giữ tầng đầu. Y vẫn kẹp trên bởi `minTop − stub` để không chui vào thẻ con. Vì nằm dưới nét chính mà thân mẹ bắt đầu từ đáy thẻ mẹ (trên nét chính), nét mẹ **cắt qua** nét chính — điều được phép theo yêu cầu.
+
+**Kiểm tra trên trình duyệt** (`http://localhost:3000/gia-pha/?tree=mau-gia-pha&section=ve-pha-do`, bật sẵn, rồi tắt/bật lại ô “Đường nối mẹ đến con”)
+- So hình học từng đường `<line>` (độ dày + nét đứt + hai đầu mút) giữa hai trạng thái: **92 đường nét chính, nét đứt mẹ–con = 0 → 8**; toàn bộ nét chính (51 nét liền, 25 nét vợ–chồng, 5 nét con của con gái, 4 nét liên kết tiền tổ) trùng khớp từng toạ độ.
+- 58 thẻ thành viên giữ nguyên `transform` khi bật/tắt → không đổi bố cục, không đổi `extraGap`.
+- Hình học nét mẹ (cập nhật sau khi thêm quy tắc so le): nét ngang mẹ thứ nhất ở `y = 963`, mẹ thứ hai ở `y = 971` — hai mẹ có khoảng x chồng nhau nên được tách hai tầng theo quy tắc so le, cách nét chính (`y = 955`) lần lượt 8 và 16 đơn vị; hai thân mẹ đi từ `y = 926` xuống nét ngang của bà ấy tại `x = 1472` / `x = 1786` và **cắt qua** nét chính; mỗi nét ngang chỉ chạm đúng con của mẹ ấy (mẹ 1: 1 nét rủ tại `x = 455`; mẹ 2: 3 nét rủ tại `x = 1375,5 / 2279 / 2987,5`), tất cả rủ xuống đỉnh thẻ con `y = 984`. Tắt nét mẹ → chỉ mất đúng 8 nét đứt, 92 nét chính và 58 thẻ không đổi; bật lại → các giá trị trên lặp lại y hệt.
+- `npx tsc --noEmit`, `npx eslint src/components/sites/PAT/layout.ts` và `npm run build` (static export) sạch; không để lại bản nháp, `phatue.familyTrees.v1` vẫn `[]`.
+
+### 2026-11-09 — Nguyên tắc bố cục áp cho gia phả người dùng tạo + sửa kính lúp chồng chữ gợi ý
+
+**1. Nguyên tắc, thuật toán trình bày phả đồ không phụ thuộc gia phả mẫu**
+- Rà mã nguồn: `computeLayout`, `computeLayoutTopDown`, `computeLayoutBalanced` không có nhánh riêng cho `mau-gia-pha`; mọi tính toán chỉ dựa trên `tree` (`members`, `founderId`) và `design.tuning`. `createTree` trong `store.tsx` tạo cây mới với `DEFAULT_DESIGN` (A0 dọc, hoành phi, câu đối, nhãn đời…) và `positions: {}`, nên các nguyên tắc đang thấy ở bản mẫu — căn giữa tiền tổ → Đời 1, giữ cụm con liền cha mẹ, né dải nhãn đời, tôn trọng vị trí kéo tay, nét đứt mẹ–con vẽ độc lập — chạy y hệt cho gia phả do người dùng tạo.
+- Kiểm tra đầu-cuối bằng giao diện: tạo mới “Gia phả kiểm tra bố cục” (Sơ tổ Nguyễn Văn Gốc, 1900) rồi thêm 3 con trai và 2 cháu nội qua nút “Thêm con” → 6 thành viên, 3 đời. `localStorage` xác nhận cây lưu đúng `design`/`tuning` mặc định (lề 48/48, `showGenerationLabels: true`).
+- Đo hình học thẻ trên `/gia-pha/?tree=g_qaw228n273&section=ve-pha-do` (viewBox rộng 2465,7; tâm giấy 1232,9):
+  - Từ trên xuống: hàng Sơ tổ (1 thẻ) và hàng Đời 1 (3 thẻ) cùng tâm 944,5; hàng Đời 2 (2 thẻ) tâm 678 — không căn giữa, đúng quy ước chỉ áp cho tiền tổ → Đời 1.
+  - Cân đối: hai hàng trên cùng tâm 890,9; hàng Đời 2 tâm 1048,4 — không căn giữa.
+  - So với tâm giấy, hai hàng trên lệch 10–25 đơn vị (≈3,5–8,5 mm trên khổ A0) do đo theo bbox thẻ hiển thị (nhỏ hơn ô nút dùng để tính tâm dải); quan trọng là hai hàng trùng tâm nhau và nằm quanh giữa trang, không còn bám mép trái theo cụm con.
+- Phả đồ kéo thả, Thiết kế bản in, in và xuất đều đi qua `computeLayout` nên dùng chung kết quả; nút “Bố cục” đổi ngay trên cây người dùng như trên bản mẫu.
+- Dọn dẹp sau kiểm tra: đặt lại `phatue.familyTrees.v1` = `[]`, xoá các khoá `*.g_qaw228n273`, không còn bản nháp.
+
+**2. Ô tìm kiếm: kính lúp không chồng lên chữ gợi ý mờ**
+- Nguyên nhân: `.pat-input` khai báo ngoài `@layer` nên shorthand `padding` đè các utility `pl-8`/`pl-9` của Tailwind v4; chữ placeholder bắt đầu ngay dưới biểu tượng kính lúp.
+- Sửa `src/app/globals.css`: `.pat-input.pl-8 { padding-left: 2rem; }` và `.pat-input.pl-9 { padding-left: 2.25rem; }`.
+- Áp cho 5 ô có kính lúp dẫn đầu: Phả hệ (`pl-9`), Tư liệu (`pl-9`), Vẽ phả đồ – tìm thành viên (`pl-8`), danh sách gia phả ở trang chủ (`pl-8`, biểu tượng Users), Công cụ – tra niên hiệu (`pl-9`).
+- Đo computed style + hình học: padding trái 32–36 px; mép phải kính lúp cách điểm bắt đầu chữ gợi ý 8–9 px (trang chủ: icon kết thúc 24 px, chữ bắt đầu 32 px). Các ô tìm kiếm dùng nhãn flex (Chi phái) vốn không chồng nên không sửa.
+- Ghi chú: vài ô số nhỏ dùng `pat-input` kèm `px-2` vẫn bị shorthand đè (padding 13,6 px thay vì 8 px) — ngoài phạm vi yêu cầu, giữ nguyên.
+- `npx tsc --noEmit`, `npx eslint` và `npm run build` (static export) sạch.
+
+### 2026-11-09 — Nguyên tắc chung: các đời tiền tổ → Đời 1 ưu tiên nằm giữa trang
+
+Yêu cầu: “các đời tiền tổ xuống tới đời 1, các thẻ thành viên sẽ ưu tiên xếp ở giữa trang”, áp dụng chung cho cả Từ trên xuống và Cân đối. Trước đây các hàng trên bám theo tâm cụm con nên với gia phả nhiều đời, hàng 1–3 thẻ lệch hẳn về một bên trang.
+
+**Thay đổi (`src/components/sites/PAT/layout.ts`)**
+- Thêm helper `centerTopRows(nodes, marginLeft, marginRight, skipGenerations?)`: gom các thẻ có `generation ≤ 1` theo hàng, dịch nguyên hàng để tâm hàng trùng tâm dải khả dụng giữa hai lề (`marginLeft + (width − marginLeft − marginRight) / 2`). Với lề mặc định hai bên bằng nhau, tâm dải trùng tâm trang; cách này còn tránh đẩy thẻ vào dải nhãn đời khi người dùng chỉnh lề lệch nhau.
+- Lặp tối đa 3 vòng để hội tụ khi chính hàng trên cùng quyết định biên phải nội dung; bỏ qua hàng rộng hơn dải khả dụng (không thể căn) và hàng có vị trí kéo tay hợp lệ.
+- Gọi ở cuối `computeLayoutTopDown` (sau khi né nhãn đời, trước `buildEdges`) và cuối `computeLayoutBalanced` (sau bước kẹp lề, trước `buildEdges`). Bản Từ trên xuống truyền `overriddenGenerations` để giữ nguyên hàng người dùng đã kéo; bản Cân đối chạy trên `base.nodes` sau khi đã xếp lại toàn bộ nên không cần.
+- Vì `computeLayout` là cửa vào chung của phả đồ kéo thả, Thiết kế bản in, in và xuất, nguyên tắc áp dụng đồng thời cho mọi khung nhìn; chế độ xem chi xếp lại từ đầu nên không bị ảnh hưởng.
+
+**Kiểm tra trên trình duyệt** (`http://localhost:3000/gia-pha/?tree=mau-gia-pha&section=ve-pha-do`, khổ A0 rộng 3572 đơn vị, tâm trang 1786)
+- Đo bằng `getBBox()` + `getCTM()` của từng thẻ trong SVG (58 thẻ, 7 hàng):
+  - Từ trên xuống: lệch tâm các hàng ĐẠI TỔ / THỦY TỔ / SƠ TỔ / ĐỜI 1 (1, 1, 2, 3 thẻ) đều **0**; các hàng ĐỜI 2/3/4 giữ nguyên −73 / +68 / +178 như trước.
+  - Cân đối: bốn hàng trên cũng lệch **0**; các hàng ĐỜI 2/3/4 là −101 / +46 / −6 (khác Từ trên xuống, đúng đặc trưng bố cục).
+- Vị trí kéo tay: đặt bản nháp `{t01: x=1435}` (Đại Tổ, lệch −200) rồi tải lại → hàng Đại Tổ đứng yên tại 1435 (lệch −200), ba hàng tiền tổ/Đời 1 còn lại vẫn lệch 0. Xoá bản nháp (chặn `setItem` lúc `pagehide` để không bị ghi đè) và tải lại → cả bốn hàng trở về tâm trang, không còn bản nháp.
+- `npx tsc --noEmit`, `npx eslint src/components/sites/PAT/layout.ts` và `npm run build` (static export) đều sạch.
+
+### 2026-11-09 — Nguyên tắc chung: con cùng cha mẹ luôn liền cụm trong mọi bố cục
+
+Ảnh báo lỗi cho thấy “Trần Thị Linh” đứng giữa cụm con của Kỳ (Minh/Nga/Kiên) ở bố cục Từ trên xuống. Nguyên nhân không phải thuật toán tự xếp: editor tự khôi phục bản nháp `phatue.diagramDraft.mau-gia-pha` do bản dựng cũ lưu, trong đó có vị trí `p38` (Linh) đặt vào giữa cụm Kỳ; bước xếp lại hàng chỉ làm khoảng cách đều nên trông như cố ý. Đã sửa tại gốc để mọi bố cục/khung nhìn dùng chung một nguyên tắc.
+
+**Thay đổi (`src/components/sites/PAT/layout.ts`, trong `computeLayoutTopDown`)**
+- Sau khi áp vị trí lưu theo cụm vợ/chồng và trước bước xếp lại hàng, kiểm tra từng đời có vị trí lưu: dựng thứ tự các cụm theo x, rồi với mỗi gia đình trong `clan.clanChildren` xem chỉ số của các con có liền mạch không (`max − min + 1 === số con`). Nếu một gia đình bị cụm khác xen vào, bỏ toàn bộ vị trí lưu của đời đó (trả các thẻ về x tự xếp) và không đưa đời đó vào bước xếp lại.
+- Vì `computeLayout` là cửa vào chung của phả đồ kéo thả, Thiết kế bản in, in và xuất, nguyên tắc áp dụng đồng thời cho Từ trên xuống, Cân đối và mọi khung nhìn. Chế độ xem chi xếp lại từ đầu nên không bị ảnh hưởng.
+- Vị trí lưu hợp lệ vẫn được giữ: kéo lệch trong cụm hoặc đổi thứ tự anh em trong cùng gia đình không bị coi là xen kẽ. Ràng buộc `unitDragRange` (16) vốn đã không cho kéo cụm vượt cụm bên cạnh, nên chỉ dữ liệu cũ mới tạo được xen kẽ.
+
+**Kiểm tra trên trình duyệt** (`http://localhost:3000/gia-pha/?tree=mau-gia-pha&section=ve-pha-do`)
+- Tái hiện đúng ảnh: đặt bản nháp `{p38: x=1050}`, hàng đời thành Hà@763, Minh@850, Nga@951, Tú@1038, **Linh@1125**, Phương@1212, Kiên@1299, Tuấn@1428. Với bản sửa, cùng bản nháp đó hàng trở lại Hà@763, Minh@850, Nga@951, Tú@1038, Phương@1139, Kiên@1226, Linh@1327, Tuấn@1428; bản nháp vẫn còn nhưng bị bỏ qua.
+- Cân đối, cùng bản nháp cũ: Linh@1020, Tuấn@1121 nằm liền sau Kiên@858 — không còn xen.
+- Vị trí lệch hợp lệ: đặt `p38: x=1347` (lệch +20) → Linh@1347, hàng vẫn liền cụm; đặt `p38: x=1480` (đổi thứ tự trong gia đình) → Tuấn@1428, Linh@1515, vẫn không xen cụm khác. Cả hai được giữ đúng.
+- Đã xoá bản nháp thử bằng nút “Về bố cục mặc định” và xoá các khoá `tmp.*`; `npx tsc --noEmit`, `npx eslint` file sửa và `npm run build` (static export) đều sạch.
+
+### 2026-11-09 — Đường nối hai tầng (kiểu ngoặc) cho gia đình nhiều vợ, theo ảnh tham chiếu
+
+Theo hai ảnh tham chiếu: ảnh thứ nhất vẽ mỗi gia đình một “thanh xe buýt” ngang đỏ với các nhánh dọc rủ xuống từng con; ảnh thứ hai vẽ kiểu ngoặc lồng nhau — từng cặp thẻ chia sẻ một điểm nối thấp hơn, các nhóm được nối lên một thanh ngang cao hơn bằng đường gấp khúc vuông góc. Đã điều chỉnh `buildEdges()` cho gia đình đa thê để nét nối đọc được như ngoặc hai tầng thay vì các thanh mẹ chạy song song cùng mức.
+
+**Thay đổi (`src/components/sites/PAT/layout.ts`)**
+- `ChildBarPlan` thêm `kind: "main" | "mother" | "cluster"`, `bridges` (các điểm nối từ thanh chính xuống thanh cụm) và `motherStem` (nét đứt từ đáy thẻ mẹ xuống thanh cụm của bà ấy).
+- Khi người chồng có từ hai nhóm vợ–con trở lên (`wivesInUnit.length > 1` và bật nét nối mẹ): dựng **một thanh chính** nối đoạn dọc từ đáy thẻ cha (qua `bridges` tới tâm từng cụm) và **một thanh cụm cho mỗi bà mẹ**, đặt thấp hơn một lớp nên gần các con hơn; các con rủ xuống từ thanh cụm. Thanh cụm kéo dài từ con ngoài cùng bên trái sang con ngoài cùng bên phải, kèm đoạn tới vị trí thẻ mẹ để nét đứt mẹ–cụm rơi thẳng xuống.
+- Thanh cụm không phát sinh đoạn dọc từ thẻ cha; đoạn dọc cha chỉ đi tới thanh chính. Nét mẹ–cụm là nét đứt mảnh (0,55× độ dày, độ mờ 0,5) đúng như quy ước nét mẹ trước đây.
+- Việc xếp lớp vẫn theo xung đột khoảng x: thanh chính ở mức thấp nhất trong dải, thanh cụm nhận `minLevel = mainLevel + 1`; hai thanh cụm chồng khoảng x (cụm của bà Mơ và bà Nụ) tự tách thành hai mức. Mọi ràng buộc cũ giữ nguyên: thanh chỉ nằm trong dải giữa hai đời, `stub ≥ max(12, connectorWidth×2)`, `separation ≥ max(14, connectorWidth×3)`, và `extraGap` vẫn nới dải + dịch toàn bộ hàng dưới khi thiếu chỗ.
+- Gia đình một vợ hoặc nhóm mẹ–con đơn lẻ vẫn dùng thanh chính như trước; nhánh dự phòng thanh mẹ song song chỉ còn cho trường hợp một nhóm.
+
+**Kiểm tra trên trình duyệt** (`http://localhost:3000/gia-pha/?tree=mau-gia-pha&section=ve-pha-do`)
+- Quét hình học thô từ SVG (toạ độ `transform` và thuộc tính `line`, không qua screen CTM): cả hai chế độ trả `problems: []` — không thẻ chồng, không thanh nằm ngoài dải, không thanh cắt thẻ, không stub ngắn hơn 12.
+- Từ trên xuống, dải 793→984: thanh chính y=940 từ 447 đến 2173,5; đoạn dọc cha 926→940 tại x=2087; hai cầu 940→955 (x=447) và 940→970 (x=2173,5); thanh cụm 447..1459 ở y=955 và 1367,5..2979,5 ở y=970; nét đứt mẹ tại x=1459 và x=1773; các nhánh con rủ 955/970→984.
+- Cân đối, cùng dải 926→984: thanh chính y=940 từ 403,5 đến 2042,125; đoạn dọc cha 926→940 tại x=1993,25 (tâm thẻ Cảnh); cầu tại x=403,5 (→955) và x=2042,125 (→970); thanh cụm 403,5..1365,25 (y=955, cụm bà Mơ) và 1129,25..2955 (y=970, cụm bà Nụ); nét đứt mẹ tại x=1365,25 và x=1679,25; nhánh con 955→984 tại x=403,5 và 970→984 tại x=1129,25 / 2150,5 / 2955.
+- Ba dải còn lại không đổi: 735→793 một thanh y=764; 1058→1116 bốn thanh cùng y=1087; 1266→1324 bảy thanh cùng y=1295. Tổng 58 thẻ, hàng đời 220/411/602/793/984/1116/1324.
+- `npm run typecheck`, `npm run lint`, `npm run build` (static export) đều sạch.
+
+### 2026-11-09 — Bố cục cân đối (bản 2): căn giữa mềm + đường ngang chỉ xếp lớp khi xung đột
+
+Bản trước (căn giữa cha/mẹ trên con ruột như điều kiện bắt buộc) không phù hợp với phả hệ nhiều đời: số con mỗi gia đình khác nhau, ép căn giữa làm thẻ con lệch xa khỏi thẻ cha/mẹ và phả đồ rối. Đã làm lại theo hướng:
+
+**Bố cục (`layout.ts`, `computeLayoutBalanced`)**
+- Cụm con của mỗi cặp giữ khoảng `siblingGap` (26) ở trong cụm; các cụm gia đình chỉ nhận khoảng giãn `branchGap` phân bố đều. Nhờ vậy anh em trong một nhà luôn sát nhau, không bị dàn đều theo trang.
+- Căn giữa chỉ là mục tiêu mềm: đời trên được đặt theo tâm cụm con nếu còn chỗ, sau đó đóng gói trái→phải (`left = max(ideal, packedEnd + gap)`), không chồng thẻ và không đổi thứ tự. Đời không có con được nội suy giữa hai mốc gần nhất; đời dưới đời rộng nhất dịch theo cha mẹ (`dxByUnit`).
+- Không còn ràng buộc "cha/mẹ phải nằm chính giữa con": lệch hàng trăm đơn vị vẫn hợp lệ nếu cụm con gọn hơn.
+
+**Đường nối (`buildEdges`)**
+- Mỗi gia đình có một thanh ngang chính; nhà nhiều vợ có thêm thanh mẹ (nét đứt mảnh) đặt dưới thanh chính của cùng gia đình.
+- Thanh ngang chỉ tách lên lớp khác khi khoảng x thực sự chồng nhau (interval partitioning). Thanh không chồng nhau dùng chung một mức y, nên phần lớn phả đồ chỉ có một đường ngang mỗi dải.
+- Mọi thanh luôn nằm trong dải giữa hai đời: `stub = max(12, connectorWidth×2)` phía trên và dưới, `separation = max(14, connectorWidth×3)` giữa các lớp. Đoạn dọc từ đáy thẻ cha/mẹ xuống thanh và từ thanh vào đỉnh từng thẻ con luôn còn (dài ≥ stub).
+- Nếu số lớp vượt chiều cao dải, `extraGap` yêu cầu thêm chỗ và toàn bộ hàng đời phía dưới (thẻ, nhãn đời, đường dẫn nhãn) được dịch xuống đồng bộ; sau đó dựng lại đường nối để các thanh chia đều trong dải mới.
+
+**Kiểm tra trên trình duyệt** (`http://localhost:3000/gia-pha/?tree=mau-gia-pha&section=ve-pha-do`, dev server đúng nguồn — các cổng 3001–3003 là bản static cũ):
+- Chế độ Từ trên xuống: 58 thẻ, không thẻ nào chồng trong cùng hàng; dải 793→984 có 3 lớp y (940/955/970) vì thanh chính và hai thanh mẹ chồng khoảng x; dải 984→1116 có 4 thanh cùng y=1087 (không chồng); dải 1116→1324 có 7 thanh cùng y=1295. Mọi stub ≥14, mọi đầu mút đều bám thanh.
+- Chế độ Cân đối: con của mỗi cặp liền mạch, không xen kẽ; các cụm gia đình cách nhau đều 87, anh em trong cụm cách 26; độ lệch tâm cha/mẹ–con tối đa ~103 (chấp nhận được).
+- Thử ép xung đột: tăng "Độ dày nét" 5 → 12 → dải 793 chuyển từ 58 lên 120, ba thanh xếp tại 950/986/1022 với stub 24/60/96, các hàng dưới dịch đúng +62. Đặt lại 5 như cũ.
+- `npm run typecheck`, `npm run lint`, `npm run build` (static export) đều sạch.
+
+### 2026-11-09 — Bố cục cân đối (bản 1, đã thay bằng bản 2): căn giữa cha/mẹ trên con ruột
+
+Sửa thuật toán `computeLayoutBalanced()` để mỗi cặp cha/mẹ được căn giữa phía trên các con ruột của mình, thay vì co giãn đều toàn bộ các đời trên.
+
+**Vấn đề trước:**
+- Các đời trên đời rộng nhất bị co giãn đều (uniform scale/offset)
+- Dẫn đến cha/mẹ không nằm trên con ruột, gây rối mắt
+- Đặc biệt rõ khi gia đình có nhiều chi phái với số con khác nhau
+
+**Giải pháp mới:**
+1. **Xây dựng ánh xạ cha→con:**
+   - Duyệt tất cả node, dùng `clan.lineParent()` để tìm cha
+   - `childrenUnitsOf: Map<unitId, Set<childUnitId>>` — lưu các unit con của mỗi unit cha
+
+2. **Căn đáy từ trên xuống (bottom-up centering):**
+   - Duyệt các đời từ `widestGen-1` ngược lên (đời cao hơn = số nhỏ hơn)
+   - Với mỗi unit trong đời hiện tại:
+     - Tìm tất cả con của unit đó (từ `childrenUnitsOf`)
+     - Tính midpoint ngang của các con: `childCenter = (childMinX + childMaxX) / 2`
+     - Đặt unit cha vào giữa: `targetX = childCenter - unitWidth / 2`
+     - Dịch chuyển toàn bộ unit (vợ chồng giữ nguyên khoảng cách)
+
+3. **Kết quả:**
+   - Mỗi cặp cha/mẹ nằm chính giữa các con ruột
+   - Con của từng cặp vợ chồng tập trung phía dưới, không lẫn với con của cặp khác
+   - Bố cục rõ ràng, dễ theo dõi quan hệ gia đình
+
+**Ví dụ:**
+- Đời 4 (widest) có 8 couples, dàn đều từ x=319 đến x=2812
+- Đời 3 có 3 couples:
+  - Couple 1 tại x=1185 → căn giữa trên các con tại x≈1185
+  - Couple 2 tại x=1499 → căn giữa trên các con tại x≈1499
+  - Couple 3 tại x=1813 → căn giữa trên các con tại x≈1813
+
+File đã sửa:
+- `src/components/sites/PAT/layout.ts` — thay thế logic uniform scale/offset bằng bottom-up centering trong `computeLayoutBalanced()`
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch. Đã test trên trình duyệt: cha/mẹ nằm trên con ruột, bố cục rõ ràng.
+
+### 2026-11-09 — Đường nối mẹ-con chỉ hiển thị khi có đa thê
+
+Sửa thuật toán `buildEdges()` để đường nối từ mẹ đến con ruột chỉ hiển thị khi người chồng có nhiều vợ (gia đình đa thê).
+
+**Nguyên tắc:**
+- Gia đình một vợ một chồng: chỉ hiển thị đường nối chính từ cha, không hiển thị đường mẹ
+- Gia đình đa thê (chồng có ≥2 vợ): hiển thị đường nối riêng cho từng mẹ đến con ruột
+
+**Thay đổi kỹ thuật:**
+1. **Kiểm tra số vợ trong unit:**
+   ```typescript
+   const wivesInUnit = unit.filter((n) => n.person.gender === "female");
+   if (wivesInUnit.length <= 1) continue; // Không phải đa thê, bỏ qua
+   ```
+
+2. **Theo dõi secondaryY riêng cho mỗi mẹ:**
+   - `usedSecondaryY: Set<number>` — tránh trùng đường nối giữa các mẹ
+   - `baseSecondaryY = midY + max(14, connectorWidth * 6)` — vị trí cơ bản
+   - Nếu trùng: dời xuống `secondaryY += 8` cho đến khi không trùng
+
+3. **Vẽ đường nối mẹ-con:**
+   - Đường dọc từ mẹ xuống secondaryY
+   - Đường ngang (bar) nối đến các con
+   - Đường dọc từ bar xuống từng con
+   - Offset 8px sang phải để không trùng với đường cha-con
+
+**Kết quả:**
+- Gia đình bình thường: gọn gàng, chỉ có đường từ cha
+- Gia đình đa thê: rõ ràng, phân biệt đường nối từng mẹ đến con ruột
+- Không trùng lặp đường nối giữa các mẹ
+
+File đã sửa:
+- `src/components/sites/PAT/layout.ts` — thêm điều kiện `wivesInUnit.length <= 1` và logic `usedSecondaryY` trong `buildEdges()`
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Độ dày nét nối mặc định tăng lên 5
+
+Thay đổi giá trị mặc định của `connectorWidth` từ 1.6 lên 5 để nét nối giữa các thẻ thành viên rõ ràng hơn.
+
+**Lý do:** Nét nối mặc định 1.6 quá mảnh, khó thấy khi in ấn và hiển thị trên màn hình. Tăng lên 5 giúp đường kết nối cha-con nổi bật hơn.
+
+**Ảnh hưởng:**
+- Áp dụng cho tất cả gia phả mới tạo (dùng DEFAULT_TUNING)
+- Gia phả đã lưu giữ nguyên giá trị cũ (do đã có trong data)
+- Người dùng vẫn có thể điều chỉnh qua inspector
+
+File đã sửa:
+- `src/components/sites/PAT/types.ts` — đổi `connectorWidth: 1.6` thành `connectorWidth: 5` trong DEFAULT_TUNING
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Tránh chồng lấp đường nối giữa các cặp vợ chồng khác nhau
+
+Sửa thuật toán `buildEdges()` để đường nối cha-con/mẹ-con giữa các cặp vợ chồng khác nhau không bị chồng lên nhau.
+
+**Vấn đề:**
+- Khi 2 cặp vợ chồng cùng đời có con, đường ngang (bar) nối từ cha xuống các con có thể nằm ở cùng vị trí Y
+- Gây chồng lấp, khó nhìn rõ quan hệ cha-con của từng cặp
+
+**Giải pháp:**
+1. **Theo dõi midY đã sử dụng theo đời:**
+   - `usedMidYByGeneration: Map<generation, number[]>`
+   - Lưu lại các vị trí midY đã được sử dụng cho mỗi đời
+
+2. **Điều chỉnh midY khi cần:**
+   - Tính midY cơ bản: `startY + max(18, (minTop - startY) / 2)`
+   - Kiểm tra trùng với midY đã dùng (khoảng cách < 8px)
+   - Nếu trùng: dời midY xuống `usedMidY + 8px`
+
+3. **Áp dụng cho cả đường nối thường và indirect:**
+   - Đường nối trực tiếp (child): dùng midY đã điều chỉnh
+   - Đường nối gián tiếp (indirect link): cũng kiểm tra tương tự
+
+**Kết quả:**
+- Mỗi cặp vợ chồng có đường nối ở vị trí Y riêng biệt
+- Khoảng cách tối thiểu 8px giữa các đường ngang
+- Không còn chồng lấp giữa các cặp vợ chồng khác nhau
+
+File đã sửa:
+- `src/components/sites/PAT/layout.ts` — thêm logic tránh chồng lấp midY trong `buildEdges()`
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Bố cục cân đối: giữ nguyên khoảng cách vợ chồng trong unit
+
+Sửa thuật toán `computeLayoutBalanced()` để thẻ vợ chồng được coi là 1 khối, không thay đổi khoảng cách giữa chúng khi dàn đều.
+
+**Thay đổi:**
+1. **Nhóm node theo `unitId`:**
+   - Các node cùng `unitId` (vợ/chồng) được nhóm lại thành 1 unit
+   - Tính chiều rộng unit = tổng width thẻ + `SPOUSE_GAP × (count - 1)`
+
+2. **Dàn đều theo unit:**
+   - Sắp xếp units theo vị trí x hiện tại để giữ thứ tự
+   - Tính `gapBetween` giữa các unit (không phải giữa các node)
+   - Phân bố đều units từ `marginLeft`
+
+3. **Giữ nguyên khoảng cách vợ chồng:**
+   - Mỗi unit bắt đầu tại vị trí mới
+   - Các node trong unit giữ nguyên khoảng cách `SPOUSE_GAP`
+   - Vị trí node = `unitLeft + offsetInUnit` (offset tính từ đầu unit)
+
+**Ví dụ:**
+- Đời rộng nhất có 20 node, trong đó 5 cặp vợ chồng
+- Trước: dàn đều 20 node → khoảng cách vợ chồng bị thay đổi
+- Sau: dàn đều 15 units (10 node đơn + 5 cặp) → vợ chồng luôn dính liền
+
+File đã sửa:
+- `src/components/sites/PAT/layout.ts` — sửa logic dàn đều trong `computeLayoutBalanced()`
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Cải thiện bố cục cân đối: dàn đều đời rộng nhất theo chiều rộng trang
+
+Sửa thuật toán `computeLayoutBalanced()` để đời có số thẻ nhiều nhất được dàn đều cho hết chiều rộng khu vực hiển thị (giữa hai nhãn đời).
+
+**Thay đổi chính:**
+1. **Tính chiều rộng trang thực tế:**
+   - Lấy `widthMm` từ `paperDimensions(tree)` (hỗ trợ cả A0-A4 và custom paper)
+   - Chuyển đổi sang đơn vị layout bằng `PAPER_UNITS_PER_MM` (3486/1189)
+
+2. **Tính lại lề chính xác:**
+   - Tái sử dụng logic tính `bandGutter` từ `computeLayoutTopDown()`
+   - `marginLeft` và `marginRight` = max(lề người dùng, khoảng nhãn đời)
+   - `availableWidth` = pageWidth - marginLeft - marginRight
+
+3. **Dàn đều đời rộng nhất:**
+   - Tính tổng chiều rộng thẻ của đời rộng nhất
+   - `gapBetween` = (availableWidth - totalCardWidth) / (count - 1)
+   - Phân bố đều từ `marginLeft` với khoảng cách bằng nhau
+
+4. **Xử lý các đời khác:**
+   - Nếu layout rộng hơn available: co lại theo tỷ lệ, giữ căn giữa
+   - Nếu layout hẹp hơn available: căn giữa toàn bộ
+   - Đảm bảo không node nào tràn ra ngoài lề
+
+**Import mới:**
+- `paperDimensions` từ `./export`
+- `PAPER_UNITS_PER_MM` từ `./diagram-canvas`
+
+File đã sửa:
+- `src/components/sites/PAT/layout.ts` — viết lại `computeLayoutBalanced()` với logic dàn đều theo chiều rộng trang
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Sửa lỗi đệ quy vô hạn trong computeLayoutBalanced
+
+Sửa lỗi "Maximum call stack size exceeded" khi chuyển sang chế độ bố cục "balanced".
+
+**Nguyên nhân:**
+- `computeLayoutBalanced()` gọi `computeLayout()` để lấy layout cơ bản
+- `computeLayout()` kiểm tra `layoutMode` và gọi lại `computeLayoutBalanced()` nếu mode là "balanced"
+- Tạo vòng lặp đệ quy vô hạn
+
+**Giải pháp:**
+- Đổi `computeLayoutBalanced()` gọi trực tiếp `computeLayoutTopDown()` thay vì `computeLayout()`
+- `computeLayoutTopDown()` luôn trả về layout mặc định, không phụ thuộc vào layoutMode
+
+File đã sửa:
+- `src/components/sites/PAT/layout.ts` — dòng 399: đổi `computeLayout(tree, scopeIds)` thành `computeLayoutTopDown(tree, scopeIds)`
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch. Đã test trên trình duyệt: nút chuyển đổi hoạt động đúng, không còn lỗi đệ quy.
+
+### 2026-11-09 — Nút chuyển chế độ bố cục trên thanh công cụ
+
+Thêm nút toggle nhanh để chuyển đổi giữa hai chế độ bố cục ngay trên thanh công cụ Phả đồ.
+
+**Vị trí:** Thanh công cụ "Sửa" trong [diagram-editor-view.tsx:1758-1771](file:///C:/Users/ABC/Documents/Qoder/2026-10-30/db4469ec/ai-website-cloner-template/src/components/sites/PAT/diagram-editor-view.tsx#L1758-L1771), ngay sau nút "Tự sắp xếp".
+
+**Tính năng:**
+- Icon: Layout (từ lucide-react)
+- Nhãn động: "Bố cục: Cân đối (bấm để đổi)" hoặc "Bố cục: Từ trên xuống (bấm để đổi)"
+- Trạng thái active:Highlight khi đang ở chế độ "balanced"
+- Toast thông báo khi chuyển đổi thành công
+
+**Lợi ích:**
+- Người dùng không cần mở inspector panel để đổi chế độ bố cục
+- Thao tác nhanh, thuận tiện khi đang vẽ phả đồ
+- Trực quan hơn với icon và tooltip
+
+File đã sửa:
+- `src/components/sites/PAT/diagram-editor-view.tsx` — thêm import Layout icon và LayoutMode type, thêm nút toggle布局 mode
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Điều khiển UI cho chế độ bố cục
+
+Thêm điều khiển chọn `layoutMode` trên giao diện inspector để người dùng chuyển đổi giữa hai chế độ bố cục.
+
+**Vị trí:** Panel "Khoảng cách & lề" trong `diagram-inspector.tsx`, ngay sau điều khiển "Chiều thứ tự anh em".
+
+**Điều khiển:**
+- Nhãn: "Chế độ bố cục"
+- Gợi ý: "Cách sắp xếp thẻ trên phả đồ."
+- Kiểu: Segmented (2 lựa chọn)
+  - "Từ trên xuống" (top-down) — mặc định, bố cục truyền thống từ Sơ tổ xuống
+  - "Cân đối" (balanced) — bố cục mới, căn theo đời rộng nhất
+
+**Kỹ thuật:**
+- Import thêm `LayoutMode` từ `./types`
+- Dùng `Segmented<LayoutMode>` với value fallback `"top-down"` khi undefined
+- Cập nhật `tuning.layoutMode` qua callback `onTuning()`
+
+File đã sửa:
+- `src/components/sites/PAT/diagram-inspector.tsx` — thêm điều khiển layoutMode trong section "Khoảng cách & lề"
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Chế độ bố cục "Cân đối" (balanced)
+
+Thêm phương án bố cục mới `layoutMode: "balanced"` — căn theo đời có số thành viên nhiều nhất (thường là đời cuối), phân bố đều trên trang in.
+
+**Nguyên lý:**
+1. Tìm đời rộng nhất (nhiều thành viên nhất)
+2. Phân bố đều đời đó trên chiều rộng available, căn giữa
+3. Các đời khác co giãn để không tràn ra ngoài chiều rộng đời rộng nhất
+4. Giữ nguyên cấu trúc cha-con, chỉ điều chỉnh vị trí ngang
+
+**So sánh với mặc định "top-down":**
+- `top-down`: từ Sơ tổ xuống, con căn giữa dưới cha → đời cuối có thể rất rộng, tràn giấy
+- `balanced`: từ đời rộng nhất lên, các đời trên co lại → bố cục gọn hơn, phù hợp in ấn
+
+**Cách dùng:** Thêm `layoutMode: "balanced"` vào `tuning` của `DesignSettings`. Mặc định là `"top-down"` để giữ tương thích.
+
+File đã sửa:
+- `src/components/sites/PAT/types.ts` — thêm `LayoutMode`, trường `layoutMode` trong `DiagramTuning`, default `"top-down"`
+- `src/components/sites/PAT/layout.ts` — thêm `computeLayoutBalanced()`, `computeLayout()` tự dispatch theo mode
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Cải thiện tự động sắp xếp thẻ thành viên
+
+Cải thiện thuật toán `computeLayout()` trong `layout.ts` để bố cục thẻ cân đối hơn trong cả 3 phần (Cây gia phả, Vẽ phả đồ, Thiết kế bản in):
+
+**1. Sửa xử lý overflow khi cụm con rộng hơn cha:**
+- Nguyên nhân: `measure()` dùng `siblingGap` (26px) để đo chiều rộng con, nhưng `place()` dùng `branchGap` (52px) giữa các cụm theo mẹ → `packedWidth` có thể vượt `m.width`
+- Giải pháp: dùng `effectiveWidth = Math.max(m.width, packedWidth)` để mở rộng băng tần của cha khi cần, giữ căn giữa cho cụm con
+
+**2. Cải thiện giải quyết va chạm vị trí kéo tay:**
+- Trước: chỉ đẩy cụm sang phải khi chồng nhau, gây khoảng trống không đều
+- Sau: phân tích tổng chiều rộng cần thiết vs khoảng trống có sẵn
+  - Nếu đủ chỗ: giữ khoảng cách tối thiểu 12px, đẩy phải như cũ
+  - Nếu thiếu chỗ: phân phối đều khoảng trống giữa các cụm, bố cục cân đối hơn
+
+File đã sửa:
+- `src/components/sites/PAT/layout.ts` — sửa `place()` dùng `effectiveWidth`, cải thiện collision resolution trong khối áp vị trí kéo tay
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
+
+### 2026-11-09 — Thẻ thành viên: hiển thị Húy/Hiệu/Thụy và Học vị/Chức tước/Phẩm hàm
+
+Sửa hiển thị thông tin trên thẻ thành viên ở cả 3 phần (Cây gia phả, Vẽ phả đồ, Thiết kế bản in):
+
+**Khung ngang:**
+- Thêm dòng "Húy/Hiệu/Thụy" kết hợp: chỉ gồm phần có dữ liệu, giá trị viết hoa, định dạng "Húy X, Hiệu Y, Thụy Z" (vd: "Húy ĐẮC, Hiệu PHÚC MINH"). Dài thì xuống dòng nguyên cụm.
+- Thêm dòng "Học vị/Chức tước/Phẩm hàm" rút gọn: chỉ gồm phần có dữ liệu (vd: "Tiến sĩ, Thượng thư, Nhất phẩm").
+
+**Khung dọc:**
+- Tách tên thành 3 dòng: HỌ (0.72rem, đậm), TÊN ĐỆM (0.62rem, nếu có), TÊN (0.82rem, đậm). Tất cả viết hoa.
+
+**Bỏ chọn hiển thị:** Quê quán, Nghề nghiệp, Nơi ở, Hưởng thọ — gỡ khỏi `ExtraFieldKey` và `EXTRA_FIELD_LABELS`, người dùng không còn tùy chọn bật/tắt các trường này trên thẻ.
+
+**Thẻ mẫu (Thiết kế bản in):** cập nhật để phản ánh đúng thay đổi — hỗ trợ cả khung ngang/dọc theo `cardOrientationFor`, hiển thị Húy/Hiệu/Thụy và Học vị/Chức tước/Phẩm hàm cho mọi thành viên (không chỉ người đã mất).
+
+File đã sửa:
+- `src/components/sites/PAT/utils.ts` — thêm 2 helper: `honorificText()` và `titleText()`.
+- `src/components/sites/PAT/types.ts` — gỡ 4 trường khỏi `ExtraFieldKey` và `EXTRA_FIELD_LABELS`.
+- `src/components/sites/PAT/tree-editor-view.tsx` — thẻ HTML trong Cây gia phả.
+- `src/components/sites/PAT/diagram-canvas.tsx` — thẻ SVG trong Vẽ phả đồ, gỡ `yearOf()` không dùng.
+- `src/components/sites/PAT/design-view.tsx` — thẻ mẫu trong Thiết kế bản in: thêm `cardOrientationFor`, `splitFullName`, xử lý khung dọc 3 dòng, đưa honorific/title ra ngoài khối deceased.
+
+Kiểm tra: `npm run lint`, `npm run typecheck`, `npm run build` — tất cả sạch.
 
 ### 2026-11-06 — P12-05: khung viền hoa văn dựng từ 4 mô-đun ảnh
 

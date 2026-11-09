@@ -35,7 +35,7 @@ import {
   type ExtraFieldKey,
 } from "./types";
 import { computeLayout } from "./layout";
-import { cardLifeYears, computeGenerations, deathAnniversaryText, sortPersons } from "./utils";
+import { cardLifeYears, computeGenerations, deathAnniversaryText, honorificText, sortPersons, splitFullName, titleText } from "./utils";
 
 const PALETTES: Record<DesignSettings["palette"], { accent: string; deep: string; gold: string; soft: string }> = {
   classic: { accent: "#8a1c15", deep: "#6a100c", gold: "#c9a227", soft: "#f6e9c8" },
@@ -351,19 +351,8 @@ function wrapText(text: string, maxChars: number, maxLines: number): string[] {
   return kept;
 }
 
-function yearOf(value?: string) {
-  const match = value?.match(/\d{4}/);
-  return match ? Number(match[0]) : undefined;
-}
-
 function extraFieldText(key: ExtraFieldKey, person: Person, generation: number) {
   switch (key) {
-    case "hometown":
-      return person.hometown ? `Quê: ${person.hometown}` : undefined;
-    case "occupation":
-      return person.occupation ? `Nghề: ${person.occupation}` : undefined;
-    case "address":
-      return person.address ? `Ở: ${person.address}` : undefined;
     case "tabooName":
       return person.tabooName ? `Húy: ${person.tabooName}` : undefined;
     case "education":
@@ -371,12 +360,6 @@ function extraFieldText(key: ExtraFieldKey, person: Person, generation: number) 
     case "deathAnniversary": {
       const anniv = deathAnniversaryText(person);
       return anniv ? `Giỗ ${anniv}` : undefined;
-    }
-    case "age": {
-      const birth = yearOf(person.birthDate);
-      const death = yearOf(person.deathDate);
-      if (birth === undefined || death === undefined || death < birth) return undefined;
-      return `Thọ ${death - birth} tuổi`;
     }
     case "generation":
       return generationTag(generation);
@@ -1153,6 +1136,12 @@ export function DiagramCanvas({
                 if (showDates) meta.push(cardLifeYears(person));
                 if (showAnniversary && anniversary) meta.push(`Giỗ ${anniversary}`);
               }
+              if (!vertical) {
+                const honorific = honorificText(person);
+                const title = titleText(person);
+                if (honorific) meta.push(honorific);
+                if (title) meta.push(title);
+              }
               const extraFields = genStyle?.extraFields ?? tuning.extraFields;
               for (const key of extraFields) {
                 if (key === "generation" || key === "deathAnniversary") continue;
@@ -1168,9 +1157,17 @@ export function DiagramCanvas({
               const metaSize = Math.max(6.2, nameSize * 0.66);
               const maxLines = Math.max(1, genStyle?.lineCount || tuning.lineCount);
               const nameWidth = baseW - 12;
-              const nameLines = showName
-                ? wrapText(person.name.toUpperCase(), Math.floor(nameWidth / (nameSize * 0.56)), maxLines)
-                : [];
+              const nameParts = splitFullName(person.name);
+              let nameLines: string[] = [];
+              if (vertical) {
+                nameLines = [nameParts.surname.toUpperCase()];
+                if (nameParts.middle) nameLines.push(nameParts.middle.toUpperCase());
+                nameLines.push(nameParts.given.toUpperCase());
+              } else {
+                nameLines = showName
+                  ? wrapText(person.name.toUpperCase(), Math.floor(nameWidth / (nameSize * 0.56)), maxLines)
+                  : [];
+              }
               const metaLines = meta.flatMap((line) =>
                 wrapText(line, Math.floor((baseW - 12) / (metaSize * 0.54)), 2),
               );
@@ -1239,11 +1236,24 @@ export function DiagramCanvas({
                         fill="#3d2a1e"
                         fontFamily={fontFamily}
                       >
-                        {nameLines.map((line, index) => (
-                          <tspan key={`${person.id}-name-${index}`} x={textX} dy={index === 0 ? 0 : nameLineHeight}>
-                            {line}
-                          </tspan>
-                        ))}
+                        {nameLines.map((line, index) => {
+                          let fontSize = nameSize;
+                          if (vertical) {
+                            if (index === 0) fontSize = nameSize * 0.88;
+                            else if (index === nameLines.length - 1) fontSize = nameSize * 1.1;
+                            else fontSize = nameSize * 0.78;
+                          }
+                          return (
+                            <tspan
+                              key={`${person.id}-name-${index}`}
+                              x={textX}
+                              dy={index === 0 ? 0 : nameLineHeight}
+                              fontSize={fontSize}
+                            >
+                              {line}
+                            </tspan>
+                          );
+                        })}
                       </text>
                     ) : null}
                     {meta.length ? (

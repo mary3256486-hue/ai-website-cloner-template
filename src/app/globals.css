@@ -332,6 +332,14 @@
   color: var(--pat-ink);
   outline: none;
 }
+/* `.pat-input` nằm ngoài layer nên `padding` shorthand đè mất `pl-*` của Tailwind;
+   ô tìm kiếm có biểu tượng dẫn đầu cần chừa chỗ tường minh. */
+.pat-input.pl-8 {
+  padding-left: 2rem;
+}
+.pat-input.pl-9 {
+  padding-left: 2.25rem;
+}
 .pat-input:focus {
   border-color: var(--pat-gold);
   box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.18);

@@ -34,11 +34,12 @@ import type {
 import {
   DEFAULT_DESIGN,
   PAPER_MM,
+  cardOrientationFor,
   lifeStatusOf,
   normalizeCustomPaper,
   normalizeTuning,
 } from "./types";
-import { cardLifeYears, computeGenerations, deathAnniversaryText } from "./utils";
+import { cardLifeYears, computeGenerations, deathAnniversaryText, honorificText, splitFullName, titleText } from "./utils";
 import { computeLayout } from "./layout";
 import { DiagramCanvas, diagramDimensions, paperUnitsFor } from "./diagram-canvas";
 import {
@@ -919,9 +920,32 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                       {sample.gender === "male" ? "♂" : "♀"}
                     </span>
                   ) : null}
-                  <p className="pat-serif truncate text-sm font-bold uppercase tracking-wide" style={{ color: samplePalette.accent }}>
-                    {design.showName !== false ? sample.name : "—"}
-                  </p>
+                  {(() => {
+                    const vertical = cardOrientationFor(design, 0, tree.members.length) === "vertical";
+                    const nameParts = splitFullName(sample.name);
+                    if (vertical) {
+                      return (
+                        <>
+                          <span className="block text-[0.72rem] font-bold uppercase leading-tight tracking-wide" style={{ color: samplePalette.accent }}>
+                            {design.showName !== false ? nameParts.surname : "—"}
+                          </span>
+                          {nameParts.middle ? (
+                            <span className="block text-[0.62rem] uppercase leading-tight" style={{ color: samplePalette.accent }}>
+                              {nameParts.middle}
+                            </span>
+                          ) : null}
+                          <span className="block text-[0.82rem] font-bold uppercase leading-tight tracking-wide" style={{ color: samplePalette.accent }}>
+                            {nameParts.given}
+                          </span>
+                        </>
+                      );
+                    }
+                    return (
+                      <p className="pat-serif truncate text-sm font-bold uppercase tracking-wide" style={{ color: samplePalette.accent }}>
+                        {design.showName !== false ? sample.name : "—"}
+                      </p>
+                    );
+                  })()}
                   {lifeStatusOf(sample) === "deceased" ? (
                     <>
                       {design.showDates !== false ? (
@@ -934,6 +958,12 @@ export function DesignView({ tree }: { tree: FamilyTree }) {
                         <p className="text-[0.62rem] text-[var(--pat-muted)]">Giỗ {deathAnniversaryText(sample)}</p>
                       ) : null}
                     </>
+                  ) : null}
+                  {honorificText(sample) ? (
+                    <p className="text-[0.58rem] text-[var(--pat-muted)]">{honorificText(sample)}</p>
+                  ) : null}
+                  {titleText(sample) ? (
+                    <p className="text-[0.58rem] text-[var(--pat-muted)]">{titleText(sample)}</p>
                   ) : null}
                 </div>
               ) : (

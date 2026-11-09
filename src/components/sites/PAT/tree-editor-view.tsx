@@ -28,7 +28,7 @@ import { memberPath, treePath } from "./routes";
 import type { FamilyTree, Person } from "./types";
 import { cardOrientationFor, generationTag, isDeceasedStatus, lifeStatusOf, UNKNOWN_GENERATION } from "./types";
 import { classifyClan, CLAN_ROLE_LABELS } from "./clan";
-import { cardLifeYears, computeGenerations, deathAnniversaryText, descendants, lifeSpan, sortGenerations, sortPersons } from "./utils";
+import { cardLifeYears, computeGenerations, deathAnniversaryText, descendants, honorificText, lifeSpan, sortGenerations, sortPersons, splitFullName, titleText } from "./utils";
 import { computeLayout } from "./layout";
 import { branchViewHref, computeBranchScope, parseBranchView, type BranchViewOptions } from "./branch-view";
 import { TreeShell } from "./app-shell";
@@ -786,6 +786,9 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                 const compact = effectiveDensity === "compact";
                 const vertical = cardOrientationFor(tree.design, node.generation) === "vertical";
                 const anniversary = deathAnniversaryText(person);
+                const honorific = honorificText(person);
+                const title = titleText(person);
+                const nameParts = splitFullName(person.name);
                 return (
                   <button
                     key={person.id}
@@ -816,9 +819,25 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                       style={{ background: color }}
                     />
                     <span className="flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5">
-                      <span className="line-clamp-2 block w-full text-[0.82rem] font-bold uppercase leading-tight tracking-wide text-[var(--pat-ink)]">
-                        {person.name}
-                      </span>
+                      {vertical ? (
+                        <>
+                          <span className="block w-full text-[0.72rem] font-bold uppercase leading-tight tracking-wide text-[var(--pat-ink)]">
+                            {nameParts.surname}
+                          </span>
+                          {nameParts.middle ? (
+                            <span className="block w-full text-[0.62rem] uppercase leading-tight text-[var(--pat-ink)]">
+                              {nameParts.middle}
+                            </span>
+                          ) : null}
+                          <span className="block w-full text-[0.82rem] font-bold uppercase leading-tight tracking-wide text-[var(--pat-ink)]">
+                            {nameParts.given}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="line-clamp-2 block w-full text-[0.82rem] font-bold uppercase leading-tight tracking-wide text-[var(--pat-ink)]">
+                          {person.name}
+                        </span>
+                      )}
                       {deceased && !compact ? (
                         <>
                           <span className="block w-full truncate text-[0.62rem] text-[var(--pat-muted)]">
@@ -830,6 +849,16 @@ export function TreeEditorView({ tree }: { tree: FamilyTree }) {
                             </span>
                           ) : null}
                         </>
+                      ) : null}
+                      {!vertical && honorific ? (
+                        <span className="block w-full text-[0.58rem] leading-tight text-[var(--pat-muted)]">
+                          {honorific}
+                        </span>
+                      ) : null}
+                      {!vertical && title ? (
+                        <span className="block w-full truncate text-[0.58rem] leading-tight text-[var(--pat-muted)]">
+                          {title}
+                        </span>
                       ) : null}
                     </span>
                   </button>

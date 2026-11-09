@@ -443,6 +443,24 @@ export function deathAnniversaryText(person: Person): string | undefined {
   return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")} ÂL`;
 }
 
+/** Chuỗi "Húy X, Hiệu Y, Thụy Z" — chỉ gồm phần có dữ liệu, giá trị viết hoa. */
+export function honorificText(person: Person): string {
+  const parts: string[] = [];
+  if (person.tabooName?.trim()) parts.push(`Húy ${person.tabooName.trim().toUpperCase()}`);
+  if (person.styleName?.trim()) parts.push(`Hiệu ${person.styleName.trim().toUpperCase()}`);
+  if (person.posthumousName?.trim()) parts.push(`Thụy ${person.posthumousName.trim().toUpperCase()}`);
+  return parts.join(", ");
+}
+
+/** Chuỗi rút gọn "Học vị, Chức tước, Phẩm hàm" — chỉ gồm phần có dữ liệu. */
+export function titleText(person: Person): string {
+  const parts: string[] = [];
+  if (person.honors?.trim()) parts.push(person.honors.trim());
+  if (person.officeTitle?.trim()) parts.push(person.officeTitle.trim());
+  if (person.mandarinRank?.trim()) parts.push(person.mandarinRank.trim());
+  return parts.join(", ");
+}
+
 export function ageText(person: Person): string {
   const birth = parseInt(person.birthDate ?? "", 10);
   if (Number.isNaN(birth)) return "";

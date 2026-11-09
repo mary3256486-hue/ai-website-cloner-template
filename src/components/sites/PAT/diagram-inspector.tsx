@@ -38,6 +38,7 @@ import type {
   ExtraFieldKey,
   FamilyTree,
   GenerationStyle,
+  LayoutMode,
   Person,
   PersonStyle,
 } from "./types";
@@ -760,6 +761,16 @@ export function WholeDiagramInspector({
             options={[
               { value: "asc", label: "1 → n (lớn trước)" },
               { value: "desc", label: "n → 1 (nhỏ trước)" },
+            ]}
+          />
+        </Field>
+        <Field label="Chế độ bố cục" hint="Cách sắp xếp thẻ trên phả đồ.">
+          <Segmented<LayoutMode>
+            value={(tuning.layoutMode ?? "top-down") as LayoutMode}
+            onChange={(layoutMode) => onTuning({ layoutMode })}
+            options={[
+              { value: "top-down", label: "Từ trên xuống" },
+              { value: "balanced", label: "Cân đối" },
             ]}
           />
         </Field>

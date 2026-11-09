@@ -13,6 +13,7 @@ import {
   Grid3x3,
   ImagePlus,
   Info,
+  Layout,
   Loader2,
   Magnet,
   Palette,
@@ -42,6 +43,7 @@ import type {
   DiagramTuning,
   FamilyTree,
   GenerationStyle,
+  LayoutMode,
   Person,
   PersonStyle,
   TreeNode,
@@ -1754,6 +1756,22 @@ export function DiagramEditorView({ tree }: { tree: FamilyTree }) {
               onClick={autoArrange}
             >
               <Wand2 size={16} />
+            </ToolButton>
+            <ToolButton
+              label={
+                (tuning.layoutMode ?? "top-down") === "balanced"
+                  ? "Bố cục: Cân đối (bấm để đổi)"
+                  : "Bố cục: Từ trên xuống (bấm để đổi)"
+              }
+              onClick={() => {
+                const current = tuning.layoutMode ?? "top-down";
+                const next: LayoutMode = current === "balanced" ? "top-down" : "balanced";
+                updateTuning({ layoutMode: next });
+                showToast(next === "balanced" ? "Đã chuyển sang bố cục Cân đối" : "Đã chuyển sang bố cục Từ trên xuống");
+              }}
+              active={(tuning.layoutMode ?? "top-down") === "balanced"}
+            >
+              <Layout size={16} />
             </ToolButton>
             <ToolButton
               label={snapToGrid ? "Hít lưới 24 px (đang bật)" : "Hít lưới 24 px (đang tắt)"}

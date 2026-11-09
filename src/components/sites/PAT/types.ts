@@ -11,13 +11,9 @@ export type PaletteName = "classic" | "gold" | "ink" | "jade";
 export type CardOrientation = "horizontal" | "vertical";
 
 export type ExtraFieldKey =
-  | "hometown"
-  | "occupation"
-  | "address"
   | "tabooName"
   | "education"
   | "deathAnniversary"
-  | "age"
   | "generation";
 
 export type GenerationBandLabel = "ordinal" | "ordinalName" | "generation";
@@ -119,6 +115,8 @@ export interface PersonStyle {
 /** Khối góc khung hoa văn rộng 180/92 lần dải viền, nên lề phải chừa theo khối góc. */
 export const FRAME_CORNER_CLEARANCE = 172;
 
+export type LayoutMode = "top-down" | "balanced";
+
 export interface DiagramTuning {
   generationGap: number;
   siblingGap: number;
@@ -153,6 +151,8 @@ export interface DiagramTuning {
   generationLabelScale?: number;
   /** Dịch cả khối nội dung theo chiều dọc (đơn vị phả đồ, 0 = mặc định); bị chặn trong lòng giấy khi vẽ. */
   contentShiftY?: number;
+  /** Chế độ bố cục: "top-down" (mặc định, từ Sơ tổ xuống) hoặc "balanced" (căn theo đời rộng nhất). */
+  layoutMode?: LayoutMode;
   generationStyles?: Record<string, GenerationStyle>;
   personStyles?: Record<string, PersonStyle>;
 }
@@ -729,7 +729,7 @@ export const DEFAULT_TUNING: DiagramTuning = {
   marginBottom: 48,
   marginLeft: 48,
   marginRight: 48,
-  connectorWidth: 1.6,
+  connectorWidth: 5,
   connectorColor: "",
   connectorDash: false,
   motherLine: true,
@@ -748,6 +748,7 @@ export const DEFAULT_TUNING: DiagramTuning = {
   cardScale: 1,
   generationLabelScale: 1,
   contentShiftY: 0,
+  layoutMode: "top-down",
   // Cỡ thẻ 1,8 không lưu ở đây: bốn đời trên cùng được tính từ bố cục (kể cả tiền tổ).
   generationStyles: {},
   personStyles: {},
@@ -795,6 +796,7 @@ export function normalizeTuning(tuning?: Partial<DiagramTuning> | null): Diagram
       2,
     ),
     contentShiftY: tuning?.contentShiftY ?? 0,
+    layoutMode: tuning?.layoutMode === "balanced" ? "balanced" : "top-down",
     generationStyles: mergeGenerationStyles(tuning?.generationStyles),
     personStyles: tuning?.personStyles ?? {},
   };
@@ -810,13 +812,9 @@ export function normalizeCustomPaper(paper?: CustomPaper | null): CustomPaper | 
 }
 
 export const EXTRA_FIELD_LABELS: Record<ExtraFieldKey, string> = {
-  hometown: "Quê quán",
-  occupation: "Nghề nghiệp",
-  address: "Nơi ở",
   tabooName: "Tên húy",
   education: "Học vấn",
   deathAnniversary: "Ngày giỗ",
-  age: "Hưởng thọ",
   generation: "Đời thứ",
 };
 
