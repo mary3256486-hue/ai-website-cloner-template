@@ -1,6 +1,6 @@
 # Tiểu Phạm — Gia Phả (PAT)
 
-Ứng dụng web dựng, trình bày và in ấn gia phả dòng họ, xây dựng cho Khối Đình Tiểu Phạm. Chạy hoàn toàn phía client: mọi dữ liệu nằm trên máy người dùng (localStorage + IndexedDB), không có đăng nhập, không có hệ thống xu hay mua bán nội dung. Bản mẫu tham chiếu là ứng dụng Phả Tuệ (app.phatue.vn); dự án chỉ tái hiện các tính năng dựng phả và in/xuất, không dùng tài nguyên hình ảnh của bản mẫu.
+Ứng dụng web dựng, trình bày và in ấn gia phả dòng họ, xây dựng cho Khối Đình Tiểu Phạm. Chạy hoàn toàn phía client: mọi dữ liệu nằm trên máy người dùng (localStorage + IndexedDB), không có đăng nhập, không có hệ thống xu hay mua bán nội dung. Giao diện và cách trình bày tham khảo từ một số phần mềm soạn phả phổ biến; dự án chỉ lấy ý tưởng về tính năng dựng phả và in/xuất, tự xây dựng toàn bộ mã nguồn và không dùng lại tài nguyên hình ảnh của phần mềm tham chiếu.
 
 ## Tính năng chính
 
@@ -83,6 +83,6 @@ Yêu cầu Node ≥ 24 (xem `.nvmrc`). Gia phả mẫu `mau-gia-pha` có sẵn �
 
 ## Tài nguyên & bản quyền
 
-- Hình trang trí trong `public/sites/PAT/decor/` chỉ dùng nguồn mở hoặc do người dùng cung cấp, ghi công trong `public/sites/PAT/decor/SOURCES.md`; tuyệt đối không dùng ảnh từ app.phatue.vn.
+- Hình trang trí trong `public/sites/PAT/decor/` chỉ dùng nguồn mở hoặc do người dùng cung cấp, ghi công trong `public/sites/PAT/decor/SOURCES.md`; không chép ảnh từ các phần mềm soạn phả tham chiếu.
 - Font câu đối: Hải Yến (do người dùng cung cấp, dùng bản 1), Dancing Script (OFL).
 - Mã nguồn khởi đầu từ bộ khung Next.js + Tailwind + shadcn/ui (ai-website-cloner-template, MIT).

@@ -17,7 +17,7 @@ Yêu cầu: tổng hợp mô tả toàn bộ dự án tại thời điểm hiệ
 
 **Mô tả dự án**
 - Viết lại `README.md` tiếng Việt: phạm vi (client-side, không đăng nhập/xu), tính năng chính (thành viên, chi phái, phả đồ, thiết kế bản in, tư liệu, phả ký, công cụ, nhập/xuất, an toàn dữ liệu), bảng đóng gói 3 nền tảng, cấu trúc thư mục, tóm tắt nguyên tắc phả đồ, lệnh chạy, quy ước artwork.
-- Viết lại `AGENTS.md` (giữ nguyên khối `nextjs-agent-rules` tự sinh): stack, lệnh, cấu trúc, nguyên tắc phả đồ cấm thoái hoá, quy tắc làm việc (kiểm tra :3000, dọn bản thử, không dùng ảnh app.phatue.vn, cập nhật báo cáo này).
+- Viết lại `AGENTS.md` (giữ nguyên khối `nextjs-agent-rules` tự sinh): stack, lệnh, cấu trúc, nguyên tắc phả đồ cấm thoái hoá, quy tắc làm việc (kiểm tra :3000, dọn bản thử, không chép ảnh từ phần mềm soạn phả tham chiếu, cập nhật báo cáo này).
 - `package.json`: đổi tên `tieu-pham-gia-pha`, version `1.0.0`, mô tả + tác giả tiếng Việt, repository trỏ fork của người dùng; bỏ homepage/bugs của template.
 
 **Đã xoá**
@@ -843,7 +843,7 @@ Bốn yêu cầu của bạn:
 3. **Cỡ chữ câu đối mặc định 67**.
 4. **Vị trí hoành phi, rồng, câu đối mặc định như trình duyệt bên ngoài** — bạn gửi ảnh tham khảo vì không có số chính xác.
 
-**Về việc đọc số từ “trình duyệt bên ngoài”:** không đọc được trực tiếp. Chrome/Edge của bạn không mở cổng gỡ lỗi, và gia phả mẫu trên app.phatue.vn chỉ tồn tại trong phiên nên không có bản lưu `localStorage` để sao chép thông số. Vì vậy vị trí được căn theo ảnh chụp bạn gửi (đo tỉ lệ điểm mực trên ảnh) rồi đối chiếu trên bản dựng thật.
+**Về việc đọc số từ “trình duyệt bên ngoài”:** không đọc được trực tiếp. Chrome/Edge của bạn không mở cổng gỡ lỗi, và gia phả mẫu trong phần mềm soạn phả tham chiếu chỉ tồn tại trong phiên nên không có bản lưu `localStorage` để sao chép thông số. Vì vậy vị trí được căn theo ảnh chụp bạn gửi (đo tỉ lệ điểm mực trên ảnh) rồi đối chiếu trên bản dựng thật.
 
 **Thay đổi mã**
 

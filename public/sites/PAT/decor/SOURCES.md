@@ -30,7 +30,7 @@ Ghi chú:
 
 ## Thư mục `user/`
 
-Bộ ảnh do chủ dự án cung cấp riêng cho gia phả Tiểu Phạm (không lấy từ app.phatue.vn):
+Bộ ảnh do chủ dự án cung cấp riêng cho gia phả Tiểu Phạm (không chép từ phần mềm soạn phả tham chiếu):
 
 | Tệp | Dùng cho |
 | --- | --- |

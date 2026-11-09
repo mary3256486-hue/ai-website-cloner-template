@@ -59,5 +59,5 @@ docs/
 ## Working Rules
 - Every change must be verified in a real browser (desktop + mobile) at http://localhost:3000, not just typecheck.
 - Clean up test trees, drafts and temporary localStorage keys after verification.
-- Never use artwork from app.phatue.vn; only open-licensed or user-supplied art, credited in `public/sites/PAT/decor/SOURCES.md`.
+- Never copy artwork from the genealogy apps used as visual references; only open-licensed or user-supplied art, credited in `public/sites/PAT/decor/SOURCES.md`.
 - After each verified change, add a newest-first subsection to `docs/PAT-bao-cao-tien-do.md`.
