@@ -10,6 +10,8 @@ build/*
 !build/icon.png
 dist/
 dist-electron/
+dist-electron-v1/
+dist-electron-v2/
 
 # Android shell build artifacts
 android/.gradle/

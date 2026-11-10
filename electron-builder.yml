@@ -2,7 +2,7 @@ appId: vn.tieupham.giapha
 productName: Tieu Pham - Gia Pha
 copyright: © 2026 Khối Đình Tiểu Phạm
 directories:
-  output: dist-electron
+  output: dist-electron-v2
   buildResources: build
 files:
   - electron/**/*

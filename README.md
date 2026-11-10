@@ -19,7 +19,7 @@
 | Nền tảng | Cách dựng | Kết quả |
 | --- | --- | --- |
 | Web tĩnh | `npm run build` | `out/` (static export) |
-| Windows | `npm run electron:build` | `dist-electron/` (NSIS + portable) |
+| Windows | `npm run electron:build` | `dist-electron-v2/` (NSIS + portable) |
 | Android | `npm run android:apk` | APK qua Capacitor |
 
 ## Công nghệ

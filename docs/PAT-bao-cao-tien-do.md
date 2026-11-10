@@ -11,6 +11,26 @@ Mục đích: ghi lại việc đã rà soát/sửa, cách đã kiểm tra và p
 
 ## 1. Trạng thái mã nguồn
 
+### 2026-11-09 — Dựng lại exe 1.0.0: menu tiếng Việt, bỏ DevTools/toàn màn hình, thêm thông tin tác giả
+
+Yêu cầu: dựng lại exe với menu tiếng Việt, bỏ full screen và DevTools, thêm thông tin tác giả vào hộp thoại "Về".
+
+**Sửa `electron/main.mjs`**
+- Menu "Xem": bỏ "Công cụ phát triển" (toggleDevTools) và "Toàn màn hình" (togglefullscreen) cùng dấu ngăn cách. Còn lại: Tải lại, Buộc tải lại, Cỡ chữ chuẩn, Phóng to, Thu nhỏ.
+- Menu "Tệp" (In…, Thoát) và "Trợ giúp" giữ nguyên tiếng Việt.
+- Hộp thoại "Về Tiểu Phạm — Gia Phả" thêm: `Tác giả: Phạm Anh Tuấn`, `SĐT/Zalo: 0903708553`, `Góp ý xin gửi về: pat.vungtau@gmail.com`. `node --check` đạt.
+
+**Đóng gói**
+- `electron-builder.yml`: đổi `directories.output` sang `dist-electron-v2` (các thư mục output cũ bị Defender khoá chặt, không ghi đè được).
+- Lần dựng đầu bị lỗi `EBUSY ... default_app.asar` (Defender khoá asar mới giải nén) — đã thêm loại trừ Defender cho thư mục dự án (có sự đồng ý của người dùng) rồi dựng lại thành công.
+- Sản phẩm trong `dist-electron-v2/`: `TieuPham-GiaPha-setup-1.0.0.exe` (~206 MB, NSIS) và `TieuPham-GiaPha-portable-1.0.0.exe` (~171 MB). Không ký số (chưa có chứng chỉ) — Windows SmartScreen có thể cảnh báo.
+- Kiểm tra bản đóng gói: trích `electron/main.mjs` từ `win-unpacked/resources/app.asar` — 0 chỗ còn `toggleDevTools`/`togglefullscreen`; đủ 3 dòng thông tin tác giả. Đã mở `win-unpacked/Tieu Pham - Gia Pha.exe`, tiến trình chạy ổn định.
+- Chờ người dùng xác nhận trực quan: menu Tệp/Xem/Trợ giúp, không còn DevTools/toàn màn hình, hộp thoại "Về" hiện đủ thông tin tác giả.
+
+**Lưu ý dọn dẹp**: `dist-electron/`, `dist-electron-v1/`, `dist-electron-fresh/`, `dist-electron-build/` vẫn còn file asar bị Defender khoá từ trước khi thêm loại trừ — cần khởi động lại máy rồi xoá tay. `.gitignore` đã liệt kê cả 4 thư mục này.
+
+**APK Android dựng lại cùng ngày**: `npm run android:apk` (build static + cap sync + gradle assembleDebug) — BUILD SUCCESSFUL, `android/app/build/outputs/apk/debug/app-debug.apk` 20.937.843 bytes, nhúng lõi `out/` hiện tại (bản sạch 1.0.0). APK debug, chưa ký release.
+
 ### 2026-11-09 — Chốt bản sạch 1.0.0: mô tả dự án mới + dọn file thừa
 
 Yêu cầu: tổng hợp mô tả toàn bộ dự án tại thời điểm hiện tại và dọn sạch ghi chép/báo cáo trung gian, file thừa không dùng, làm gốc cho mọi sửa đổi sau này.
